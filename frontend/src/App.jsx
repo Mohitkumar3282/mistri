@@ -1,0 +1,138 @@
+import React from 'react';
+import { StoreProvider, useStore } from './context/StoreContext';
+
+// Components
+import Header from './components/Header';
+import MobileHeader from './components/MobileHeader';
+import MobileBottomNav from './components/MobileBottomNav';
+import Footer from './components/Footer';
+import LocationModal from './components/LocationModal';
+import ProductOptionsModal from './components/ProductOptionsModal';
+import QuotationModal from './components/QuotationModal';
+import ToastContainer from './components/Toast';
+
+// 23 Views
+import HomeView from './views/HomeView';
+import CategoriesView from './views/CategoriesView';
+import ProductListingView from './views/ProductListingView';
+import SearchResultsView from './views/SearchResultsView';
+import ProductDetailsView from './views/ProductDetailsView';
+import CartView from './views/CartView';
+import CheckoutView from './views/CheckoutView';
+import OrderConfirmationView from './views/OrderConfirmationView';
+import MyOrdersView from './views/MyOrdersView';
+import OrderDetailsView from './views/OrderDetailsView';
+import OrderTrackingView from './views/OrderTrackingView';
+import WishlistView from './views/WishlistView';
+import ProfileView from './views/ProfileView';
+import AddressesView from './views/AddressesView';
+import NotificationsView from './views/NotificationsView';
+import LoginView from './views/LoginView';
+import SignupView from './views/SignupView';
+import ForgotPasswordView from './views/ForgotPasswordView';
+import AboutView from './views/AboutView';
+import ContactView from './views/ContactView';
+import HelpFaqView from './views/HelpFaqView';
+import TermsView from './views/TermsView';
+import PrivacyPolicyView from './views/PrivacyPolicyView';
+
+function MainAppLayout() {
+  const { currentView } = useStore();
+
+  // Hide global website header (logo, search bar) on categories, orders, order-details, order-tracking, profile
+  const isCustomHeaderView = ['categories', 'orders', 'order-details', 'order-tracking', 'profile'].includes(currentView);
+
+  const renderActiveView = () => {
+    switch (currentView) {
+      case 'home':
+        return <HomeView />;
+      case 'categories':
+        return <CategoriesView />;
+      case 'category-products':
+        return <ProductListingView />;
+      case 'search':
+        return <SearchResultsView />;
+      case 'product-details':
+        return <ProductDetailsView />;
+      case 'cart':
+        return <CartView />;
+      case 'checkout':
+        return <CheckoutView />;
+      case 'order-confirmation':
+        return <OrderConfirmationView />;
+      case 'orders':
+        return <MyOrdersView />;
+      case 'order-details':
+        return <OrderDetailsView />;
+      case 'order-tracking':
+        return <OrderTrackingView />;
+      case 'wishlist':
+        return <WishlistView />;
+      case 'profile':
+        return <ProfileView />;
+      case 'addresses':
+        return <AddressesView />;
+      case 'notifications':
+        return <NotificationsView />;
+      case 'login':
+        return <LoginView />;
+      case 'signup':
+        return <SignupView />;
+      case 'forgot-password':
+        return <ForgotPasswordView />;
+      case 'about':
+        return <AboutView />;
+      case 'contact':
+        return <ContactView />;
+      case 'help':
+        return <HelpFaqView />;
+      case 'terms':
+        return <TermsView />;
+      case 'privacy':
+        return <PrivacyPolicyView />;
+      default:
+        return <HomeView />;
+    }
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: isCustomHeaderView ? '#FFFFFF' : 'var(--bg-main)' }}>
+      {/* Desktop Navigation Header */}
+      {!isCustomHeaderView && <Header />}
+
+      {/* Mobile Navigation Header */}
+      {!isCustomHeaderView && <MobileHeader />}
+
+      {/* Dynamic Main View */}
+      <main style={{ flex: 1 }}>
+        {renderActiveView()}
+      </main>
+
+      {/* Universal Footer */}
+      {!isCustomHeaderView && <Footer />}
+
+      {/* Mobile Sticky Bottom Bar (5 Tabs) */}
+      <MobileBottomNav />
+
+      {/* Location Deliver-to Selector Modal */}
+      <LocationModal />
+
+      {/* Product Specification / Variant Selector Modal */}
+      <ProductOptionsModal />
+
+      {/* Instant WhatsApp Quotation Request Modal */}
+      <QuotationModal />
+
+      {/* Global Toast Alert Notifications */}
+      <ToastContainer />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <StoreProvider>
+      <MainAppLayout />
+    </StoreProvider>
+  );
+}
