@@ -7,7 +7,8 @@
     "backend:start": "npm --prefix backend start",
     "backend:seed": "npm --prefix backend run seed",
     "frontend:dev": "npm --prefix frontend run dev",
-    "frontend:build": "npm --prefix frontend run build"
+    "frontend:build": "npm --prefix frontend run build",
+    "build": "npm --prefix frontend run build"
   },
   "keywords": ["mistri", "mvc", "express", "react", "vite", "home-services"],
   "author": "Appzeto",
