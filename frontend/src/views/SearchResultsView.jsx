@@ -5,9 +5,11 @@ import { PRODUCTS } from '../data/mockData';
 import ProductCard from '../components/ProductCard';
 
 export const SearchResultsView = () => {
-  const { viewParams, navigateTo } = useStore();
+  const { viewParams, navigateTo, products } = useStore();
   const initialQuery = viewParams?.query || viewParams?.q || '';
   const [query, setQuery] = useState(initialQuery);
+
+  const productList = products && products.length > 0 ? products : PRODUCTS;
 
   useEffect(() => {
     if (viewParams?.query !== undefined || viewParams?.q !== undefined) {
@@ -16,16 +18,16 @@ export const SearchResultsView = () => {
   }, [viewParams?.query, viewParams?.q]);
 
   const searchResults = useMemo(() => {
-    if (!query.trim()) return PRODUCTS;
+    if (!query.trim()) return productList;
     const lower = query.toLowerCase();
-    return PRODUCTS.filter(
+    return productList.filter(
       (p) =>
-        p.name.toLowerCase().includes(lower) ||
-        p.category.toLowerCase().includes(lower) ||
-        p.brand.toLowerCase().includes(lower) ||
-        p.description.toLowerCase().includes(lower)
+        p.name?.toLowerCase().includes(lower) ||
+        p.category?.toLowerCase().includes(lower) ||
+        p.brand?.toLowerCase().includes(lower) ||
+        p.description?.toLowerCase().includes(lower)
     );
-  }, [query]);
+  }, [query, productList]);
 
   return (
     <div className="container page-container">

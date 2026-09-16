@@ -3,7 +3,7 @@ import { Home, LayoutGrid, ClipboardList, User, Flame } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
 export const MobileBottomNav = () => {
-  const { currentView, navigateTo, orders, user, setIsQuotationOpen } = useStore();
+  const { currentView, navigateTo, orders, user, setIsQuotationOpen, openLoginModal } = useStore();
 
   const activeOrdersCount = orders.filter((o) => o.statusCode !== 'delivered' && o.statusCode !== 'cancelled').length;
 
@@ -11,6 +11,9 @@ export const MobileBottomNav = () => {
   const isCategoriesActive = currentView === 'categories' || currentView === 'category-products' || currentView === 'product-details';
   const isOrdersActive = currentView === 'orders' || currentView === 'order-details' || currentView === 'order-tracking' || currentView === 'order-confirmation';
   const isAccountActive = currentView === 'profile' || currentView === 'addresses' || currentView === 'notifications' || currentView === 'login' || currentView === 'signup' || currentView === 'forgot-password';
+
+  // Do not show the 5-tab generic bottom bar on product details view (as it uses the sticky purchase bar)
+  if (currentView === 'product-details') return null;
 
   return (
     <nav
@@ -81,7 +84,7 @@ export const MobileBottomNav = () => {
 
       {/* 3. Orders Tab */}
       <button
-        onClick={() => navigateTo('orders')}
+        onClick={() => (user ? navigateTo('orders') : openLoginModal('login', () => navigateTo('orders')))}
         style={{
           flex: 1,
           display: 'flex',
@@ -130,7 +133,7 @@ export const MobileBottomNav = () => {
 
       {/* 4. Account Tab */}
       <button
-        onClick={() => (user ? navigateTo('profile') : navigateTo('login'))}
+        onClick={() => (user ? navigateTo('profile') : openLoginModal('login'))}
         style={{
           flex: 1,
           display: 'flex',

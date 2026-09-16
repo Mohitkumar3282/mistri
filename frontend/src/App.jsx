@@ -9,6 +9,7 @@ import Footer from './components/Footer';
 import LocationModal from './components/LocationModal';
 import ProductOptionsModal from './components/ProductOptionsModal';
 import QuotationModal from './components/QuotationModal';
+import LoginModal from './components/LoginModal';
 import ToastContainer from './components/Toast';
 
 // 23 Views
@@ -35,15 +36,21 @@ import ContactView from './views/ContactView';
 import HelpFaqView from './views/HelpFaqView';
 import TermsView from './views/TermsView';
 import PrivacyPolicyView from './views/PrivacyPolicyView';
+import AdminView from './views/AdminView';
 
 function MainAppLayout() {
   const { currentView } = useStore();
 
-  // Hide global website header (logo, search bar) on categories, orders, order-details, order-tracking, profile
-  const isCustomHeaderView = ['categories', 'orders', 'order-details', 'order-tracking', 'profile'].includes(currentView);
+  const isAdminView = currentView === 'admin';
+
+  // Hide global website header (logo, search bar) on categories, orders, order-details, order-tracking, profile, admin
+  const isCustomHeaderView = ['categories', 'orders', 'order-details', 'order-tracking', 'profile', 'admin'].includes(currentView);
+  const hideMobileHeader = isCustomHeaderView || currentView === 'product-details';
 
   const renderActiveView = () => {
     switch (currentView) {
+      case 'admin':
+        return <AdminView />;
       case 'home':
         return <HomeView />;
       case 'categories':
@@ -95,13 +102,24 @@ function MainAppLayout() {
     }
   };
 
+  if (isAdminView) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <main style={{ flex: 1 }}>
+          <AdminView />
+        </main>
+        <ToastContainer />
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: isCustomHeaderView ? '#FFFFFF' : 'var(--bg-main)' }}>
       {/* Desktop Navigation Header */}
       {!isCustomHeaderView && <Header />}
 
       {/* Mobile Navigation Header */}
-      {!isCustomHeaderView && <MobileHeader />}
+      {!hideMobileHeader && <MobileHeader />}
 
       {/* Dynamic Main View */}
       <main style={{ flex: 1 }}>
@@ -122,6 +140,9 @@ function MainAppLayout() {
 
       {/* Instant WhatsApp Quotation Request Modal */}
       <QuotationModal />
+
+      {/* User Login & Registration Modal */}
+      <LoginModal />
 
       {/* Global Toast Alert Notifications */}
       <ToastContainer />

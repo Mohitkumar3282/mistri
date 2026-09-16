@@ -1,19 +1,28 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Filter, ArrowUpDown, Layers, SlidersHorizontal, ChevronRight, RotateCcw } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { CATEGORIES, PRODUCTS } from '../data/mockData';
+import { CATEGORIES as INITIAL_CATEGORIES, PRODUCTS as INITIAL_PRODUCTS } from '../data/mockData';
 import ProductCard from '../components/ProductCard';
 import FilterSidebar from '../components/FilterSidebar';
 import MobileFilterDrawer from '../components/MobileFilterDrawer';
 
 export const ProductListingView = () => {
-  const { viewParams, navigateTo } = useStore();
+  const { viewParams, navigateTo, products, categories } = useStore();
   const initialSlug = viewParams?.slug || 'all';
+
+  const productList = products && products.length > 0 ? products : INITIAL_PRODUCTS;
+  const categoryList = categories && categories.length > 0 ? categories : INITIAL_CATEGORIES;
+
+  // Calculate max price limit across products
+  const maxPriceLimit = useMemo(() => {
+    const prices = productList.map((p) => Number(p.price) || 0);
+    return Math.max(70000, ...prices);
+  }, [productList]);
 
   // Filter States
   const [selectedCategory, setSelectedCategory] = useState(initialSlug);
   const [selectedBrands, setSelectedBrands] = useState([]);
-  const [priceRange, setPriceRange] = useState(70000);
+  const [priceRange, setPriceRange] = useState(maxPriceLimit);
   const [inStockOnly, setInStockOnly] = useState(false);
   const [sortBy, setSortBy] = useState('popular');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
@@ -24,16 +33,42 @@ export const ProductListingView = () => {
     }
   }, [viewParams?.slug]);
 
+  useEffect(() => {
+    setPriceRange((prev) => (prev < maxPriceLimit ? maxPriceLimit : prev));
+  }, [maxPriceLimit]);
+
   // Active Category Details
-  const activeCategory = CATEGORIES.find((c) => c.slug === selectedCategory);
+  const activeCategory = useMemo(() => {
+    if (!selectedCategory || selectedCategory === 'all') return null;
+    const norm = selectedCategory.toLowerCase().trim();
+    return categoryList.find(
+      (c) =>
+        c.slug?.toLowerCase().trim() === norm ||
+        c.name?.toLowerCase().trim() === norm ||
+        c.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') === norm
+    );
+  }, [selectedCategory, categoryList]);
 
   // Available brands in the dataset
   const availableBrands = useMemo(() => {
-    const brands = new Set(
-      PRODUCTS.filter((p) => selectedCategory === 'all' || p.categorySlug === selectedCategory).map((p) => p.brand)
-    );
+    const brands = new Set();
+    productList.forEach((p) => {
+      if (p.brand && p.brand.trim()) {
+        if (selectedCategory === 'all') {
+          brands.add(p.brand.trim());
+        } else {
+          const normSelected = selectedCategory.toLowerCase().trim();
+          const pCatSlug = (p.categorySlug || '').toLowerCase().trim();
+          const pCatName = (p.category || '').toLowerCase().trim();
+          const pCatNameSlug = pCatName.replace(/[^a-z0-9]+/g, '-');
+          if (pCatSlug === normSelected || pCatName === normSelected || pCatNameSlug === normSelected) {
+            brands.add(p.brand.trim());
+          }
+        }
+      }
+    });
     return Array.from(brands);
-  }, [selectedCategory]);
+  }, [selectedCategory, productList]);
 
   const handleToggleBrand = (brand) => {
     setSelectedBrands((prev) =>
@@ -44,23 +79,31 @@ export const ProductListingView = () => {
   const handleResetFilters = () => {
     setSelectedCategory('all');
     setSelectedBrands([]);
-    setPriceRange(70000);
+    setPriceRange(maxPriceLimit);
     setInStockOnly(false);
   };
 
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
-    return PRODUCTS.filter((product) => {
+    return productList.filter((product) => {
       // Category Filter
-      if (selectedCategory !== 'all' && product.categorySlug !== selectedCategory) {
-        return false;
+      if (selectedCategory && selectedCategory !== 'all') {
+        const normSelected = selectedCategory.toLowerCase().trim();
+        const pCatSlug = (product.categorySlug || '').toLowerCase().trim();
+        const pCatName = (product.category || '').toLowerCase().trim();
+        const pCatNameSlug = pCatName.replace(/[^a-z0-9]+/g, '-');
+        const isMatch =
+          pCatSlug === normSelected ||
+          pCatName === normSelected ||
+          pCatNameSlug === normSelected;
+        if (!isMatch) return false;
       }
       // Brand Filter
       if (selectedBrands.length > 0 && !selectedBrands.includes(product.brand)) {
         return false;
       }
       // Price Filter
-      if (product.price > priceRange) {
+      if (Number(product.price) > priceRange) {
         return false;
       }
       // In Stock Filter
@@ -69,12 +112,12 @@ export const ProductListingView = () => {
       }
       return true;
     }).sort((a, b) => {
-      if (sortBy === 'price-low') return a.price - b.price;
-      if (sortBy === 'price-high') return b.price - a.price;
-      if (sortBy === 'rating') return b.rating - a.rating;
+      if (sortBy === 'price-low') return (Number(a.price) || 0) - (Number(b.price) || 0);
+      if (sortBy === 'price-high') return (Number(b.price) || 0) - (Number(a.price) || 0);
+      if (sortBy === 'rating') return (Number(b.rating) || 0) - (Number(a.rating) || 0);
       return 0; // Default popular
     });
-  }, [selectedCategory, selectedBrands, priceRange, inStockOnly, sortBy]);
+  }, [selectedCategory, selectedBrands, priceRange, inStockOnly, sortBy, productList]);
 
   return (
     <div className="container page-container">
@@ -95,15 +138,15 @@ export const ProductListingView = () => {
           background: 'linear-gradient(135deg, #123A63 0%, #0B2947 100%)',
           color: '#FFFFFF',
           borderRadius: 'var(--radius-md)',
-          padding: '1.75rem 2rem',
-          marginBottom: '2rem',
+          padding: 'clamp(1.15rem, 3.5vw, 1.75rem) clamp(1.15rem, 3.5vw, 2rem)',
+          marginBottom: '1.5rem',
           borderLeft: '5px solid var(--primary-orange)',
         }}
       >
-        <h1 style={{ fontSize: '1.85rem', color: '#FFFFFF', marginBottom: '0.4rem' }}>
+        <h1 style={{ fontSize: 'clamp(1.25rem, 4vw, 1.85rem)', color: '#FFFFFF', marginBottom: '0.4rem', lineHeight: 1.3 }}>
           {activeCategory ? activeCategory.name : 'All Construction Materials'}
         </h1>
-        <p style={{ color: '#CBD5E1', fontSize: '0.925rem', maxWidth: '720px' }}>
+        <p style={{ color: '#CBD5E1', fontSize: '0.875rem', maxWidth: '720px', lineHeight: 1.5 }}>
           {activeCategory
             ? activeCategory.description
             : 'Explore certified construction materials with wholesale contractor pricing and crane/dumper site delivery.'}
@@ -124,6 +167,8 @@ export const ProductListingView = () => {
           onToggleInStock={() => setInStockOnly(!inStockOnly)}
           onResetFilters={handleResetFilters}
           availableBrands={availableBrands}
+          categories={categoryList}
+          maxPriceLimit={maxPriceLimit}
         />
 
         {/* Products Column */}
@@ -241,6 +286,8 @@ export const ProductListingView = () => {
         onToggleInStock={() => setInStockOnly(!inStockOnly)}
         onResetFilters={handleResetFilters}
         availableBrands={availableBrands}
+        categories={categoryList}
+        maxPriceLimit={maxPriceLimit}
       />
     </div>
   );

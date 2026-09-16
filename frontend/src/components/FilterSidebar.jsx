@@ -13,7 +13,11 @@ export const FilterSidebar = ({
   onToggleInStock,
   onResetFilters,
   availableBrands = [],
+  categories = [],
+  maxPriceLimit = 70000,
 }) => {
+  const categoryList = categories && categories.length > 0 ? categories : CATEGORIES;
+
   return (
     <aside style={{ width: '260px', flexShrink: 0 }} className="hide-on-mobile">
       <div style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.25rem', boxShadow: 'var(--shadow-xs)', position: 'sticky', top: '130px' }}>
@@ -56,9 +60,9 @@ export const FilterSidebar = ({
             >
               All Categories
             </button>
-            {CATEGORIES.map((cat) => (
+            {categoryList.map((cat) => (
               <button
-                key={cat.slug}
+                key={cat.id || cat.slug}
                 type="button"
                 onClick={() => onSelectCategory(cat.slug)}
                 style={{
@@ -123,7 +127,7 @@ export const FilterSidebar = ({
           <input
             type="range"
             min="200"
-            max="70000"
+            max={maxPriceLimit}
             step="500"
             value={priceRange}
             onChange={(e) => onPriceChange(Number(e.target.value))}
@@ -131,7 +135,7 @@ export const FilterSidebar = ({
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
             <span>₹200</span>
-            <span>₹70,000+</span>
+            <span>₹{maxPriceLimit.toLocaleString()}+</span>
           </div>
         </div>
 

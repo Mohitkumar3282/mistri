@@ -47,6 +47,70 @@ export const api = {
 
   getMe: () => request('/auth/me'),
 
+  // Products (Materials)
+  getProducts: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/products${query ? `?${query}` : ''}`);
+  },
+
+  getProductById: (id) => request(`/products/${id}`),
+
+  createProduct: (productData) =>
+    request('/products', {
+      method: 'POST',
+      body: JSON.stringify(productData),
+    }),
+
+  updateProduct: (id, productData) =>
+    request(`/products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(productData),
+    }),
+
+  deleteProduct: (id) =>
+    request(`/products/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Categories
+  getCategories: () => request('/categories'),
+  getCategoryById: (id) => request(`/categories/${id}`),
+  createCategory: (data) =>
+    request('/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateCategory: (id, data) =>
+    request(`/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteCategory: (id) =>
+    request(`/categories/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Orders
+  getOrders: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/orders${query ? `?${query}` : ''}`);
+  },
+  getOrderById: (id) => request(`/orders/${id}`),
+  createOrder: (orderData) =>
+    request('/orders', {
+      method: 'POST',
+      body: JSON.stringify(orderData),
+    }),
+  updateOrder: (id, orderData) =>
+    request(`/orders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(orderData),
+    }),
+  deleteOrder: (id) =>
+    request(`/orders/${id}`, {
+      method: 'DELETE',
+    }),
+
   // Services
   getServices: (params = {}) => {
     const query = new URLSearchParams(params).toString();
@@ -76,6 +140,36 @@ export const api = {
     request(`/bookings/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    }),
+
+  // Admin APIs
+  getAdminStats: () => request('/admin/stats'),
+  getCoupons: () => request('/admin/coupons'),
+  createCoupon: (data) =>
+    request('/admin/coupons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateCoupon: (code, data) =>
+    request(`/admin/coupons/${code}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteCoupon: (code) =>
+    request(`/admin/coupons/${code}`, {
+      method: 'DELETE',
+    }),
+  getQuotations: () => request('/admin/quotations'),
+  updateQuotation: (id, data) =>
+    request(`/admin/quotations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  getSettings: () => request('/admin/settings'),
+  updateSettings: (data) =>
+    request('/admin/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
     }),
 };
 

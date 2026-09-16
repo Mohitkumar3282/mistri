@@ -71,7 +71,7 @@ const MISTRI_PROMO_SLIDES = [
 ];
 
 export const HomeView = () => {
-  const { navigateTo, setIsQuotationOpen } = useStore();
+  const { navigateTo, setIsQuotationOpen, products, categories, siteSettings, banners } = useStore();
   const [activeSlide, setActiveSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
@@ -122,21 +122,19 @@ export const HomeView = () => {
   };
 
   const onPromoTouchEnd = () => {
-    setIsPromoPaused(false);
     if (!promoTouchStart || !promoTouchEnd) return;
-    const diff = promoTouchStart - promoTouchEnd;
-    if (diff > 35) {
-      nextPromo();
-    } else if (diff < -35) {
-      prevPromo();
-    }
+    const distance = promoTouchStart - promoTouchEnd;
+    if (distance > 50) nextPromo();
+    if (distance < -50) prevPromo();
+    setIsPromoPaused(false);
   };
 
-  // Auto rotate hero slides every 5 seconds
+  // 3-Second Auto Hero Carousel Slider
+  const totalHeroSlides = 2;
   useEffect(() => {
     const timer = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % 3);
-    }, 5000);
+      setActiveSlide((prev) => (prev + 1) % totalHeroSlides);
+    }, 3200);
     return () => clearInterval(timer);
   }, []);
 
@@ -149,8 +147,11 @@ export const HomeView = () => {
     }
   };
 
-  const featuredMaterials = PRODUCTS.slice(0, 10);
-  const popularMaterials = PRODUCTS.slice(0, 10);
+  const categoriesList = categories && categories.length > 0 ? categories : CATEGORIES;
+  const currentProducts = products && products.length > 0 ? products : PRODUCTS;
+  const featuredMaterials = currentProducts.filter((p) => p.isFeatured !== false);
+  const shelfProducts = featuredMaterials.length > 0 ? featuredMaterials : currentProducts;
+  const popularMaterials = currentProducts.filter((p) => p.isPopular).length > 0 ? currentProducts.filter((p) => p.isPopular) : currentProducts.slice(0, 10);
 
   return (
     <div style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh', paddingBottom: '2rem' }}>
@@ -504,8 +505,8 @@ export const HomeView = () => {
         <div className="container">
           {/* Quick Commerce 4-Column Responsive Grid */}
           <div className="qc-category-grid">
-            {CATEGORIES.map((cat) => (
-              <CategoryCard key={cat.id} category={cat} />
+            {categoriesList.map((cat) => (
+              <CategoryCard key={cat.id || cat.slug} category={cat} />
             ))}
           </div>
         </div>
@@ -587,7 +588,7 @@ export const HomeView = () => {
 
               <button
                 type="button"
-                onClick={() => navigateTo('categories')}
+                onClick={() => navigateTo('category-products', { slug: 'all' })}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -613,7 +614,7 @@ export const HomeView = () => {
             ref={bestsellerScrollRef}
             className="qc-horizontal-scroll"
           >
-            {featuredMaterials.map((product) => (
+            {shelfProducts.map((product) => (
               <div key={product.id} className="qc-shelf-item">
                 <ProductCard product={product} />
               </div>

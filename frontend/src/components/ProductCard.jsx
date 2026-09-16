@@ -57,10 +57,14 @@ export const ProductCard = ({ product }) => {
 
           {/* Product Image */}
           <img
-            src={product.image}
-            alt={product.name}
+            src={product.image || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400'}
+            alt={product.name || 'Product'}
             className="qc-product-img"
             loading="lazy"
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400';
+            }}
           />
         </div>
 
@@ -86,11 +90,11 @@ export const ProductCard = ({ product }) => {
           {/* Price & MRP Row */}
           <div className="qc-product-price-row">
             <span className="qc-price-val">
-              ₹ {product.price.toLocaleString()}
+              ₹ {(Number(product.price) || 0).toLocaleString('en-IN')}
             </span>
-            {product.mrp && (
+            {product.mrp && Number(product.mrp) > (Number(product.price) || 0) && (
               <span className="qc-mrp-val">
-                ₹ {product.mrp.toLocaleString()}
+                ₹ {Number(product.mrp).toLocaleString('en-IN')}
               </span>
             )}
           </div>

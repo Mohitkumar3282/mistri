@@ -1,5 +1,5 @@
+import 'dotenv/config';
 import express from 'express';
-import dotenv from 'dotenv';
 import cors from 'cors';
 import morgan from 'morgan';
 import connectDB from './config/db.js';
@@ -9,12 +9,13 @@ import authRoutes from './routes/authRoutes.js';
 import serviceRoutes from './routes/serviceRoutes.js';
 import mistriRoutes from './routes/mistriRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
+import productRoutes from './routes/productRoutes.js';
+import categoryRoutes from './routes/categoryRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 
 // Import Middlewares
 import { notFound, errorHandler } from './middlewares/errorMiddleware.js';
-
-// Load environment variables
-dotenv.config();
 
 // Connect to Database
 connectDB();
@@ -39,23 +40,31 @@ if (process.env.NODE_ENV === 'development') {
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
-    app: 'Mistri Home Services & Technician Booking API',
+    app: 'Mistri Construction & Technician Booking API',
     architecture: 'MVC (Model-View-Controller)',
     version: '1.0.0',
     endpoints: {
       auth: '/api/auth',
+      products: '/api/products',
+      categories: '/api/categories',
+      orders: '/api/orders',
       services: '/api/services',
       mistris: '/api/mistris',
       bookings: '/api/bookings',
+      admin: '/api/admin',
     },
   });
 });
 
 // Mount MVC API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/orders', orderRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/mistris', mistriRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error Handling Middlewares
 app.use(notFound);

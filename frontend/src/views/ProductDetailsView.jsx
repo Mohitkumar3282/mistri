@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Star,
   Heart,
@@ -14,39 +14,132 @@ import {
   Plus,
   Minus,
   Check,
-  HardHat,
-  ChevronRight,
+  ChevronLeft,
+  Search,
+  Zap,
+  Gift,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { PRODUCTS } from '../data/mockData';
-import ProductGallery from '../components/ProductGallery';
 import ProductCard from '../components/ProductCard';
 
 export const ProductDetailsView = () => {
-  const { viewParams, navigateTo, addToCart, toggleWishlist, isInWishlist, currentPincode, currentCity, addToast, getProductById } = useStore();
-  
+  const {
+    viewParams,
+    navigateTo,
+    addToCart,
+    updateCartQty,
+    cart,
+    cartItemCount,
+    toggleWishlist,
+    isInWishlist,
+    currentPincode,
+    currentCity,
+    addToast,
+    getProductById,
+    products,
+  } = useStore();
+
+  const productList = products && products.length > 0 ? products : PRODUCTS;
   const productId = viewParams?.id || viewParams?.productId || viewParams?.product?.id;
-  const product = viewParams?.product || (productId ? getProductById(productId) : null) || PRODUCTS[0];
+  const product = viewParams?.product || (productId ? getProductById(productId) : null) || productList[0];
 
-  const [quantity, setQuantity] = useState(product.minOrderQty || 1);
-  const [checkPin, setCheckPin] = useState(currentPincode || '452005');
-  const [pinChecked, setPinChecked] = useState(true);
-  const [activeTab, setActiveTab] = useState('specs'); // 'specs' | 'features' | 'reviews' | 'seller'
+  // Active Gallery Image Index
+  const [activeImgIdx, setActiveImgIdx] = useState(0);
 
-  const isFavorite = isInWishlist(product.id);
+  // Variant Groups Management
+  const [selectedVariants, setSelectedVariants] = useState({});
 
-  // Bulk Tier Calculation
-  let calculatedUnitPrice = product.price;
-  if (product.id === 'prod_1' && quantity >= 50) calculatedUnitPrice = 405;
-  if (product.id === 'prod_4' && quantity >= 5) calculatedUnitPrice = 63200;
+  useEffect(() => {
+    if (product?.variantGroups && product.variantGroups.length > 0) {
+      const initial = {};
+      product.variantGroups.forEach((group) => {
+        // Pick default option (popular if marked, else first)
+        const defOpt = group.options.find((o) => o.isPopular) || group.options[0];
+        initial[group.id] = defOpt;
+      });
+      setSelectedVariants(initial);
+    } else if (product?.optionsList && product.optionsList.length > 0) {
+      setSelectedVariants({ default: product.optionsList[0] });
+    }
+  }, [product]);
 
-  const handleAddToCart = () => {
-    addToCart(product, quantity);
+  // Handle Pill Click
+  const handleSelectOption = (groupId, option) => {
+    setSelectedVariants((prev) => ({
+      ...prev,
+      [groupId]: option,
+    }));
   };
 
-  const handleBuyNow = () => {
-    addToCart(product, quantity);
-    navigateTo('checkout');
+  // Derived Pricing from Variant Selections
+  const currentPrice = useMemo(() => {
+    let price = product?.price || 0;
+    Object.values(selectedVariants).forEach((opt) => {
+      if (opt && opt.price) price = opt.price;
+    });
+    return price;
+  }, [product, selectedVariants]);
+
+  const currentMrp = useMemo(() => {
+    let mrp = product?.mrp || null;
+    Object.values(selectedVariants).forEach((opt) => {
+      if (opt && opt.mrp) mrp = opt.mrp;
+    });
+    return mrp;
+  }, [product, selectedVariants]);
+
+  const currentDiscount = useMemo(() => {
+    if (currentMrp && currentPrice < currentMrp) {
+      const pct = Math.round(((currentMrp - currentPrice) / currentMrp) * 100);
+      return `${pct}% OFF`;
+    }
+    return product?.discount || null;
+  }, [product, currentPrice, currentMrp]);
+
+  const selectedVariantSummary = useMemo(() => {
+    const parts = Object.values(selectedVariants)
+      .filter(Boolean)
+      .map((opt) => opt.name || opt.label || opt.value || opt);
+    return parts.join(' • ');
+  }, [selectedVariants]);
+
+  const cartItem = cart.find(
+    (item) => item.product?.id === product?.id || item.id === product?.id
+  );
+  const qtyInCart = cartItem ? cartItem.quantity : 0;
+
+  const [checkPin, setCheckPin] = useState(currentPincode || '452005');
+  const [pinChecked, setPinChecked] = useState(true);
+  const [activeTab, setActiveTab] = useState('specs'); // 'specs' | 'features' | 'description' | 'reviews'
+
+  const isFavorite = isInWishlist(product.id);
+  const galleryImages = product.gallery && product.gallery.length > 0 ? product.gallery : [product.image];
+
+  const handleAdd = () => {
+    const itemToAdd = {
+      ...product,
+      name: selectedVariantSummary ? `${product.name} (${selectedVariantSummary})` : product.name,
+      price: currentPrice,
+      mrp: currentMrp,
+      discount: currentDiscount,
+      selectedVariant: selectedVariantSummary,
+    };
+    addToCart(itemToAdd, 1);
+  };
+
+  const handleIncrement = () => {
+    if (cartItem) {
+      updateCartQty(product.id, qtyInCart + 1);
+    } else {
+      handleAdd();
+    }
+  };
+
+  const handleDecrement = () => {
+    if (cartItem) {
+      updateCartQty(product.id, qtyInCart - 1);
+    }
   };
 
   const handleShare = () => {
@@ -55,306 +148,392 @@ export const ProductDetailsView = () => {
   };
 
   // Related materials in same category
-  const relatedProducts = PRODUCTS.filter((p) => p.categorySlug === product.categorySlug && p.id !== product.id).slice(0, 4);
+  const relatedProducts = productList.filter((p) => p.categorySlug === product.categorySlug && p.id !== product.id).slice(0, 4);
 
   return (
-    <div className="container page-container">
-      {/* Breadcrumb Navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.825rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-        <button onClick={() => navigateTo('home')} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>Home</button>
-        <span>/</span>
-        <button onClick={() => navigateTo('categories')} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>Categories</button>
-        <span>/</span>
-        <button onClick={() => navigateTo('category-products', { slug: product.categorySlug })} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>{product.category}</button>
-        <span>/</span>
-        <span style={{ color: 'var(--primary-navy)', fontWeight: '700' }}>{product.name}</span>
-      </div>
+    <div style={{ backgroundColor: '#F8FAFC', minHeight: '100vh', paddingBottom: '90px' }}>
+      {/* 1. DEDICATED TOP APP BAR (MOBILE MATCH TO REFERENCE SCREENSHOT) */}
+      <div className="qc-product-topbar hide-on-desktop">
+        <button
+          type="button"
+          onClick={() => navigateTo('categories')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+          aria-label="Back"
+        >
+          <ChevronLeft size={24} color="var(--primary-navy)" />
+        </button>
 
-      {/* Main Dual-Column Product Hero */}
-      <div className="responsive-split-product" style={{ marginBottom: '3rem' }}>
-        {/* Left Column: Image Gallery */}
-        <div>
-          <ProductGallery images={product.gallery || [product.image]} alt={product.name} />
-
-          {/* Quick Assurance Badges */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '1.25rem' }}>
-            <div style={{ textAlign: 'center', padding: '8px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-              <ShieldCheck size={18} color="#10b981" style={{ margin: '0 auto 4px auto' }} />
-              <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--primary-navy)' }}>100% Genuine</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Authorized Stock</div>
-            </div>
-            <div style={{ textAlign: 'center', padding: '8px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-              <Truck size={18} color="#F47721" style={{ margin: '0 auto 4px auto' }} />
-              <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--primary-navy)' }}>Site Unload</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Direct truck delivery</div>
-            </div>
-            <div style={{ textAlign: 'center', padding: '8px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-              <FileText size={18} color="#0ea5e9" style={{ margin: '0 auto 4px auto' }} />
-              <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--primary-navy)' }}>MTC Included</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Structural Certificate</div>
-            </div>
-          </div>
+        <div className="qc-product-topbar-title" title={product.name}>
+          {product.name}
         </div>
 
-        {/* Right Column: Product Purchase Box & Information */}
-        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
-          {/* Brand & Category Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--primary-navy)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {product.brand}
-            </span>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={handleShare}
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}
-                title="Share Product"
-              >
-                <Share2 size={18} />
-              </button>
-              <button
-                onClick={() => toggleWishlist(product)}
-                style={{ background: 'none', border: 'none', color: isFavorite ? '#F47721' : 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}
-                title="Save to Wishlist"
-              >
-                <Heart size={20} fill={isFavorite ? '#F47721' : 'none'} />
-              </button>
-            </div>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => navigateTo('search')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', color: 'var(--primary-navy)' }}
+            aria-label="Search"
+          >
+            <Search size={20} />
+          </button>
 
-          {/* Product Title */}
-          <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: 'var(--primary-navy)', lineHeight: '1.25', marginBottom: '0.75rem' }}>
-            {product.name}
-          </h1>
-
-          {/* Ratings & Reviews */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#FEF08A', padding: '2px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '800', color: '#854D0E' }}>
-              <Star size={14} fill="#CA8A04" color="#CA8A04" />
-              <span>{product.rating}</span>
-            </div>
-            <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-              ({product.reviewsCount} verified site contractor reviews)
-            </span>
-            <span style={{ color: 'var(--border-medium)' }}>•</span>
-            <span style={{ fontSize: '0.825rem', color: '#10b981', fontWeight: '700' }}>
-              In Stock ({product.stockCount} {product.unit}s available)
-            </span>
-          </div>
-
-          {/* Pricing Box */}
-          <div style={{ backgroundColor: 'var(--bg-surface)', padding: '1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '4px' }}>
-              <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--primary-orange)' }}>
-                ₹{calculatedUnitPrice.toLocaleString()}
-              </span>
-              <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                / {product.unit}
-              </span>
-              {product.mrp && (
-                <span style={{ fontSize: '1rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
-                  MRP ₹{product.mrp.toLocaleString()}
-                </span>
-              )}
-              {product.discount && (
-                <span className="badge badge-orange">
-                  {product.discount}
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              (Inclusive of all applicable 18% / 28% GST taxes. Input tax credit invoice available)
-            </div>
-
-            {/* Bulk Volume Tier Alert */}
-            {product.bulkTier && (
-              <div
+          <button
+            type="button"
+            onClick={() => navigateTo('cart')}
+            style={{
+              position: 'relative',
+              width: '34px',
+              height: '34px',
+              borderRadius: '50%',
+              backgroundColor: '#1E293B',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFFFFF',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 2px 5px rgba(0,0,0,0.12)',
+            }}
+            aria-label="Cart"
+          >
+            <ShoppingCart size={16} />
+            {cartItemCount > 0 && (
+              <span
                 style={{
-                  marginTop: '10px',
-                  padding: '8px 12px',
-                  backgroundColor: 'var(--light-orange)',
-                  border: '1px solid rgba(244, 119, 33, 0.3)',
-                  borderRadius: '4px',
-                  fontSize: '0.825rem',
-                  fontWeight: '700',
-                  color: 'var(--primary-orange)',
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  backgroundColor: 'var(--qc-green)',
+                  color: '#FFFFFF',
+                  fontSize: '0.58rem',
+                  fontWeight: '900',
+                  minWidth: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1.5px solid #FFFFFF',
+                  lineHeight: 1,
+                  padding: '1px',
                 }}
               >
-                ⚡ Contractor Tier: {product.bulkTier}
-              </div>
-            )}
-          </div>
-
-          {/* Quantity Stepper & Add To Cart Actions */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--text-primary)', minWidth: '80px' }}>
-                Quantity:
-              </label>
-              <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-medium)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                <button
-                  type="button"
-                  onClick={() => setQuantity(Math.max(product.minOrderQty || 1, quantity - 1))}
-                  style={{ width: '38px', height: '38px', backgroundColor: 'var(--bg-surface)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Minus size={16} />
-                </button>
-                <input
-                  type="number"
-                  min={product.minOrderQty || 1}
-                  value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                  style={{ width: '60px', height: '38px', textAlign: 'center', fontWeight: '700', border: 'none', fontSize: '1rem' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setQuantity(quantity + 1)}
-                  style={{ width: '38px', height: '38px', backgroundColor: 'var(--bg-surface)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                {product.unit} (Min: {product.minOrderQty || 1})
+                {cartItemCount}
               </span>
-            </div>
-
-            {/* Total Calculation Teaser */}
-            <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-              Total Estimate: <strong style={{ color: 'var(--primary-navy)', fontSize: '1.1rem' }}>₹{(calculatedUnitPrice * quantity).toLocaleString()}</strong>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="responsive-split-equal" style={{ gap: '10px' }}>
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                className="btn btn-navy btn-lg"
-                style={{ display: 'flex', gap: '8px', fontWeight: '700', justifyContent: 'center' }}
-              >
-                <ShoppingCart size={18} />
-                <span>Add to Cart</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleBuyNow}
-                className="btn btn-primary btn-lg"
-                style={{ fontWeight: '700', justifyContent: 'center' }}
-              >
-                Buy Now
-              </button>
-            </div>
-          </div>
-
-          {/* Delivery Pincode Checker */}
-          <div style={{ paddingTop: '1.25rem', borderTop: '1px solid var(--border-subtle)' }}>
-            <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
-              Check Delivery & Crane Unloading to Site:
-            </label>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <div style={{ position: 'relative', flex: '1 1 180px' }}>
-                <MapPin size={16} color="var(--primary-orange)" style={{ position: 'absolute', left: '10px', top: '12px' }} />
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={checkPin}
-                  onChange={(e) => setCheckPin(e.target.value.replace(/\D/g, ''))}
-                  className="form-control"
-                  style={{ paddingLeft: '34px', fontSize: '0.9rem', fontWeight: '600' }}
-                />
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setPinChecked(true)}
-              >
-                Verify Pincode
-              </button>
-            </div>
-
-            {pinChecked && (
-              <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#10b981', fontWeight: '600' }}>
-                <Check size={16} />
-                <span>Express Site Delivery available to {currentCity} ({checkPin}) by Tomorrow 12:00 PM</span>
-              </div>
             )}
-          </div>
+          </button>
         </div>
       </div>
 
-      {/* Deep Information Tabs: Specs, Features, Reviews, Seller Info */}
-      <div style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '3rem', boxShadow: 'var(--shadow-xs)' }}>
-        {/* Tabs Strip */}
-        <div className="tab-scroll-container" style={{ borderBottom: '2px solid var(--border-subtle)', marginBottom: '1.5rem', paddingBottom: '2px' }}>
-          {[
-            { id: 'specs', label: 'Specifications' },
-            { id: 'features', label: 'Key Features' },
-            { id: 'description', label: 'Description' },
-            { id: 'reviews', label: `Reviews (${product.reviewsCount})` },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '0.65rem 0.5rem',
-                fontSize: '0.9rem',
-                fontWeight: activeTab === tab.id ? '800' : '600',
-                color: activeTab === tab.id ? 'var(--primary-orange)' : 'var(--text-secondary)',
-                borderBottom: activeTab === tab.id ? '3px solid var(--primary-orange)' : '3px solid transparent',
-                marginBottom: '-2px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+      <div className="container" style={{ maxWidth: '1080px', margin: '0 auto', padding: '0 12px' }}>
+        {/* Desktop Breadcrumb */}
+        <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.825rem', color: 'var(--text-secondary)', padding: '1rem 0', flexWrap: 'wrap' }}>
+          <button onClick={() => navigateTo('home')} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>Home</button>
+          <span>/</span>
+          <button onClick={() => navigateTo('categories')} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>Categories</button>
+          <span>/</span>
+          <button onClick={() => navigateTo('category-products', { slug: product.categorySlug })} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>{product.category}</button>
+          <span>/</span>
+          <span style={{ color: 'var(--primary-navy)', fontWeight: '700' }}>{product.name}</span>
         </div>
 
-        {/* Tab 1: Specifications */}
-        {activeTab === 'specs' && (
+        {/* Main Grid: Left Gallery + Right Info */}
+        <div className="responsive-split-product" style={{ marginTop: '0.75rem', gap: '1.5rem' }}>
+          {/* LEFT: PRODUCT IMAGE & PAGINATION DOTS */}
           <div>
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--primary-navy)', marginBottom: '1rem' }}>
-              Standard Structural Specifications
-            </h3>
-            {product.specifications ? (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                  <tbody>
-                    {Object.entries(product.specifications).map(([key, val], idx) => (
-                      <tr
-                        key={key}
-                        style={{
-                          backgroundColor: idx % 2 === 0 ? 'var(--bg-surface)' : '#FFFFFF',
-                          borderBottom: '1px solid var(--border-subtle)',
-                        }}
-                      >
-                        <td style={{ padding: '8px 12px', fontWeight: '700', color: 'var(--text-primary)', width: '40%' }}>
-                          {key}
-                        </td>
-                        <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>
-                          {val}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div
+              style={{
+                position: 'relative',
+                backgroundColor: '#FFFFFF',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-subtle)',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 'clamp(280px, 68vw, 420px)',
+                padding: '1rem',
+                boxShadow: '0 2px 10px rgba(8, 39, 76, 0.04)',
+              }}
+            >
+              {/* Product Image */}
+              <img
+                src={galleryImages[activeImgIdx]}
+                alt={product.name}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  objectFit: 'contain',
+                  transition: 'transform 0.3s ease',
+                }}
+              />
+
+              {/* Warranty / Quality Badge Overlay */}
+              {product.warrantyBadge && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: '12px',
+                    backgroundColor: '#DC2626',
+                    color: '#FFFFFF',
+                    fontSize: '0.7rem',
+                    fontWeight: '900',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.35)',
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {product.warrantyBadge}
+                </div>
+              )}
+
+              {/* Wishlist Button Overlay */}
+              <button
+                type="button"
+                onClick={() => toggleWishlist(product)}
+                style={{
+                  position: 'absolute',
+                  top: '12px',
+                  right: '12px',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: isFavorite ? 'var(--primary-orange)' : 'var(--text-secondary)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                }}
+                title="Save to Wishlist"
+              >
+                <Heart size={18} fill={isFavorite ? 'var(--primary-orange)' : 'none'} />
+              </button>
+            </div>
+
+            {/* Carousel Paging Dots (Exact Match) */}
+            {galleryImages.length > 1 && (
+              <div className="qc-image-dots">
+                {galleryImages.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActiveImgIdx(idx)}
+                    className={`qc-image-dot ${activeImgIdx === idx ? 'active' : ''}`}
+                    aria-label={`Slide ${idx + 1}`}
+                  />
+                ))}
               </div>
-            ) : (
-              <p style={{ color: 'var(--text-secondary)' }}>Standard manufacturer specifications apply.</p>
             )}
           </div>
-        )}
 
-        {/* Tab 2: Features */}
-        {activeTab === 'features' && (
-          <div>
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--primary-navy)', marginBottom: '1rem' }}>
-              Engineering Features & Site Suitability
-            </h3>
+          {/* RIGHT: PRODUCT INFO, SELECTORS, CASHBACK & DETAILS */}
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', padding: '1.25rem', boxShadow: '0 2px 10px rgba(8, 39, 76, 0.04)' }}>
+            {/* Free Delivery Pill Badge */}
+            <div className="qc-delivery-pill-wrapper">
+              <div className="qc-delivery-pill">
+                <Truck size={12} strokeWidth={2.5} />
+                <span>Free Delivery</span>
+              </div>
+              <span className="qc-delivery-subtext">on orders above ₹500</span>
+            </div>
+
+            {/* Product Title */}
+            <h1 style={{ fontSize: 'clamp(1.25rem, 4vw, 1.55rem)', fontWeight: '800', color: 'var(--primary-navy)', lineHeight: '1.3', marginBottom: '0.65rem' }}>
+              {product.name}
+            </h1>
+
+            {/* Price & MRP Row */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: 'clamp(1.5rem, 5vw, 1.85rem)', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                ₹ {currentPrice.toLocaleString()}
+              </span>
+              {currentMrp && (
+                <span style={{ fontSize: '0.95rem', color: '#94A3B8', textDecoration: 'line-through' }}>
+                  ₹ {currentMrp.toLocaleString()}
+                </span>
+              )}
+              {currentDiscount && (
+                <span style={{ backgroundColor: '#FEF08A', color: '#854D0E', fontSize: '0.75rem', fontWeight: '800', padding: '2px 8px', borderRadius: '4px' }}>
+                  {currentDiscount}
+                </span>
+              )}
+            </div>
+
+            {/* Assured 2% Cashback Card (Exact Screenshot Match) */}
+            <div className="qc-cashback-box">
+              <div className="qc-cashback-icon-circle">
+                🪙
+              </div>
+              <div>
+                <div className="qc-cashback-title">Assured 2% Cashback</div>
+                <div className="qc-cashback-subtitle">On purchases above ₹50,000</div>
+              </div>
+            </div>
+
+            {/* INTERACTIVE VARIANT SELECTOR GROUPS (Thickness, Size, Pack Size, Finish, etc.) */}
+            {product.variantGroups && product.variantGroups.length > 0 ? (
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+                {product.variantGroups.map((group) => {
+                  const selectedOpt = selectedVariants[group.id];
+                  return (
+                    <div key={group.id} className="qc-variant-group">
+                      <div className="qc-variant-label">
+                        <span>{group.name}</span>
+                        {selectedOpt && (
+                          <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--primary-orange)' }}>
+                            {selectedOpt.label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="qc-variant-pills-row">
+                        {group.options.map((opt) => {
+                          const isSelected = selectedOpt?.label === opt.label;
+                          return (
+                            <button
+                              key={opt.label}
+                              type="button"
+                              onClick={() => handleSelectOption(group.id, opt)}
+                              className={`qc-variant-pill-btn ${isSelected ? 'selected' : ''}`}
+                            >
+                              <span>{opt.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : product.optionsList && product.optionsList.length > 0 ? (
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+                <div className="qc-variant-group">
+                  <div className="qc-variant-label">
+                    <span>Select Option / Pack</span>
+                  </div>
+                  <div className="qc-variant-pills-row">
+                    {product.optionsList.map((opt) => {
+                      const isSelected = selectedVariants.default?.name === opt.name;
+                      return (
+                        <button
+                          key={opt.name}
+                          type="button"
+                          onClick={() => handleSelectOption('default', opt)}
+                          className={`qc-variant-pill-btn ${isSelected ? 'selected' : ''}`}
+                        >
+                          <span>{opt.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Delivery Pincode Checker */}
+            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem', marginTop: '0.75rem' }}>
+              <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
+                Delivery Location:
+              </label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                  <MapPin size={16} color="var(--primary-orange)" style={{ position: 'absolute', left: '10px', top: '12px' }} />
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={checkPin}
+                    onChange={(e) => setCheckPin(e.target.value.replace(/\D/g, ''))}
+                    className="form-control"
+                    style={{ paddingLeft: '32px', height: '38px', fontSize: '0.88rem', fontWeight: '600' }}
+                    placeholder="Enter Pincode"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setPinChecked(true)}
+                  style={{ height: '38px', padding: '0 14px', fontSize: '0.825rem', fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0 }}
+                >
+                  Verify
+                </button>
+              </div>
+
+              {pinChecked && (
+                <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#038A53', fontWeight: '600' }}>
+                  <Check size={15} />
+                  <span>Express Site Delivery available to {currentCity} ({checkPin}) by Tomorrow 12 PM</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* DEEP PRODUCT INFORMATION TABS */}
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginTop: '1.5rem', boxShadow: '0 2px 10px rgba(8, 39, 76, 0.04)' }}>
+          <div className="tab-scroll-container" style={{ borderBottom: '2px solid var(--border-subtle)', marginBottom: '1.25rem', paddingBottom: '2px' }}>
+            {[
+              { id: 'specs', label: 'Specifications' },
+              { id: 'features', label: 'Key Features' },
+              { id: 'description', label: 'Description' },
+              { id: 'reviews', label: `Reviews (${product.reviewsCount || 390})` },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '0.65rem 0.65rem',
+                  fontSize: '0.9rem',
+                  fontWeight: activeTab === tab.id ? '800' : '600',
+                  color: activeTab === tab.id ? 'var(--primary-orange)' : 'var(--text-secondary)',
+                  borderBottom: activeTab === tab.id ? '3px solid var(--primary-orange)' : '3px solid transparent',
+                  marginBottom: '-2px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Specifications */}
+          {activeTab === 'specs' && (
+            <div>
+              {product.specifications ? (
+                <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                  <table className="product-specs-table">
+                    <tbody>
+                      {Object.entries(product.specifications).map(([key, val], idx) => (
+                        <tr
+                          key={key}
+                          style={{
+                            backgroundColor: idx % 2 === 0 ? 'var(--bg-surface)' : '#FFFFFF',
+                            borderBottom: '1px solid var(--border-subtle)',
+                          }}
+                        >
+                          <td style={{ fontWeight: '700', color: 'var(--text-primary)', width: '42%' }}>{key}</td>
+                          <td style={{ color: 'var(--text-secondary)' }}>{val}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-secondary)' }}>Standard manufacturer specifications apply.</p>
+              )}
+            </div>
+          )}
+
+          {/* Features */}
+          {activeTab === 'features' && (
             <div className="responsive-split-equal" style={{ gap: '0.85rem' }}>
               {(product.features || [
                 'Complies with latest Bureau of Indian Standards (BIS) norms',
@@ -363,97 +542,120 @@ export const ProductDetailsView = () => {
                 'Suitable for high-load residential & commercial structures',
               ]).map((feat, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                  <CheckCircle2 size={18} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-                  <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{feat}</span>
+                  <CheckCircle2 size={18} color="#038A53" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>{feat}</span>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Tab 3: Detailed Description */}
-        {activeTab === 'description' && (
-          <div>
-            <h3 style={{ fontSize: '1.2rem', color: 'var(--primary-navy)', marginBottom: '1rem' }}>
-              About {product.name}
-            </h3>
-            <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: '1.7', maxWidth: '820px' }}>
-              {product.description}
-            </p>
-          </div>
-        )}
+          {/* Description */}
+          {activeTab === 'description' && (
+            <div>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.7', maxWidth: '820px' }}>
+                {product.description}
+              </p>
+            </div>
+          )}
 
-        {/* Tab 4: Contractor Reviews */}
-        {activeTab === 'reviews' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <div>
-                <h3 style={{ fontSize: '1.2rem', color: 'var(--primary-navy)' }}>Verified Site Contractor Ratings</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                  <Star size={18} fill="#CA8A04" color="#CA8A04" />
-                  <strong style={{ fontSize: '1.1rem' }}>{product.rating} / 5.0</strong>
-                  <span style={{ color: 'var(--text-muted)' }}>based on {product.reviewsCount} customer reviews</span>
+          {/* Reviews */}
+          {activeTab === 'reviews' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '1rem' }}>
+                <Star size={16} fill="#CA8A04" color="#CA8A04" />
+                <strong style={{ fontSize: '1rem' }}>{product.rating} / 5.0</strong>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>based on {product.reviewsCount} customer reviews</span>
+              </div>
+              <div style={{ padding: '0.9rem', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <strong style={{ fontSize: '0.88rem', color: 'var(--primary-navy)' }}>Rajesh Verma (Contractor)</strong>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>2 days ago</span>
                 </div>
+                <div style={{ display: 'flex', gap: '2px', color: '#CA8A04', marginBottom: '6px' }}>
+                  {[...Array(5)].map((_, i) => <Star key={i} size={12} fill="#CA8A04" />)}
+                </div>
+                <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  Authentic batch material delivered promptly at project site in Indore. Excellent quality and smooth invoicing!
+                </p>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Sample Reviews */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ padding: '1rem', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <strong style={{ fontSize: '0.9rem', color: 'var(--primary-navy)' }}>Er. Dinesh Sharma (RCC Contractor)</strong>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>3 days ago</span>
-                </div>
-                <div style={{ display: 'flex', gap: '2px', color: '#CA8A04', marginBottom: '6px' }}>
-                  {[...Array(5)].map((_, i) => <Star key={i} size={13} fill="#CA8A04" />)}
-                </div>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Ordered 100 bags for our slab casting in Super Corridor. Delivered directly by 10-wheeler truck at 7:00 AM sharp with test certificate. Excellent fresh batch cement!
-                </p>
-              </div>
+        {/* RELATED MATERIALS */}
+        {relatedProducts.length > 0 && (
+          <div style={{ marginTop: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: '1.2rem', color: 'var(--primary-navy)' }}>Related Materials in {product.category}</h2>
+              <button
+                type="button"
+                onClick={() => navigateTo('category-products', { slug: product.categorySlug })}
+                className="btn btn-secondary btn-sm"
+              >
+                View More
+              </button>
+            </div>
 
-              <div style={{ padding: '1rem', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <strong style={{ fontSize: '0.9rem', color: 'var(--primary-navy)' }}>Vikram Singh (Civil Builder)</strong>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>1 week ago</span>
-                </div>
-                <div style={{ display: 'flex', gap: '2px', color: '#CA8A04', marginBottom: '6px' }}>
-                  {[...Array(5)].map((_, i) => <Star key={i} size={13} fill="#CA8A04" />)}
-                </div>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Very smooth ordering on MISTRI. Bulk price automatically applied and GST input invoice was ready immediately on dashboard.
-                </p>
-              </div>
+            <div className="product-grid">
+              {relatedProducts.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
             </div>
           </div>
         )}
       </div>
 
-      {/* Related Category Materials */}
-      {relatedProducts.length > 0 && (
+      {/* 2. FIXED BOTTOM STICKY PURCHASE BAR (EXACT MATCH TO REFERENCE SCREENSHOT) */}
+      <div className="qc-bottom-sticky-bar">
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.5rem', color: 'var(--primary-navy)' }}>
-              Related Materials in {product.category}
-            </h2>
+          {selectedVariantSummary && (
+            <div className="qc-bottom-variant-text" title={selectedVariantSummary}>
+              {selectedVariantSummary}
+            </div>
+          )}
+          <div className="qc-bottom-price-row">
+            <span className="qc-bottom-price-val">₹ {currentPrice.toLocaleString()}</span>
+            {currentMrp && <span className="qc-bottom-mrp-val">₹ {currentMrp.toLocaleString()}</span>}
+            {currentDiscount && <span className="qc-bottom-discount-badge">{currentDiscount}</span>}
+          </div>
+          <div className="qc-bottom-gst-sub">Including GST</div>
+        </div>
+
+        <div>
+          {qtyInCart > 0 ? (
+            <div className="qc-bottom-qty-counter">
+              <button
+                type="button"
+                onClick={handleDecrement}
+                className="qc-bottom-qty-btn"
+                aria-label="Decrease quantity"
+              >
+                <Minus size={14} strokeWidth={2.5} />
+              </button>
+              <span className="qc-bottom-qty-num">{qtyInCart}</span>
+              <button
+                type="button"
+                onClick={handleIncrement}
+                className="qc-bottom-qty-btn"
+                aria-label="Increase quantity"
+              >
+                <Plus size={14} strokeWidth={2.5} />
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              onClick={() => navigateTo('category-products', { slug: product.categorySlug })}
-              className="btn btn-secondary btn-sm"
+              onClick={handleAdd}
+              className="qc-bottom-add-btn"
             >
-              View More
+              <span>Add</span>
             </button>
-          </div>
-
-          <div className="product-grid">
-            {relatedProducts.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };
 
 export default ProductDetailsView;
+

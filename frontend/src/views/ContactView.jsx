@@ -3,7 +3,7 @@ import { Phone, Mail, MapPin, Send, Building, HardHat, FileText, CheckCircle2 } 
 import { useStore } from '../context/StoreContext';
 
 export const ContactView = () => {
-  const { addToast } = useStore();
+  const { addToast, addQuotation, addSupportMessage, siteSettings } = useStore();
   const [form, setForm] = useState({
     name: '',
     company: '',
@@ -17,7 +17,29 @@ export const ContactView = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     setSubmitted(true);
-    addToast('BOQ Quotation Request received! An engineer will call you within 2 hours.', 'success');
+
+    if (addQuotation) {
+      addQuotation({
+        clientName: form.name,
+        company: form.company || 'Private Construction Client',
+        phone: form.phone,
+        email: form.email,
+        siteCity: form.projectCity,
+        requiredMaterials: form.boqDetails,
+        notes: `Submitted via website contact page from city: ${form.projectCity}`,
+      });
+    }
+
+    if (addSupportMessage) {
+      addSupportMessage({
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        message: form.boqDetails,
+      });
+    }
+
+    addToast('BOQ Quotation Request received! Our material specialist will review and respond.', 'success');
   };
 
   return (

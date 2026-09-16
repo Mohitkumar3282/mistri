@@ -25,6 +25,8 @@ export const QuotationModal = () => {
     cart,
     cartItemCount,
     addToast,
+    addQuotation,
+    siteSettings,
   } = useStore();
 
   const [clientName, setClientName] = useState(user?.name || 'Mohit Kumar');
@@ -93,6 +95,17 @@ export const QuotationModal = () => {
       requirements.trim() ||
       'Looking for bulk contractor wholesale rates for site construction materials.';
 
+    if (addQuotation) {
+      addQuotation({
+        clientName: clientName || user?.name || 'Valued Customer',
+        company: user?.company || 'Site Contractor',
+        phone: phoneNumber || '+91 9630938487',
+        siteCity: siteLocation || currentCity || 'Indore',
+        requiredMaterials: cleanRequirements,
+        notes: `Urgency: ${urgency}. Categories: ${selectedCategories.join(', ')}`,
+      });
+    }
+
     const message = `🏗️ *MISTRI - MATERIAL QUOTATION REQUEST*
 ----------------------------------------
 👤 *Customer:* ${clientName || 'Valued Customer'}
@@ -107,7 +120,7 @@ ${cleanRequirements}
 Please send the best discounted wholesale quotation with site delivery freight charges. Thank you!`;
 
     const encodedMessage = encodeURIComponent(message);
-    const targetWhatsAppNumber = '919630938487'; // Business client WhatsApp number
+    const targetWhatsAppNumber = (siteSettings?.whatsappNumber || '919826011223').replace(/[^0-9]/g, '');
 
     const whatsappUrl = `https://api.whatsapp.com/send?phone=${targetWhatsAppNumber}&text=${encodedMessage}`;
 
@@ -115,7 +128,7 @@ Please send the best discounted wholesale quotation with site delivery freight c
     window.open(whatsappUrl, '_blank');
 
     setIsQuotationOpen(false);
-    addToast('Requirement sent on WhatsApp! We will reply within 15 minutes.', 'success');
+    addToast('Requirement sent on WhatsApp and recorded in Admin Quotations!', 'success');
   };
 
   return (

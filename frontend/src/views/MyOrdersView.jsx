@@ -15,8 +15,43 @@ import {
 import { useStore } from '../context/StoreContext';
 
 export const MyOrdersView = () => {
-  const { orders, navigateTo } = useStore();
+  const { orders, navigateTo, user, openLoginModal } = useStore();
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'delivered' | 'cancelled'
+
+  if (!user) {
+    return (
+      <div className="container page-container" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <div
+          style={{
+            maxWidth: '480px',
+            margin: '0 auto',
+            backgroundColor: '#FFFFFF',
+            borderRadius: 'var(--radius-md)',
+            padding: '2.5rem 1.5rem',
+            border: '1px solid var(--border-subtle)',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--navy-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem auto', color: 'var(--primary-navy)' }}>
+            <Package size={32} />
+          </div>
+          <h2 style={{ fontSize: '1.4rem', color: 'var(--primary-navy)', marginBottom: '0.5rem', fontWeight: '800' }}>
+            Sign In to View Material Orders
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.75rem' }}>
+            Track live transit status, truck dispatch GPS & download B2B tax invoices for your construction sites.
+          </p>
+          <button
+            onClick={() => openLoginModal('login', () => navigateTo('orders'))}
+            className="btn btn-primary btn-lg mobile-w-full"
+            style={{ fontWeight: '800' }}
+          >
+            Sign In / Register
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const activeOrdersCount = orders.filter(
     (o) => o.statusCode !== 'delivered' && o.statusCode !== 'cancelled'

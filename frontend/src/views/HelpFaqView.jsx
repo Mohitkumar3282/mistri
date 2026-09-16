@@ -4,9 +4,11 @@ import { MOCK_FAQS } from '../data/mockData';
 import { useStore } from '../context/StoreContext';
 
 export const HelpFaqView = () => {
-  const { navigateTo } = useStore();
+  const { navigateTo, faqs } = useStore();
   const [openIndex, setOpenIndex] = useState('0-0');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const faqsToUse = faqs && faqs.length > 0 ? faqs : MOCK_FAQS;
 
   const toggleAccordion = (idxStr) => {
     setOpenIndex(openIndex === idxStr ? null : idxStr);
@@ -30,7 +32,7 @@ export const HelpFaqView = () => {
 
       {/* FAQ Categories & Questions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        {MOCK_FAQS.map((category, catIdx) => (
+        {faqsToUse.map((category, catIdx) => (
           <div key={catIdx} style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.75rem', boxShadow: 'var(--shadow-xs)' }}>
             <h2 style={{ fontSize: '1.25rem', color: 'var(--primary-navy)', fontWeight: '800', marginBottom: '1.25rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-subtle)' }}>
               {category.category}

@@ -27,6 +27,8 @@ export const CheckoutView = () => {
     placeOrder,
     navigateTo,
     user,
+    requireAuth,
+    openLoginModal,
   } = useStore();
 
   const [activeStep, setActiveStep] = useState(1); // 1: Address, 2: Delivery, 3: Payment, 4: Review
@@ -39,19 +41,62 @@ export const CheckoutView = () => {
   const selectedAddress = addresses.find((a) => a.id === selectedAddressId) || addresses[0];
 
   const handlePlaceOrder = () => {
-    const orderData = {
-      siteAddress: selectedAddress,
-      deliverySlot,
-      paymentMethod,
-      unloadingNotes,
-    };
+    requireAuth(() => {
+      const orderData = {
+        siteAddress: selectedAddress,
+        deliverySlot,
+        paymentMethod,
+        unloadingNotes,
+      };
 
-    const newOrder = placeOrder(orderData);
-    navigateTo('order-confirmation', { order: newOrder });
+      const newOrder = placeOrder(orderData);
+      navigateTo('order-confirmation', { order: newOrder });
+    });
   };
 
   return (
     <div className="container page-container">
+      {/* Guest Checkout Notice */}
+      {!user && (
+        <div
+          style={{
+            maxWidth: '820px',
+            margin: '0 auto 1.5rem auto',
+            backgroundColor: '#EFF8FF',
+            border: '1.5px solid #B2DDFF',
+            borderRadius: 'var(--radius-md)',
+            padding: '1rem 1.25rem',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#D1E9FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#175CD3', flexShrink: 0 }}>
+              <User size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#175CD3' }}>
+                Ordering as a Guest Builder
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#475467' }}>
+                Sign in or register to save your site delivery address, get contractor credits & download GST tax invoices.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => openLoginModal('login')}
+            className="btn btn-navy btn-sm"
+            style={{ fontWeight: '800', whiteSpace: 'nowrap' }}
+          >
+            Sign In / Register
+          </button>
+        </div>
+      )}
+
       {/* Checkout Steps Progress Bar */}
       <div style={{ maxWidth: '820px', margin: '0 auto 2rem auto' }}>
         <div className="tab-scroll-container" style={{ paddingBottom: '4px' }}>

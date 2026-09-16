@@ -4,7 +4,7 @@ import { useStore } from '../context/StoreContext';
 import { CATEGORY_SECTIONS } from '../data/mockData';
 
 export const CategoriesView = () => {
-  const { navigateTo } = useStore();
+  const { navigateTo, categorySections } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
@@ -36,19 +36,21 @@ export const CategoriesView = () => {
     }
   };
 
+  const sectionsToUse = categorySections && categorySections.length > 0 ? categorySections : CATEGORY_SECTIONS;
+
   // Filter sections and categories based on search input
-  const filteredSections = CATEGORY_SECTIONS.map((section) => {
-    const matchingCats = section.categories.filter(
+  const filteredSections = sectionsToUse.map((section) => {
+    const matchingCats = (section.categories || []).filter(
       (cat) =>
-        cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        cat.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (cat.description && cat.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        section.title.toLowerCase().includes(searchTerm.toLowerCase())
+        section.title?.toLowerCase().includes(searchTerm.toLowerCase())
     );
     return {
       ...section,
       categories: matchingCats,
     };
-  }).filter((section) => section.categories.length > 0);
+  }).filter((section) => section.categories && section.categories.length > 0);
 
   return (
     <div

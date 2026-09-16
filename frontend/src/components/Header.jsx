@@ -16,8 +16,8 @@ import {
   X,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { CATEGORIES, PRODUCTS } from '../data/mockData';
 import Logo from './Logo';
+import { Sliders } from 'lucide-react';
 
 export const Header = () => {
   const {
@@ -30,7 +30,11 @@ export const Header = () => {
     currentPincode,
     setIsLocationModalOpen,
     user,
-    setIsCartDrawerOpen,
+    openLoginModal,
+    logout,
+    products,
+    categories,
+    siteSettings,
   } = useStore();
 
   const [searchFocused, setSearchFocused] = useState(false);
@@ -38,19 +42,19 @@ export const Header = () => {
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const searchRef = useRef(null);
 
-  // Live filtered suggestions
+  // Live filtered suggestions using reactive store state
   const matchingProducts = searchTerm.trim()
-    ? PRODUCTS.filter(
+    ? (products || []).filter(
         (p) =>
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.brand.toLowerCase().includes(searchTerm.toLowerCase())
+          p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.brand?.toLowerCase().includes(searchTerm.toLowerCase())
       ).slice(0, 5)
     : [];
 
   const matchingCategories = searchTerm.trim()
-    ? CATEGORIES.filter((c) =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase())
+    ? (categories || []).filter((c) =>
+        c.name?.toLowerCase().includes(searchTerm.toLowerCase())
       ).slice(0, 3)
     : [];
 
@@ -101,7 +105,27 @@ export const Header = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigateTo('admin')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                backgroundColor: 'rgba(241, 90, 36, 0.2)',
+                color: 'var(--primary-orange)',
+                border: '1px solid rgba(241, 90, 36, 0.5)',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                fontWeight: '800',
+                cursor: 'pointer',
+                letterSpacing: '0.04em',
+              }}
+            >
+              <Sliders size={12} />
+              <span>ADMIN PANEL</span>
+            </button>
             <button
               onClick={() => navigateTo('help')}
               style={{ background: 'none', color: '#CBD5E1', cursor: 'pointer', fontSize: '0.78rem' }}
@@ -110,7 +134,7 @@ export const Header = () => {
             </button>
             <div className="flex items-center gap-2">
               <Phone size={13} color="#F47721" />
-              <span style={{ fontWeight: '700' }}>Bulk Hotline: +91 1800 200 8899</span>
+              <span style={{ fontWeight: '700' }}>Bulk Hotline: {siteSettings?.supportPhone || '+91 98260 11223'}</span>
             </div>
           </div>
         </div>
@@ -454,31 +478,139 @@ export const Header = () => {
 
             {/* Account / User Profile */}
             <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => (user ? navigateTo('profile') : navigateTo('login'))}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  padding: '6px 12px',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--primary-navy)', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.75rem' }}>
-                  {user ? user.name.charAt(0) : <User size={14} />}
+              {user ? (
+                <div>
+                  <button
+                    onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      background: 'var(--bg-surface)',
+                      border: '1.5px solid var(--border-subtle)',
+                      padding: '5px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      transition: 'var(--transition)',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--brand-orange)'}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-subtle)'}
+                  >
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: 'var(--primary-navy)',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: '800',
+                      fontSize: '0.8rem',
+                    }}>
+                      {user.name?.charAt(0) || 'U'}
+                    </div>
+                    <div style={{ textAlign: 'left', lineHeight: '1.1' }}>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--primary-orange)', fontWeight: '700' }}>
+                        {user.role?.includes('Contractor') ? 'Gold Builder' : 'Account'}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--text-primary)', maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {user.name?.split(' ')[0] || 'User'}
+                      </div>
+                    </div>
+                    <ChevronDown size={14} color="var(--text-secondary)" />
+                  </button>
+
+                  {/* Account Dropdown Menu */}
+                  {accountDropdownOpen && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: '110%',
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '10px',
+                        boxShadow: '0 10px 25px rgba(8, 39, 76, 0.15)',
+                        width: '220px',
+                        padding: '0.5rem',
+                        zIndex: 100,
+                      }}
+                      onMouseLeave={() => setAccountDropdownOpen(false)}
+                    >
+                      <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-subtle)', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--primary-navy)' }}>{user.name}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{user.email || user.phone}</div>
+                      </div>
+
+                      <button
+                        onClick={() => { navigateTo('profile'); setAccountDropdownOpen(false); }}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', background: 'transparent', border: 'none', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--text-primary)', cursor: 'pointer', borderRadius: '6px' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-surface)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <User size={15} color="var(--primary-navy)" />
+                        <span>My Account Profile</span>
+                      </button>
+
+                      <button
+                        onClick={() => { navigateTo('orders'); setAccountDropdownOpen(false); }}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', background: 'transparent', border: 'none', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--text-primary)', cursor: 'pointer', borderRadius: '6px' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-surface)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <Truck size={15} color="var(--primary-orange)" />
+                        <span>My Material Orders</span>
+                      </button>
+
+                      <button
+                        onClick={() => { navigateTo('addresses'); setAccountDropdownOpen(false); }}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', background: 'transparent', border: 'none', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--text-primary)', cursor: 'pointer', borderRadius: '6px' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-surface)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <MapPin size={15} color="#10B981" />
+                        <span>Site Delivery Addresses</span>
+                      </button>
+
+                      <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)', margin: '4px 0' }} />
+
+                      <button
+                        onClick={() => { logout(); setAccountDropdownOpen(false); }}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', background: 'transparent', border: 'none', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#DC2626', cursor: 'pointer', borderRadius: '6px' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEF2F2'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span>Sign Out</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div style={{ textAlign: 'left', lineHeight: '1.1' }}>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                    {user ? 'Contractor' : 'Sign In'}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)', maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {user ? user.name.split(' ')[0] : 'Account'}
-                  </div>
-                </div>
-              </button>
+              ) : (
+                <button
+                  onClick={() => openLoginModal('login')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: 'var(--primary-orange)',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '8px 14px',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    fontWeight: '700',
+                    fontSize: '0.82rem',
+                    boxShadow: '0 2px 6px rgba(241, 90, 36, 0.3)',
+                    transition: 'var(--transition)',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--primary-orange-hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--primary-orange)'}
+                >
+                  <User size={15} />
+                  <span>Login / Register</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -509,8 +641,8 @@ export const Header = () => {
           </button>
 
           {/* Category Links */}
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: '2px', paddingLeft: '8px' }}>
-            {CATEGORIES.map((cat) => (
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: '2px', paddingLeft: '8px', flex: 1, overflowX: 'auto' }}>
+            {(categories || []).slice(0, 10).map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => handleSelectCategory(cat.slug)}
@@ -538,6 +670,30 @@ export const Header = () => {
               </button>
             ))}
           </div>
+
+          {/* Quick Admin Dashboard Shortcut in Category Bar */}
+          <button
+            onClick={() => navigateTo('admin')}
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              color: '#FFF',
+              padding: '8px 12px',
+              fontSize: '0.78rem',
+              fontWeight: '700',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary-orange)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)')}
+          >
+            <Sliders size={14} />
+            <span>Admin Hub</span>
+          </button>
         </div>
       </nav>
     </header>

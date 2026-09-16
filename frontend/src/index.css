@@ -1135,4 +1135,430 @@ img {
   transform: translateY(-2px);
 }
 
+/* =========================================================
+   PRODUCT DETAILS RESPONSIVE DESIGN ENHANCEMENTS
+   ========================================================= */
+
+/* Product Assurance Badges Grid */
+.product-assurance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 1rem;
+}
+
+.product-assurance-card {
+  text-align: center;
+  padding: 10px 8px;
+  background-color: #FFFFFF;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.product-assurance-card:hover {
+  border-color: var(--primary-orange);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 480px) {
+  .product-assurance-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 0.85rem;
+  }
+
+  .product-assurance-card {
+    padding: 8px 4px;
+  }
+}
+
+/* Product Header & Title */
+.product-detail-title {
+  font-size: clamp(1.25rem, 3.8vw, 1.65rem);
+  font-weight: 800;
+  color: var(--primary-navy);
+  line-height: 1.28;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.01em;
+}
+
+/* Ratings & Stock Availability Row */
+.product-rating-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 1.15rem;
+}
+
+/* Pricing Card Container */
+.product-pricing-card {
+  background-color: var(--bg-surface);
+  padding: 1.15rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.35rem;
+  border: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 600px) {
+  .product-pricing-card {
+    padding: 0.95rem;
+  }
+}
+
+.product-price-headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 4px;
+}
+
+.product-current-price {
+  font-size: clamp(1.75rem, 5.5vw, 2.15rem);
+  font-weight: 800;
+  color: var(--primary-orange);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Product Actions Bar */
+.product-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 400px) {
+  .product-actions-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+}
+
+/* Specifications Table Mobile Adaptability */
+.product-specs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.product-specs-table td {
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 600px) {
+  .product-specs-table td {
+    padding: 8px 10px;
+    font-size: 0.825rem;
+  }
+}
+
+/* =========================================================
+   QUICK-COMMERCE PRODUCT DETAIL PAGE (REFERENCE MATCH)
+   ========================================================= */
+
+/* Top Mobile Navigation Bar */
+.qc-product-topbar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  z-index: 950;
+  box-shadow: 0 2px 8px rgba(8, 39, 76, 0.04);
+}
+
+.qc-product-topbar-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary-navy);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Image Carousel Paging Dots */
+.qc-image-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.qc-image-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #CBD5E1;
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+
+.qc-image-dot.active {
+  width: 18px;
+  border-radius: 9999px;
+  background-color: var(--qc-green);
+}
+
+/* Free Delivery Pill */
+.qc-delivery-pill-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.qc-delivery-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background-color: var(--qc-green);
+  color: #FFFFFF;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.01em;
+}
+
+.qc-delivery-subtext {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--qc-green);
+}
+
+/* Assured 2% Cashback Golden Card */
+.qc-cashback-box {
+  background-color: #FFFDF0;
+  border: 1px solid #FEF3C7;
+  border-left: 3.5px solid #F59E0B;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 16px 0;
+}
+
+.qc-cashback-icon-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #1E293B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  color: #F59E0B;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+
+.qc-cashback-title {
+  font-size: 0.825rem;
+  font-weight: 800;
+  color: #0F172A;
+  line-height: 1.2;
+}
+
+.qc-cashback-subtitle {
+  font-size: 0.72rem;
+  color: #64748B;
+  margin-top: 1px;
+}
+
+/* Variant Selector Groups & Pills */
+.qc-variant-group {
+  margin-bottom: 1.25rem;
+}
+
+.qc-variant-label {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: var(--primary-navy);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.qc-variant-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qc-variant-pill-btn {
+  background-color: #FFFFFF;
+  border: 1.5px solid #E2E8F0;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+}
+
+.qc-variant-pill-btn:hover {
+  border-color: #CBD5E1;
+  background-color: #F8FAFC;
+}
+
+.qc-variant-pill-btn.selected {
+  background-color: #FFFDF0;
+  border-color: #F59E0B;
+  color: var(--primary-navy);
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.18);
+  transform: translateY(-1px);
+}
+
+/* Bottom Sticky Quick Purchase Bar */
+.qc-bottom-sticky-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #FFFFFF;
+  border-top: 1px solid var(--border-subtle);
+  padding: 10px 14px calc(env(safe-area-inset-bottom, 0px) + 10px) 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 9900;
+  box-shadow: 0 -4px 18px rgba(8, 39, 76, 0.09);
+}
+
+.qc-bottom-variant-text {
+  font-size: 0.72rem;
+  color: #64748B;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  line-height: 1.2;
+}
+
+.qc-bottom-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 1px 0;
+}
+
+.qc-bottom-price-val {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--primary-navy);
+  letter-spacing: -0.01em;
+}
+
+.qc-bottom-mrp-val {
+  font-size: 0.8rem;
+  color: #94A3B8;
+  text-decoration: line-through;
+}
+
+.qc-bottom-discount-badge {
+  background-color: #FEF08A;
+  color: #854D0E;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.qc-bottom-gst-sub {
+  font-size: 0.65rem;
+  color: #94A3B8;
+  line-height: 1;
+}
+
+.qc-bottom-add-btn {
+  border: 1.5px solid var(--qc-green);
+  color: var(--qc-green);
+  background-color: #FFFFFF;
+  font-size: 0.95rem;
+  font-weight: 800;
+  border-radius: 9px;
+  padding: 8px 24px;
+  min-width: 100px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(3, 138, 83, 0.12);
+}
+
+.qc-bottom-add-btn:hover {
+  background-color: var(--qc-green);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.qc-bottom-qty-counter {
+  background-color: var(--qc-green);
+  color: #FFFFFF;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 100px;
+  height: 40px;
+  padding: 0 4px;
+  box-shadow: 0 2px 8px rgba(3, 138, 83, 0.25);
+}
+
+.qc-bottom-qty-btn {
+  width: 30px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #FFFFFF;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.qc-bottom-qty-btn:active {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.qc-bottom-qty-num {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #FFFFFF;
+}
+
+
+
 

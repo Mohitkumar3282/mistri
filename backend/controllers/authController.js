@@ -4,6 +4,14 @@ import generateToken from '../utils/generateToken.js';
 // In-memory fallback users for instant testing without requiring MongoDB
 let mockUsers = [
   {
+    _id: 'usr_admin_root',
+    name: 'Root Administrator',
+    email: 'admin@gmail.com',
+    role: 'admin',
+    phone: '+91 98260 00001',
+    address: { street: 'Central HQ #1', city: 'Indore', state: 'Madhya Pradesh', pincode: '452005' },
+  },
+  {
     _id: 'usr_demo_1',
     name: 'Demo Customer',
     email: 'customer@mistri.com',
@@ -94,6 +102,28 @@ export const loginUser = async (req, res, next) => {
 
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Please provide email and password' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Specific Admin Credentials check
+    if (cleanEmail === 'admin@gmail.com') {
+      if (password === 'Admin!@#123') {
+        return res.json({
+          success: true,
+          data: {
+            _id: 'usr_admin_root',
+            name: 'Root Administrator',
+            email: 'admin@gmail.com',
+            role: 'admin',
+            phone: '+91 98260 00001',
+            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+            token: generateToken('usr_admin_root'),
+          },
+        });
+      } else {
+        return res.status(401).json({ success: false, message: 'Invalid administrator password' });
+      }
     }
 
     try {

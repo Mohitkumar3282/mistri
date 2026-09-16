@@ -19,11 +19,12 @@ import {
   Phone,
   Mail,
   Building,
+  Sliders,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
 export const ProfileView = () => {
-  const { user, logout, navigateTo, addToast, addresses, orders } = useStore();
+  const { user, logout, navigateTo, addToast, addresses, orders, openLoginModal } = useStore();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -31,11 +32,11 @@ export const ProfileView = () => {
   const [activePolicyModal, setActivePolicyModal] = useState(null); // 'shipping' | 'refund' | null
 
   const [formData, setFormData] = useState({
-    name: user?.name || 'Mohit Kumar',
-    phone: user?.phone || '+91 9630938487',
-    company: user?.company || 'Malviya Infra & Buildtech Pvt. Ltd.',
-    email: user?.email || 'mohit.kumar@gmail.com',
-    gstin: user?.gstin || '23AABCM9821K1ZM',
+    name: user?.name || '',
+    phone: user?.phone || '',
+    company: user?.company || '',
+    email: user?.email || '',
+    gstin: user?.gstin || '',
   });
 
   const handleSaveProfile = (e) => {
@@ -60,32 +61,38 @@ export const ProfileView = () => {
 
   const menuItems = [
     {
+      id: 'admin',
+      title: '⚡ Admin Control Hub (Store & Logistics)',
+      icon: Sliders,
+      onClick: () => navigateTo('admin'),
+    },
+    {
       id: 'orders',
       title: 'Order History',
       icon: ClipboardList,
-      onClick: () => navigateTo('orders'),
+      onClick: () => (user ? navigateTo('orders') : openLoginModal('login', () => navigateTo('orders'))),
     },
     {
       id: 'addresses',
-      title: 'My Addresses',
+      title: 'My Site Addresses',
       icon: MapPin,
-      onClick: () => navigateTo('addresses'),
+      onClick: () => (user ? navigateTo('addresses') : openLoginModal('login', () => navigateTo('addresses'))),
     },
     {
       id: 'support',
-      title: 'MISTRI Support',
+      title: 'MISTRI Support & FAQs',
       icon: Headphones,
       onClick: () => navigateTo('help'),
     },
     {
       id: 'shipping',
-      title: 'Shipping Policy',
+      title: 'Site Delivery & Freight Policy',
       icon: Truck,
       onClick: () => setActivePolicyModal('shipping'),
     },
     {
       id: 'refund',
-      title: 'Refund Policy',
+      title: 'Material Return & Replacement Policy',
       icon: RotateCcw,
       onClick: () => setActivePolicyModal('refund'),
     },
@@ -101,20 +108,24 @@ export const ProfileView = () => {
       icon: FileText,
       onClick: () => navigateTo('terms'),
     },
-    {
-      id: 'logout',
-      title: 'Log Out',
-      icon: LogOut,
-      isDanger: true,
-      onClick: () => setIsLogoutModalOpen(true),
-    },
-    {
-      id: 'delete',
-      title: 'Delete Account',
-      icon: Trash2,
-      isDanger: true,
-      onClick: () => setIsDeleteModalOpen(true),
-    },
+    ...(user
+      ? [
+          {
+            id: 'logout',
+            title: 'Log Out',
+            icon: LogOut,
+            isDanger: true,
+            onClick: () => setIsLogoutModalOpen(true),
+          },
+          {
+            id: 'delete',
+            title: 'Delete Account',
+            icon: Trash2,
+            isDanger: true,
+            onClick: () => setIsDeleteModalOpen(true),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -175,114 +186,166 @@ export const ProfileView = () => {
           </h1>
         </div>
 
-        {/* 2. User Profile Card (Exact Match to Image 2) */}
-        <div
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '16px',
-            border: '1px solid #E2E8F0',
-            padding: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-            marginBottom: '18px',
-          }}
-        >
-          {/* Left Avatar + User Details */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            {/* User Squircle Avatar Box */}
-            <div
+        {/* 2. User Profile Card / Guest Card */}
+        {user ? (
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              border: '1px solid #E2E8F0',
+              padding: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+              marginBottom: '18px',
+            }}
+          >
+            {/* Left Avatar + User Details */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              {/* User Squircle Avatar Box */}
+              <div
+                style={{
+                  width: '54px',
+                  height: '54px',
+                  borderRadius: '14px',
+                  backgroundColor: '#F0F7FA',
+                  border: '1px solid #E2E8F0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <User size={26} color="#08274C" strokeWidth={1.8} />
+              </div>
+
+              {/* Name & Phone Number with Country Tag */}
+              <div>
+                <div
+                  style={{
+                    fontSize: '1.15rem',
+                    fontWeight: '800',
+                    color: '#0F172A',
+                    letterSpacing: '-0.01em',
+                    lineHeight: '1.2',
+                    marginBottom: '5px',
+                  }}
+                >
+                  {user.name}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    style={{
+                      backgroundColor: '#F1F5F9',
+                      color: '#64748B',
+                      fontSize: '0.68rem',
+                      fontWeight: '800',
+                      letterSpacing: '0.04em',
+                      padding: '2px 7px',
+                      borderRadius: '5px',
+                      lineHeight: '1.2',
+                    }}
+                  >
+                    {user.role || 'Contractor'}
+                  </span>
+
+                  <span
+                    style={{
+                      fontSize: '0.88rem',
+                      color: '#475569',
+                      fontWeight: '600',
+                    }}
+                  >
+                    {user.phone || user.email}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Edit Button Box */}
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
               style={{
-                width: '54px',
-                height: '54px',
-                borderRadius: '14px',
-                backgroundColor: '#F0F7FA',
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                backgroundColor: '#F1F5F9',
                 border: '1px solid #E2E8F0',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#475569',
+                transition: 'all 0.15s ease',
                 flexShrink: 0,
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#E2E8F0';
+                e.currentTarget.style.color = '#0F172A';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#F1F5F9';
+                e.currentTarget.style.color = '#475569';
+              }}
+              title="Edit Profile"
             >
-              <User size={26} color="#08274C" strokeWidth={1.8} />
-            </div>
-
-            {/* Name & Phone Number with Country Tag */}
-            <div>
-              <div
-                style={{
-                  fontSize: '1.15rem',
-                  fontWeight: '800',
-                  color: '#0F172A',
-                  letterSpacing: '-0.01em',
-                  lineHeight: '1.2',
-                  marginBottom: '5px',
-                }}
-              >
-                {formData.name}
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span
-                  style={{
-                    backgroundColor: '#F1F5F9',
-                    color: '#64748B',
-                    fontSize: '0.68rem',
-                    fontWeight: '800',
-                    letterSpacing: '0.04em',
-                    padding: '2px 7px',
-                    borderRadius: '5px',
-                    lineHeight: '1.2',
-                  }}
-                >
-                  INDIA
-                </span>
-
-                <span
-                  style={{
-                    fontSize: '0.88rem',
-                    color: '#475569',
-                    fontWeight: '600',
-                  }}
-                >
-                  {formData.phone}
-                </span>
-              </div>
-            </div>
+              <Edit3 size={18} />
+            </button>
           </div>
-
-          {/* Right Edit Button Box */}
-          <button
-            type="button"
-            onClick={() => setIsEditModalOpen(true)}
+        ) : (
+          <div
             style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              backgroundColor: '#F1F5F9',
-              border: '1px solid #E2E8F0',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              border: '1.5px solid #FEDF89',
+              background: 'linear-gradient(135deg, #FFFDF0 0%, #FFFFFF 100%)',
+              padding: '18px 16px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: '#475569',
-              transition: 'all 0.15s ease',
-              flexShrink: 0,
+              justifyContent: 'space-between',
+              gap: '12px',
+              boxShadow: '0 2px 8px rgba(241,90,36,0.06)',
+              marginBottom: '18px',
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#E2E8F0';
-              e.currentTarget.style.color = '#0F172A';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#F1F5F9';
-              e.currentTarget.style.color = '#475569';
-            }}
-            title="Edit Profile"
           >
-            <Edit3 size={18} strokeWidth={2.2} />
-          </button>
-        </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '14px',
+                  backgroundColor: '#FFE8DE',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--primary-orange)',
+                  flexShrink: 0,
+                }}
+              >
+                <User size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--primary-navy)', marginBottom: '2px' }}>
+                  Guest Visitor
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  Sign in or register to unlock wholesale contractor pricing & save project sites.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => openLoginModal('login')}
+              className="btn btn-primary btn-sm"
+              style={{ fontWeight: '800', whiteSpace: 'nowrap' }}
+            >
+              Sign In
+            </button>
+          </div>
+        )}
 
         {/* 3. Menu Cards List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

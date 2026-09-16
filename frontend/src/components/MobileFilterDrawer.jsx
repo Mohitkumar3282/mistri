@@ -15,8 +15,11 @@ export const MobileFilterDrawer = ({
   onToggleInStock,
   onResetFilters,
   availableBrands = [],
+  categories = [],
+  maxPriceLimit = 70000,
 }) => {
   if (!isOpen) return null;
+  const categoryList = categories && categories.length > 0 ? categories : CATEGORIES;
 
   return (
     <div className="bottom-sheet-overlay" onClick={onClose}>
@@ -55,9 +58,9 @@ export const MobileFilterDrawer = ({
               >
                 All Categories
               </button>
-              {CATEGORIES.map((cat) => (
+              {categoryList.map((cat) => (
                 <button
-                  key={cat.slug}
+                  key={cat.id || cat.slug}
                   type="button"
                   onClick={() => onSelectCategory(cat.slug)}
                   style={{
@@ -109,7 +112,7 @@ export const MobileFilterDrawer = ({
             <input
               type="range"
               min="200"
-              max="70000"
+              max={maxPriceLimit}
               step="500"
               value={priceRange}
               onChange={(e) => onPriceChange(Number(e.target.value))}

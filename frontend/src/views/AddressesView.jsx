@@ -3,8 +3,43 @@ import { MapPin, Plus, Trash2, CheckCircle2, Building, ArrowLeft, X } from 'luci
 import { useStore } from '../context/StoreContext';
 
 export const AddressesView = () => {
-  const { addresses, addAddress, deleteAddress, setDefaultAddress, navigateTo } = useStore();
+  const { addresses, addAddress, deleteAddress, setDefaultAddress, navigateTo, user, openLoginModal } = useStore();
   const [showAddModal, setShowAddModal] = useState(false);
+
+  if (!user) {
+    return (
+      <div className="container page-container" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <div
+          style={{
+            maxWidth: '480px',
+            margin: '0 auto',
+            backgroundColor: '#FFFFFF',
+            borderRadius: 'var(--radius-md)',
+            padding: '2.5rem 1.5rem',
+            border: '1px solid var(--border-subtle)',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--navy-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem auto', color: 'var(--primary-navy)' }}>
+            <MapPin size={32} />
+          </div>
+          <h2 style={{ fontSize: '1.4rem', color: 'var(--primary-navy)', marginBottom: '0.5rem', fontWeight: '800' }}>
+            Sign In to Manage Site Addresses
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.75rem' }}>
+            Save multiple active project site delivery locations, crane unloading guidelines & site supervisor contact details.
+          </p>
+          <button
+            onClick={() => openLoginModal('login', () => navigateTo('addresses'))}
+            className="btn btn-primary btn-lg mobile-w-full"
+            style={{ fontWeight: '800' }}
+          >
+            Sign In / Register
+          </button>
+        </div>
+      </div>
+    );
+  }
   const [newAddr, setNewAddr] = useState({
     title: '',
     type: 'Construction Site',

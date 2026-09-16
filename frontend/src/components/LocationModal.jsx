@@ -4,13 +4,14 @@ import { useStore } from '../context/StoreContext';
 import { CITIES } from '../data/mockData';
 
 export const LocationModal = () => {
-  const { isLocationModalOpen, setIsLocationModalOpen, currentCity, setCurrentCity, currentPincode, setCurrentPincode, addToast } = useStore();
+  const { isLocationModalOpen, setIsLocationModalOpen, currentCity, setCurrentCity, currentPincode, setCurrentPincode, addToast, cities } = useStore();
   const [searchCity, setSearchCity] = useState('');
   const [tempPincode, setTempPincode] = useState(currentPincode);
 
   if (!isLocationModalOpen) return null;
 
-  const filteredCities = CITIES.filter((c) => c.toLowerCase().includes(searchCity.toLowerCase()));
+  const cityList = cities && cities.length > 0 ? cities : CITIES;
+  const filteredCities = cityList.filter((c) => c.toLowerCase().includes(searchCity.toLowerCase()));
 
   const handleSelectCity = (cityName) => {
     setCurrentCity(cityName);

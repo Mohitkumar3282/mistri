@@ -10,12 +10,12 @@ export const ProductGallery = ({ images = [], alt = '' }) => {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       {/* Main Image Frame */}
       <div
         style={{
           position: 'relative',
-          height: '380px',
+          height: 'clamp(260px, 60vw, 380px)',
           width: '100%',
           backgroundColor: '#FFFFFF',
           border: '1px solid var(--border-subtle)',
@@ -24,6 +24,7 @@ export const ProductGallery = ({ images = [], alt = '' }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          boxShadow: 'var(--shadow-xs)',
         }}
       >
         <img
@@ -46,25 +47,36 @@ export const ProductGallery = ({ images = [], alt = '' }) => {
             position: 'absolute',
             bottom: '10px',
             right: '10px',
-            backgroundColor: 'rgba(11, 41, 71, 0.75)',
+            backgroundColor: 'rgba(8, 39, 76, 0.75)',
             color: '#FFFFFF',
             padding: '4px 8px',
-            borderRadius: '4px',
+            borderRadius: '6px',
             fontSize: '0.72rem',
+            fontWeight: '600',
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
             backdropFilter: 'blur(4px)',
+            pointerEvents: 'none',
           }}
         >
           <ZoomIn size={13} />
-          <span>Click to Zoom</span>
+          <span>{isZoomed ? 'Zoomed' : 'Tap to Zoom'}</span>
         </div>
       </div>
 
       {/* Thumbnails Row */}
       {displayImages.length > 1 && (
-        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px',
+            overflowX: 'auto',
+            paddingBottom: '4px',
+            scrollbarWidth: 'none',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
           {displayImages.map((img, idx) => (
             <button
               key={idx}
@@ -74,8 +86,8 @@ export const ProductGallery = ({ images = [], alt = '' }) => {
                 setIsZoomed(false);
               }}
               style={{
-                width: '64px',
-                height: '64px',
+                width: '60px',
+                height: '60px',
                 borderRadius: 'var(--radius-xs)',
                 border: `2px solid ${activeIdx === idx ? 'var(--primary-orange)' : 'var(--border-subtle)'}`,
                 padding: '2px',
@@ -83,9 +95,10 @@ export const ProductGallery = ({ images = [], alt = '' }) => {
                 cursor: 'pointer',
                 overflow: 'hidden',
                 flexShrink: 0,
+                transition: 'border-color 0.2s ease',
               }}
             >
-              <img src={img} alt={`${alt} thumbnail ${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={img} alt={`${alt} thumbnail ${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} />
             </button>
           ))}
         </div>

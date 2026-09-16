@@ -1,211 +1,642 @@
-import React, { useState } from 'react';
-import { X, Lock, Mail, User, Phone, LogIn } from 'lucide-react';
-import { useAuth } from '../controllers/useAuth';
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Lock,
+  Mail,
+  User,
+  Phone,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  CheckCircle2,
+  Sparkles,
+  ArrowRight,
+} from 'lucide-react';
+import { useStore } from '../context/StoreContext';
+import Logo from './Logo';
 
-export const LoginModal = ({ isOpen, onClose }) => {
-  const { login, register, loading, error } = useAuth();
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
-  const [form, setForm] = useState({
+export const LoginModal = () => {
+  const {
+    isLoginModalOpen,
+    closeLoginModal,
+    loginModalMode,
+    setLoginModalMode,
+    login,
+    signup,
+    navigateTo,
+    usersList,
+  } = useStore();
+
+  const [mode, setMode] = useState(loginModalMode || 'login'); // 'login' | 'register'
+  const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Sign In Form State
+  const [signInIdentifier, setSignInIdentifier] = useState('rajesh.malviya@malviyabuilders.com');
+  const [signInPassword, setSignInPassword] = useState('password123');
+
+  // Sign Up Form State
+  const [signUpData, setSignUpData] = useState({
     name: '',
+    phone: '',
     email: '',
     password: '',
-    phone: '',
-    role: 'customer',
+    confirmPassword: '',
   });
-  const [localError, setLocalError] = useState('');
 
-  if (!isOpen) return null;
+  // Sync mode with store when opened
+  useEffect(() => {
+    if (loginModalMode) {
+      setMode(loginModalMode);
+    }
+    setErrorMsg('');
+  }, [loginModalMode, isLoginModalOpen]);
 
-  const handleSubmit = async (e) => {
+  if (!isLoginModalOpen) return null;
+
+  // Handle Sign In Submit
+  const handleSignInSubmit = async (e) => {
     e.preventDefault();
-    setLocalError('');
+    setErrorMsg('');
+    if (!signInIdentifier || !signInPassword) {
+      setErrorMsg('Please enter both your registered email/phone and password.');
+      return;
+    }
 
-    if (isRegisterMode) {
-      if (!form.name || !form.email || !form.password) {
-        setLocalError('Please fill in all required fields.');
-        return;
-      }
-      const res = await register(form);
-      if (res.success) {
-        onClose();
-      } else {
-        setLocalError(res.message || 'Registration failed');
-      }
-    } else {
-      if (!form.email || !form.password) {
-        setLocalError('Please enter email and password.');
-        return;
-      }
-      const res = await login(form.email, form.password);
-      if (res.success) {
-        onClose();
-      } else {
-        setLocalError(res.message || 'Login failed');
-      }
+    setLoading(true);
+    try {
+      login(signInIdentifier, signInPassword);
+    } catch (err) {
+      setErrorMsg(err.message || 'Login failed. Please verify credentials.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDemoFill = (type) => {
-    if (type === 'customer') {
-      setForm({
-        ...form,
-        email: 'customer@mistri.com',
-        password: 'password123',
+  // Handle Sign Up Submit
+  const handleSignUpSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    if (!signUpData.name || !signUpData.phone || !signUpData.email || !signUpData.password) {
+      setErrorMsg('Please fill in all mandatory fields.');
+      return;
+    }
+
+    if (signUpData.password !== signUpData.confirmPassword) {
+      setErrorMsg('Passwords do not match. Please re-enter.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      signup({
+        name: signUpData.name,
+        phone: signUpData.phone,
+        email: signUpData.email,
+        role: 'Customer',
       });
-    } else {
-      setForm({
-        ...form,
-        email: 'mistri@mistri.com',
-        password: 'password123',
-      });
+    } catch (err) {
+      setErrorMsg(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 1-Click Fast Demo Login Selector
+  const handle1ClickLogin = (userPreset) => {
+    if (userPreset === 'contractor') {
+      login('rajesh.malviya@malviyabuilders.com', 'password123');
+    } else if (userPreset === 'builder') {
+      login('vikram.solanki@solankigroup.in', 'password123');
+    } else if (userPreset === 'designer') {
+      login('sunita@chauhaninteriors.com', 'password123');
+    } else if (userPreset === 'admin') {
+      login('admin@mistri.com', 'password123');
     }
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-        {/* Modal Header */}
-        <div style={{
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(4, 22, 44, 0.65)',
+        backdropFilter: 'blur(5px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '1rem',
+        animation: 'fadeIn 0.2s ease-out',
+      }}
+      onClick={closeLoginModal}
+    >
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '16px',
+          width: '100%',
+          maxWidth: '480px',
+          boxShadow: '0 25px 50px -12px rgba(8, 39, 76, 0.25)',
+          overflow: 'hidden',
+          border: '1px solid #E2E8F0',
+          animation: 'scaleUp 0.2s ease-out',
+          position: 'relative',
+          maxHeight: '92vh',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '1.5rem',
-          borderBottom: '1px solid var(--border-subtle)',
-        }}>
-          <div>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>
-              {isRegisterMode ? 'Create Mistri Account' : 'Welcome Back'}
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              {isRegisterMode ? 'Sign up to manage and track your bookings' : 'Sign in to access your dashboard'}
-            </p>
+          flexDirection: 'column',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal Close Button */}
+        <button
+          onClick={closeLoginModal}
+          style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            background: '#F1F5F9',
+            border: 'none',
+            borderRadius: '50%',
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: '#64748B',
+            transition: 'all 0.15s ease',
+            zIndex: 10,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#E2E8F0';
+            e.currentTarget.style.color = '#0F172A';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#F1F5F9';
+            e.currentTarget.style.color = '#64748B';
+          }}
+          title="Close Dialog"
+        >
+          <X size={18} />
+        </button>
+
+        {/* Brand Header */}
+        <div
+          style={{
+            padding: '1.5rem 1.5rem 1rem 1.5rem',
+            backgroundColor: '#F8FAFC',
+            borderBottom: '1px solid #E2E8F0',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
+            <Logo size="medium" showTagline={true} />
           </div>
-          <button onClick={onClose} style={{ background: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            <X size={20} />
-          </button>
-        </div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#08274C', margin: '0 0 4px 0' }}>
+            {mode === 'login' ? 'Sign In to Your Account' : 'Create Builder Account'}
+          </h2>
+          <p style={{ fontSize: '0.8rem', color: '#64748B', margin: 0 }}>
+            {mode === 'login'
+              ? 'Access wholesale site rates, live GPS tracking & e-Invoices'
+              : 'Direct depot pricing, crane delivery & 100% ITC tax invoice'}
+          </p>
 
-        {/* Modal Form */}
-        <div style={{ padding: '1.5rem' }}>
-          {(localError || error) && (
-            <div style={{
-              background: 'rgba(239, 68, 68, 0.15)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#ef4444',
-              padding: '0.75rem',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.85rem',
-              marginBottom: '1rem',
-            }}>
-              {localError || error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            {isRegisterMode && (
-              <>
-                <div className="form-group">
-                  <label className="form-label">Full Name</label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g. Rahul Sharma"
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Mobile Phone</label>
-                  <input
-                    type="tel"
-                    className="form-control"
-                    placeholder="+91 98765 43210"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="form-group">
-              <label className="form-label">Email Address</label>
-              <input
-                type="email"
-                className="form-control"
-                placeholder="you@example.com"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <input
-                type="password"
-                className="form-control"
-                placeholder="••••••••"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: '0.5rem' }}
-            >
-              {loading ? 'Please wait...' : isRegisterMode ? 'Sign Up' : 'Sign In'}
-            </button>
-          </form>
-
-          {/* Quick Demo Logins */}
-          {!isRegisterMode && (
-            <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textAlign: 'center' }}>
-                Quick Instant Demo Credentials:
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => handleDemoFill('customer')}
-                  className="btn btn-secondary btn-sm"
-                  style={{ flex: 1, fontSize: '0.78rem' }}
-                >
-                  Demo Customer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDemoFill('mistri')}
-                  className="btn btn-secondary btn-sm"
-                  style={{ flex: 1, fontSize: '0.78rem' }}
-                >
-                  Demo Mistri
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Toggle Register / Login */}
-          <div style={{ textAlign: 'center', marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            {isRegisterMode ? 'Already have an account?' : "Don't have an account yet?"}{' '}
+          {/* Tab Switcher (Sign In / Register) */}
+          <div
+            style={{
+              display: 'flex',
+              backgroundColor: '#E2E8F0',
+              borderRadius: '10px',
+              padding: '3px',
+              marginTop: '1rem',
+              gap: '4px',
+            }}
+          >
             <button
               type="button"
               onClick={() => {
-                setIsRegisterMode(!isRegisterMode);
-                setLocalError('');
+                setMode('login');
+                setLoginModalMode('login');
+                setErrorMsg('');
               }}
-              style={{ background: 'none', color: 'var(--primary)', fontWeight: '700', cursor: 'pointer' }}
+              style={{
+                flex: 1,
+                padding: '0.5rem 0',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: mode === 'login' ? '#FFFFFF' : 'transparent',
+                color: mode === 'login' ? '#08274C' : '#64748B',
+                fontWeight: mode === 'login' ? 800 : 600,
+                fontSize: '0.825rem',
+                cursor: 'pointer',
+                boxShadow: mode === 'login' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
             >
-              {isRegisterMode ? 'Sign In' : 'Register'}
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('register');
+                setLoginModalMode('register');
+                setErrorMsg('');
+              }}
+              style={{
+                flex: 1,
+                padding: '0.5rem 0',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: mode === 'register' ? '#FFFFFF' : 'transparent',
+                color: mode === 'register' ? '#08274C' : '#64748B',
+                fontWeight: mode === 'register' ? 800 : 600,
+                fontSize: '0.825rem',
+                cursor: 'pointer',
+                boxShadow: mode === 'register' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Register Account
             </button>
           </div>
+        </div>
+
+        {/* Scrollable Form Body */}
+        <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+          {errorMsg && (
+            <div
+              style={{
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #FCA5A5',
+                color: '#DC2626',
+                padding: '0.65rem 0.85rem',
+                borderRadius: '8px',
+                fontSize: '0.825rem',
+                marginBottom: '1rem',
+                fontWeight: 600,
+              }}
+            >
+              {errorMsg}
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* A. SIGN IN FORM                                           */}
+          {/* ========================================================= */}
+          {mode === 'login' ? (
+            <form onSubmit={handleSignInSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                  Mobile Number or Email
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Mail
+                    size={16}
+                    color="#94A3B8"
+                    style={{ position: 'absolute', left: '12px', top: '12px' }}
+                  />
+                  <input
+                    type="text"
+                    required
+                    placeholder="+91 98260 11223 or name@company.com"
+                    value={signInIdentifier}
+                    onChange={(e) => setSignInIdentifier(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.75rem 0.65rem 2.4rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      color: '#0F172A',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeLoginModal();
+                      navigateTo('forgot-password');
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#F15A24', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <Lock
+                    size={16}
+                    color="#94A3B8"
+                    style={{ position: 'absolute', left: '12px', top: '12px' }}
+                  />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="••••••••"
+                    value={signInPassword}
+                    onChange={(e) => setSignInPassword(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 2.4rem 0.65rem 2.4rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      color: '#0F172A',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      top: '10px',
+                      background: 'none',
+                      border: 'none',
+                      color: '#94A3B8',
+                      cursor: 'pointer',
+                      padding: '2px',
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  backgroundColor: '#F15A24',
+                  color: '#FFFFFF',
+                  borderRadius: '8px',
+                  border: 'none',
+                  fontWeight: 800,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(241, 90, 36, 0.35)',
+                  marginTop: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span>{loading ? 'Authenticating...' : 'Sign In to MISTRI'}</span>
+                <ArrowRight size={16} />
+              </button>
+
+              {/* 1-Click Demo Profiles */}
+              <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #E2E8F0' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: '0.5rem', textAlign: 'center' }}>
+                  ⚡ Quick 1-Click Demo Profiles:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handle1ClickLogin('contractor')}
+                    style={{
+                      padding: '0.45rem',
+                      backgroundColor: '#EEF4FA',
+                      border: '1px solid #C8DCF0',
+                      borderRadius: '6px',
+                      color: '#08274C',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    👷 Er. Rajesh (Gold Builder)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handle1ClickLogin('builder')}
+                    style={{
+                      padding: '0.45rem',
+                      backgroundColor: '#EEF4FA',
+                      border: '1px solid #C8DCF0',
+                      borderRadius: '6px',
+                      color: '#08274C',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    🏗️ Solanki Infra (VIP)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handle1ClickLogin('designer')}
+                    style={{
+                      padding: '0.45rem',
+                      backgroundColor: '#EEF4FA',
+                      border: '1px solid #C8DCF0',
+                      borderRadius: '6px',
+                      color: '#08274C',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    📐 Sunita (Architect)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handle1ClickLogin('admin')}
+                    style={{
+                      padding: '0.45rem',
+                      backgroundColor: '#FFF1EB',
+                      border: '1px solid #FDC3A9',
+                      borderRadius: '6px',
+                      color: '#F15A24',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    🛡️ Platform Admin
+                  </button>
+                </div>
+              </div>
+            </form>
+          ) : (
+            /* ========================================================= */
+            /* B. SIGN UP / REGISTRATION FORM                            */
+            /* ========================================================= */
+            <form onSubmit={handleSignUpSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                  Full Name *
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <User
+                    size={16}
+                    color="#94A3B8"
+                    style={{ position: 'absolute', left: '12px', top: '12px' }}
+                  />
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Anand Sharma"
+                    value={signUpData.name}
+                    onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.75rem 0.65rem 2.4rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      color: '#0F172A',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                  Mobile Number *
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Phone
+                    size={16}
+                    color="#94A3B8"
+                    style={{ position: 'absolute', left: '12px', top: '12px' }}
+                  />
+                  <input
+                    type="tel"
+                    required
+                    placeholder="+91 98260 00000"
+                    value={signUpData.phone}
+                    onChange={(e) => setSignUpData({ ...signUpData, phone: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.75rem 0.65rem 2.4rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      color: '#0F172A',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                  Email Address *
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Mail
+                    size={16}
+                    color="#94A3B8"
+                    style={{ position: 'absolute', left: '12px', top: '12px' }}
+                  />
+                  <input
+                    type="email"
+                    required
+                    placeholder="name@email.com"
+                    value={signUpData.email}
+                    onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.75rem 0.65rem 2.4rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      color: '#0F172A',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.25rem' }}>
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={signUpData.password}
+                    onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.25rem' }}>
+                    Confirm Password *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={signUpData.confirmPassword}
+                    onChange={(e) => setSignUpData({ ...signUpData, confirmPassword: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  backgroundColor: '#08274C',
+                  color: '#FFFFFF',
+                  borderRadius: '8px',
+                  border: 'none',
+                  fontWeight: 800,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(8, 39, 76, 0.25)',
+                  marginTop: '0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span>{loading ? 'Creating account...' : 'Create MISTRI Account'}</span>
+                <CheckCircle2 size={16} color="#10B981" />
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

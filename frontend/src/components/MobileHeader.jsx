@@ -159,6 +159,24 @@ export const MobileHeader = () => {
             </span>
           </div>
 
+          {/* Admin Panel Quick Access */}
+          <button
+            onClick={() => navigateTo('admin')}
+            style={{
+              padding: '3px 7px',
+              borderRadius: '6px',
+              backgroundColor: 'rgba(241, 90, 36, 0.15)',
+              color: 'var(--primary-orange)',
+              border: '1px solid rgba(241, 90, 36, 0.4)',
+              fontSize: '0.65rem',
+              fontWeight: '800',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            ADMIN
+          </button>
+
           {/* Dark Cart Circle Button with Bright Green Notification Badge (Exact Screenshot 1) */}
           <button
             onClick={() => navigateTo('cart')}

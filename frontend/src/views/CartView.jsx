@@ -32,6 +32,9 @@ export const CartView = () => {
     navigateTo,
     toggleWishlist,
     currentCity,
+    user,
+    requireAuth,
+    openLoginModal,
   } = useStore();
 
   const [couponInput, setCouponInput] = useState('');
@@ -304,13 +307,19 @@ export const CartView = () => {
 
             {/* Checkout Button */}
             <button
-              onClick={() => navigateTo('checkout')}
+              onClick={() => requireAuth(() => navigateTo('checkout'))}
               className="btn btn-primary btn-lg btn-block"
               style={{ fontWeight: '800', display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}
             >
               <span>Proceed to Checkout</span>
               <ArrowRight size={18} />
             </button>
+
+            {!user && (
+              <div style={{ marginTop: '0.85rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                🔒 Fast checkout: You'll be prompted to sign in or register before confirming.
+              </div>
+            )}
           </div>
         </div>
       </div>
