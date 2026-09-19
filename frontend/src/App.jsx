@@ -5,6 +5,7 @@ import { StoreProvider, useStore } from './context/StoreContext';
 import Header from './components/Header';
 import MobileHeader from './components/MobileHeader';
 import MobileBottomNav from './components/MobileBottomNav';
+import BottomCartBar from './components/BottomCartBar';
 import Footer from './components/Footer';
 import LocationModal from './components/LocationModal';
 import ProductOptionsModal from './components/ProductOptionsModal';
@@ -43,8 +44,8 @@ function MainAppLayout() {
 
   const isAdminView = currentView === 'admin';
 
-  // Hide global website header (logo, search bar) on categories, orders, order-details, order-tracking, profile, admin
-  const isCustomHeaderView = ['categories', 'orders', 'order-details', 'order-tracking', 'profile', 'admin'].includes(currentView);
+  // Hide global website header (logo, search bar) on categories, orders, order-details, order-tracking, profile, admin, cart, checkout
+  const isCustomHeaderView = ['categories', 'orders', 'order-details', 'order-tracking', 'profile', 'admin', 'cart', 'checkout'].includes(currentView);
   const hideMobileHeader = isCustomHeaderView || currentView === 'product-details';
 
   const renderActiveView = () => {
@@ -128,6 +129,9 @@ function MainAppLayout() {
 
       {/* Universal Footer */}
       {!isCustomHeaderView && <Footer />}
+
+      {/* Floating Bottom Cart Notification Bar (Quick Commerce Style) */}
+      <BottomCartBar />
 
       {/* Mobile Sticky Bottom Bar (5 Tabs) */}
       <MobileBottomNav />

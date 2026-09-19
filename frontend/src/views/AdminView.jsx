@@ -65,9 +65,12 @@ import {
   Key,
   AlertCircle,
   ArrowLeft,
+  CreditCard,
+  Loader2,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import Logo from '../components/Logo';
+import { uploadCloudFile } from '../services/storageService';
 
 export default function AdminView() {
   const {
@@ -147,10 +150,20 @@ export default function AdminView() {
     resetToDefaultData,
     addToast,
     user,
+    // Realtime Admin Notifications
+    adminNotifications = [],
+    setAdminNotifications,
+    markAdminNotificationRead,
+    markAllAdminNotificationsRead,
+    clearAdminNotifications,
+    playOrderNotificationSound,
+    requestNotificationPermission,
+    getNotificationPermission,
   } = useStore();
 
   // Sidebar & View state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSectionFilter, setSelectedSectionFilter] = useState('All');
@@ -158,6 +171,13 @@ export default function AdminView() {
   const [sortBy, setSortBy] = useState('name-asc');
   const [isTreeView, setIsTreeView] = useState(false);
   const [categoryViewMode, setCategoryViewMode] = useState('table'); // 'table' | 'grid'
+
+  // Order Management State & Filters
+  const [orderFilterTab, setOrderFilterTab] = useState('all'); // 'all' | 'online' | 'cash' | 'confirmed' | 'in_transit' | 'delivered'
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [selectedOrderDetailsModal, setSelectedOrderDetailsModal] = useState(null);
+  const [assignDriverModalOrder, setAssignDriverModalOrder] = useState(null);
+  const [driverInput, setDriverInput] = useState({ name: '', phone: '', vehicle: '' });
 
   // Category Sidebar Accordion expansion state
   const isCategoryTab = ['categories', 'parent-categories', 'sub-categories', 'category-products'].includes(adminActiveTab);
@@ -349,45 +369,71 @@ export default function AdminView() {
     navigateTo('admin', { tab: tabId }, true);
     setSearchTerm('');
     setSelectedIds([]);
+    setIsMobileDrawerOpen(false);
   };
 
-  // Reusable Image Upload Field Component
+  // Reusable Image Upload Field Component with Cloudinary & Firebase Storage support
   function ImageUploadField({ label = 'Product / Category Image', value, onChange, placeholder = 'Upload image file or paste URL' }) {
     const [dragOver, setDragOver] = useState(false);
     const [showPresets, setShowPresets] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
-    const handleFileChange = (e) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        if (file.size > 5 * 1024 * 1024) {
-          alert('File size exceeds 5MB');
-          return;
+    const handleUploadProcess = async (file) => {
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size exceeds 10MB limit.');
+        return;
+      }
+
+      setIsUploading(true);
+      setUploadProgress(10);
+
+      try {
+        const result = await uploadCloudFile(file, `mistri/admin/${file.name}`, (p) => {
+          setUploadProgress(p);
+        });
+        if (result && result.downloadURL) {
+          onChange(result.downloadURL);
         }
+      } catch (uploadErr) {
+        console.warn('Cloud direct upload failed, fallback to local FileReader:', uploadErr);
         const reader = new FileReader();
         reader.onload = (uploadEvent) => {
           onChange(uploadEvent.target.result);
         };
         reader.readAsDataURL(file);
+      } finally {
+        setIsUploading(false);
+        setUploadProgress(0);
       }
+    };
+
+    const handleFileChange = (e) => {
+      const file = e.target.files?.[0];
+      if (file) handleUploadProcess(file);
     };
 
     const handleDrop = (e) => {
       e.preventDefault();
       setDragOver(false);
       const file = e.dataTransfer.files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (uploadEvent) => {
-          onChange(uploadEvent.target.result);
-        };
-        reader.readAsDataURL(file);
-      }
+      if (file) handleUploadProcess(file);
     };
+
+    const isCloudHosted = value && (value.includes('cloudinary.com') || value.includes('firebasestorage.app') || value.includes('googleusercontent.com'));
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textDark }}>{label}</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textDark }}>{label}</label>
+            {isCloudHosted && (
+              <span style={{ fontSize: '0.62rem', backgroundColor: '#ECFDF5', color: '#059669', padding: '1px 5px', borderRadius: '4px', fontWeight: 700, border: '1px solid #A7F3D0' }}>
+                ☁️ Cloud Hosted
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => setShowPresets(!showPresets)}
@@ -452,14 +498,15 @@ export default function AdminView() {
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
           style={{
-            border: `2px dashed ${dragOver ? theme.primaryBlue : '#CBD5E1'}`,
+            border: `2px dashed ${dragOver ? theme.primaryBlue : isUploading ? '#F59E0B' : '#CBD5E1'}`,
             borderRadius: '10px',
             padding: '0.75rem 0.85rem',
-            backgroundColor: dragOver ? '#EFF6FF' : '#F8FAFC',
+            backgroundColor: dragOver ? '#EFF6FF' : isUploading ? '#FFFBEB' : '#F8FAFC',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
             transition: 'all 0.15s ease',
+            position: 'relative',
           }}
         >
           <div style={{
@@ -475,7 +522,12 @@ export default function AdminView() {
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-            {value ? (
+            {isUploading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                <Loader2 size={20} color="#D97706" className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+                <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#D97706' }}>{uploadProgress}%</span>
+              </div>
+            ) : value ? (
               <img src={value} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <ImageIcon size={22} color="#94A3B8" />
@@ -490,20 +542,35 @@ export default function AdminView() {
                   alignItems: 'center',
                   gap: '6px',
                   padding: '0.35rem 0.75rem',
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: isUploading ? '#F1F5F9' : '#FFFFFF',
                   border: '1px solid #CBD5E1',
                   borderRadius: '6px',
                   fontSize: '0.75rem',
                   fontWeight: 700,
-                  color: theme.textDark,
-                  cursor: 'pointer',
+                  color: isUploading ? '#94A3B8' : theme.textDark,
+                  cursor: isUploading ? 'not-allowed' : 'pointer',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
                 }}
               >
-                <UploadCloud size={14} color={theme.primaryBlue} /> Upload from Device
-                <input type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+                {isUploading ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+                    Uploading to Cloud...
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud size={14} color={theme.primaryBlue} /> Upload to Cloud (Cloudinary / Firebase)
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  disabled={isUploading}
+                  style={{ display: 'none' }}
+                />
               </label>
-              {value && (
+              {value && !isUploading && (
                 <button
                   type="button"
                   onClick={() => onChange('')}
@@ -526,13 +593,14 @@ export default function AdminView() {
               placeholder={placeholder}
               value={value || ''}
               onChange={(e) => onChange(e.target.value)}
+              disabled={isUploading}
               style={{
                 width: '100%',
                 padding: '0.35rem 0.6rem',
                 borderRadius: '6px',
                 border: '1px solid #CBD5E1',
                 fontSize: '0.75rem',
-                backgroundColor: '#FFFFFF',
+                backgroundColor: isUploading ? '#F8FAFC' : '#FFFFFF',
                 outline: 'none',
               }}
             />
@@ -1268,28 +1336,39 @@ export default function AdminView() {
       {/* ========================================================= */}
       {/* 1. LEFT SIDEBAR NAVIGATION (LIGHT BLUE)                   */}
       {/* ========================================================= */}
-      <aside style={{
-        width: isSidebarCollapsed ? '72px' : '260px',
-        backgroundColor: theme.sidebarBg,
-        borderRight: `1px solid ${theme.sidebarBorder}`,
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
-        zIndex: 50,
-        transition: 'width 0.2s ease',
-        flexShrink: 0,
-      }}>
-        {/* Brand / Logo */}
-        <div style={{
-          height: '68px',
-          padding: isSidebarCollapsed ? '0 0.5rem' : '0 1.25rem',
+      {/* Mobile Backdrop Overlay */}
+      <div
+        className={`admin-mobile-backdrop ${isMobileDrawerOpen ? 'active' : ''}`}
+        onClick={() => setIsMobileDrawerOpen(false)}
+      />
+
+      <aside
+        className={`admin-sidebar ${isMobileDrawerOpen ? 'mobile-open' : ''}`}
+        style={{
+          width: isSidebarCollapsed ? '72px' : '260px',
+          backgroundColor: theme.sidebarBg,
+          borderRight: `1px solid ${theme.sidebarBorder}`,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
-          borderBottom: `1px solid ${theme.sidebarBorder}`,
-        }}>
+          flexDirection: 'column',
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
+          zIndex: 50,
+          transition: 'width 0.2s ease',
+          flexShrink: 0,
+        }}
+      >
+        {/* Brand / Logo */}
+        <div
+          style={{
+            height: '68px',
+            padding: isSidebarCollapsed ? '0 0.5rem' : '0 1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isSidebarCollapsed ? 'center' : 'space-between',
+            borderBottom: `1px solid ${theme.sidebarBorder}`,
+          }}
+        >
           {!isSidebarCollapsed ? (
             <div style={{ cursor: 'pointer' }} onClick={() => handleTabChange('dashboard')}>
               <Logo size="medium" showTagline={true} />
@@ -1314,6 +1393,16 @@ export default function AdminView() {
               M
             </div>
           )}
+
+          {/* Mobile Close Button */}
+          <button
+            type="button"
+            className="admin-mobile-close-btn"
+            onClick={() => setIsMobileDrawerOpen(false)}
+            title="Close Menu"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Navigation Menus with Scrollbar */}
@@ -1612,52 +1701,65 @@ export default function AdminView() {
       {/* ========================================================= */}
       {/* 2. MAIN WORKSPACE AREA (WITH LIGHT BLUE HEADER)           */}
       {/* ========================================================= */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflowX: 'hidden' }}>
+      <div className="admin-main-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflowX: 'hidden' }}>
         {/* TOP HEADER BAR (LIGHT BLUE) */}
-        <header style={{
-          height: '68px',
-          backgroundColor: theme.headerBg,
-          borderBottom: `1px solid ${theme.headerBorder}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 1.75rem',
-          position: 'sticky',
-          top: 0,
-          zIndex: 40,
-        }}>
+        <header
+          className="admin-top-header"
+          style={{
+            height: '68px',
+            backgroundColor: theme.headerBg,
+            borderBottom: `1px solid ${theme.headerBorder}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 1.75rem',
+            position: 'sticky',
+            top: 0,
+            zIndex: 40,
+          }}
+        >
           {/* Left: Sidebar Toggle & Global Search Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flex: 1, maxWidth: '620px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, maxWidth: '620px' }}>
             <button
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              onClick={() => {
+                if (window.innerWidth <= 1024) {
+                  setIsMobileDrawerOpen(!isMobileDrawerOpen);
+                } else {
+                  setIsSidebarCollapsed(!isSidebarCollapsed);
+                }
+              }}
               style={{
-                background: 'transparent',
-                border: 'none',
+                background: '#FFFFFF',
+                border: '1px solid #D0E2F2',
                 cursor: 'pointer',
                 color: '#335372',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '6px',
-                borderRadius: '6px',
+                padding: '7px',
+                borderRadius: '8px',
+                boxShadow: '0 1px 2px rgba(8, 39, 76, 0.04)',
               }}
-              title="Toggle Sidebar"
+              title="Toggle Navigation Menu"
             >
               <Menu size={20} />
             </button>
 
             {/* Global Search Bar */}
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #D0E2F2',
-              borderRadius: '10px',
-              padding: '0.45rem 0.85rem',
-              gap: '8px',
-              boxShadow: '0 1px 3px rgba(8, 39, 76, 0.04)',
-            }}>
+            <div
+              className="admin-global-search-container"
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #D0E2F2',
+                borderRadius: '10px',
+                padding: '0.45rem 0.85rem',
+                gap: '8px',
+                boxShadow: '0 1px 3px rgba(8, 39, 76, 0.04)',
+              }}
+            >
               <Search size={16} color="#7E9BB5" />
               <input
                 type="text"
@@ -1676,24 +1778,27 @@ export default function AdminView() {
                   width: '100%',
                 }}
               />
-              <span style={{
-                fontSize: '0.7rem',
-                fontWeight: 600,
-                color: '#58738D',
-                backgroundColor: '#EDF5FC',
-                border: '1px solid #D0E2F2',
-                padding: '2px 6px',
-                borderRadius: '5px',
-              }}>
+              <span
+                style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  color: '#58738D',
+                  backgroundColor: '#EDF5FC',
+                  border: '1px solid #D0E2F2',
+                  padding: '2px 6px',
+                  borderRadius: '5px',
+                }}
+              >
                 Ctrl K
               </span>
             </div>
           </div>
 
           {/* Right Header Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             {/* View Storefront Link */}
             <button
+              className="admin-storefront-btn"
               onClick={() => navigateTo('home')}
               style={{
                 display: 'flex',
@@ -1737,25 +1842,195 @@ export default function AdminView() {
                 }}
               >
                 <Bell size={18} />
-                <span style={{
-                  position: 'absolute',
-                  top: '-3px',
-                  right: '-3px',
-                  width: '17px',
-                  height: '17px',
-                  borderRadius: '50%',
-                  backgroundColor: '#EF4444',
-                  color: '#FFFFFF',
-                  fontSize: '0.65rem',
-                  fontWeight: 800,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '2px solid #FFFFFF',
-                }}>
-                  3
-                </span>
+                {adminNotifications.filter((n) => n.unread).length > 0 && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '-4px',
+                      right: '-4px',
+                      minWidth: '18px',
+                      height: '18px',
+                      borderRadius: '9px',
+                      backgroundColor: '#EF4444',
+                      color: '#FFFFFF',
+                      fontSize: '0.65rem',
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '2px solid #FFFFFF',
+                      padding: '0 4px',
+                      animation: 'pulse 2s infinite',
+                    }}
+                  >
+                    {adminNotifications.filter((n) => n.unread).length}
+                  </span>
+                )}
               </button>
+
+              {/* Notification Dropdown Drawer */}
+              {isNotificationOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '46px',
+                    right: 0,
+                    width: '360px',
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '12px',
+                    boxShadow: '0 20px 35px -5px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0,0,0,0.06)',
+                    zIndex: 9999,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    maxHeight: '480px',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '12px 14px',
+                      backgroundColor: '#071E3D',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '0.85rem' }}>Incoming Order Alerts</div>
+                      <div style={{ fontSize: '0.7rem', color: '#94A3B8' }}>
+                        {adminNotifications.filter((n) => n.unread).length} Unread Notifications
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={playOrderNotificationSound}
+                        title="Test Audio Chime"
+                        style={{
+                          background: 'rgba(255,255,255,0.15)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          color: '#FFFFFF',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        🔊 Chime
+                      </button>
+                      <button
+                        type="button"
+                        onClick={markAllAdminNotificationsRead}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#FDBA74',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Read All
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ overflowY: 'auto', maxHeight: '350px', display: 'flex', flexDirection: 'column' }}>
+                    {adminNotifications.length > 0 ? (
+                      adminNotifications.map((notif) => {
+                        const isOnline = notif.paymentMethod?.toLowerCase().includes('upi') || notif.paymentMethod?.toLowerCase().includes('online') || notif.paymentMethod?.toLowerCase().includes('card');
+
+                        return (
+                          <div
+                            key={notif.id}
+                            onClick={() => {
+                              markAdminNotificationRead(notif.id);
+                              handleTabChange('orders');
+                              setIsNotificationOpen(false);
+                            }}
+                            style={{
+                              padding: '10px 14px',
+                              borderBottom: '1px solid #F1F5F9',
+                              backgroundColor: notif.unread ? '#FFF7ED' : '#FFFFFF',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              gap: '10px',
+                              alignItems: 'flex-start',
+                              transition: 'background 0.15s',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                backgroundColor: isOnline ? '#D1FAE5' : '#FED7AA',
+                                color: isOnline ? '#059669' : '#C2410C',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                marginTop: '2px',
+                              }}
+                            >
+                              <Truck size={16} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                <span style={{ fontWeight: 800, fontSize: '0.825rem', color: '#071E3D' }}>
+                                  {notif.title}
+                                </span>
+                                <span style={{ fontSize: '0.68rem', color: '#94A3B8' }}>{notif.time}</span>
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: '#475467', marginTop: '2px' }}>
+                                {notif.message}
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                                <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: isOnline ? '#DCFCE7' : '#FEF3C7', color: isOnline ? '#15803D' : '#D97706' }}>
+                                  {isOnline ? '💳 Online Paid' : '💵 Cash on Site'}
+                                </span>
+                                {notif.amount && (
+                                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#071E3D' }}>
+                                    ₹{notif.amount.toLocaleString('en-IN')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ padding: '2rem', textAlign: 'center', color: '#94A3B8', fontSize: '0.8rem' }}>
+                        No notifications yet.
+                      </div>
+                    )}
+                  </div>
+
+                  {adminNotifications.length > 0 && (
+                    <div style={{ padding: '8px 14px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={clearAdminNotifications}
+                        style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Clear All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleTabChange('orders');
+                          setIsNotificationOpen(false);
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#0066FF', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        View All Orders →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Fullscreen Expand Icon */}
@@ -1878,7 +2153,7 @@ export default function AdminView() {
         {/* MAIN BODY: Workspace + Side Inspector Layout */}
         <div style={{ display: 'flex', flex: 1, minHeight: 'calc(100vh - 68px)' }}>
           {/* CENTER VIEW CONTENT */}
-          <main style={{ flex: 1, padding: '1.5rem 1.75rem', minWidth: 0, overflowY: 'auto' }}>
+          <main className="admin-main-content" style={{ flex: 1, padding: '1.5rem 1.75rem', minWidth: 0, overflowY: 'auto' }}>
             {/* Render Tab Sub-View based on adminActiveTab */}
             {adminActiveTab === 'categories' && renderCategoriesView()}
             {adminActiveTab === 'parent-categories' && renderParentCategoriesView()}
@@ -1906,6 +2181,7 @@ export default function AdminView() {
       {/* ========================================================= */}
       {/* 3. MODAL DIALOGS (Category, Parent Category, Sub Category) */}
       {/* ========================================================= */}
+      {/* Modal 1: Add Category Modal */}
       {/* Modal 1: Add Category Modal */}
       {activeModal === 'add-category' && (
         <div style={{
@@ -1950,14 +2226,15 @@ export default function AdminView() {
                 e.preventDefault();
                 const name = modalFormData.name;
                 if (!name) return;
+                const sectionVal = modalFormData.section?.trim() || 'Civil & Interiors';
                 const newCat = {
                   id: `cat_${Date.now()}`,
                   name,
                   slug: modalFormData.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-                  section: modalFormData.section || 'Civil & Interiors',
+                  section: sectionVal,
                   description: modalFormData.description || '',
                   image: modalFormData.image || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=300',
-                  subcategories: modalFormData.subcategoriesText ? modalFormData.subcategoriesText.split(',').map(s => s.trim()).filter(Boolean) : ['Standard Grade', 'Premium Grade'],
+                  subcategories: modalFormData.subcategoriesText ? modalFormData.subcategoriesText.split(',').map(s => s.trim()).filter(Boolean) : ['Standard Grade', 'Premium Grade', 'Accessories'],
                   isActive: true,
                   createdOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
                   lastUpdated: 'Just now',
@@ -1965,7 +2242,7 @@ export default function AdminView() {
                 addCategory(newCat);
                 setActiveModal(null);
                 setModalFormData({});
-                addToast(`Category "${name}" created successfully!`, 'success');
+                addToast(`Category "${name}" created under "${sectionVal}"!`, 'success');
               }}
               style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
             >
@@ -2012,26 +2289,91 @@ export default function AdminView() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: theme.textDark, marginBottom: '0.35rem' }}>
-                  Parent Category / Section
-                </label>
-                <select
-                  value={modalFormData.section || 'Civil & Interiors'}
-                  onChange={(e) => setModalFormData({ ...modalFormData, section: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem 0.8rem',
-                    borderRadius: '8px',
-                    border: '1px solid #CBD5E1',
-                    fontSize: '0.85rem',
-                  }}
-                >
-                  {categorySections.map((sec) => (
-                    <option key={sec.id} value={sec.title || sec.name}>
-                      {sec.title || sec.name}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: theme.textDark }}>
+                    Parent Category / Section
+                  </label>
+                  <div style={{ display: 'flex', gap: '4px', backgroundColor: '#F1F5F9', padding: '2px', borderRadius: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setModalFormData({ ...modalFormData, isCustomSection: false })}
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        border: 'none',
+                        borderRadius: '4px',
+                        backgroundColor: !modalFormData.isCustomSection ? '#FFFFFF' : 'transparent',
+                        color: !modalFormData.isCustomSection ? theme.primaryBlue : '#64748B',
+                        boxShadow: !modalFormData.isCustomSection ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Select Existing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalFormData({ ...modalFormData, isCustomSection: true, section: '' })}
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        border: 'none',
+                        borderRadius: '4px',
+                        backgroundColor: modalFormData.isCustomSection ? theme.primaryBlue : 'transparent',
+                        color: modalFormData.isCustomSection ? '#FFFFFF' : '#64748B',
+                        boxShadow: modalFormData.isCustomSection ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      + Type New Parent
+                    </button>
+                  </div>
+                </div>
+
+                {!modalFormData.isCustomSection ? (
+                  <select
+                    value={modalFormData.section || (categorySections[0]?.title || categorySections[0]?.name || 'Civil & Interiors')}
+                    onChange={(e) => setModalFormData({ ...modalFormData, section: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 0.8rem',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.85rem',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  >
+                    {categorySections.map((sec) => (
+                      <option key={sec.id} value={sec.title || sec.name}>
+                        {sec.title || sec.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    required
+                    placeholder="Type new parent category name (e.g. Roofing & Insulation, Sanitaryware)"
+                    value={modalFormData.section || ''}
+                    onChange={(e) => setModalFormData({ ...modalFormData, section: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 0.8rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #3B82F6',
+                      backgroundColor: '#F0F7FF',
+                      fontSize: '0.85rem',
+                      color: '#0F172A',
+                      fontWeight: 600,
+                    }}
+                  />
+                )}
+                <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px' }}>
+                  {modalFormData.isCustomSection
+                    ? '✨ Writing a new parent category will automatically register it as a new parent category section.'
+                    : 'Select an existing parent category or switch to "+ Type New Parent" to enter a new one.'}
+                </div>
               </div>
 
               {/* Product / Category Image Upload */}
@@ -2148,9 +2490,14 @@ export default function AdminView() {
               alignItems: 'center',
               justifyContent: 'space-between',
             }}>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: theme.textDark }}>
-                + Add Parent Category / Section
-              </h3>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: theme.textDark, margin: 0 }}>
+                  + Add New Parent Category
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: '#64748B', margin: '2px 0 0 0' }}>
+                  Write a new parent category name to create a primary department in catalog
+                </p>
+              </div>
               <button
                 onClick={() => setActiveModal(null)}
                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
@@ -2162,13 +2509,15 @@ export default function AdminView() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                const title = modalFormData.title;
+                const title = (modalFormData.title || modalFormData.name || '').trim();
                 if (!title) return;
                 const newSec = {
                   id: `sec_${Date.now()}`,
                   title,
-                  description: modalFormData.description || '',
+                  slug: modalFormData.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                  description: modalFormData.description || `Primary material line for ${title}`,
                   image: modalFormData.image || 'https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?auto=format&fit=crop&q=80&w=600',
+                  subcategories: modalFormData.subcategoriesText ? modalFormData.subcategoriesText.split(',').map(s => s.trim()).filter(Boolean) : ['Standard Grade', 'Premium Grade', 'Accessories'],
                   categories: [],
                   isActive: true,
                 };
@@ -2180,14 +2529,42 @@ export default function AdminView() {
             >
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: theme.textDark, marginBottom: '0.35rem' }}>
-                  Parent Category Title *
+                  Parent Category Name *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Roofing & Insulation, Safety Gear"
-                  value={modalFormData.title || ''}
-                  onChange={(e) => setModalFormData({ ...modalFormData, title: e.target.value })}
+                  placeholder="e.g. Roofing & Insulation, Structural Steel, Sanitary & Plumbing"
+                  value={modalFormData.title || modalFormData.name || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setModalFormData({
+                      ...modalFormData,
+                      title: val,
+                      name: val,
+                      slug: val.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                    });
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '8px',
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: theme.textDark, marginBottom: '0.35rem' }}>
+                  Slug
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. roofing-insulation"
+                  value={modalFormData.slug || ''}
+                  onChange={(e) => setModalFormData({ ...modalFormData, slug: e.target.value })}
                   style={{
                     width: '100%',
                     padding: '0.6rem 0.8rem',
@@ -2208,11 +2585,30 @@ export default function AdminView() {
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: theme.textDark, marginBottom: '0.35rem' }}>
+                  Subcategories (comma separated)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Standard Grade, Premium Grade, Accessories, Fast Dispatch"
+                  value={modalFormData.subcategoriesText || ''}
+                  onChange={(e) => setModalFormData({ ...modalFormData, subcategoriesText: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.8rem',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.85rem',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: theme.textDark, marginBottom: '0.35rem' }}>
                   Description
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Description of department and structural line..."
+                  placeholder="Description of department and materials in this parent line..."
                   value={modalFormData.description || ''}
                   onChange={(e) => setModalFormData({ ...modalFormData, description: e.target.value })}
                   style={{
@@ -3137,6 +3533,230 @@ export default function AdminView() {
           </div>
         </div>
       )}
+
+      {/* Mobile Bottom Quick Navigation Bar (Mobile only) */}
+      <nav className="admin-mobile-bottom-nav">
+        <button
+          type="button"
+          className={`admin-mob-nav-item ${adminActiveTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => handleTabChange('dashboard')}
+        >
+          <LayoutDashboard size={19} />
+          <span>Dashboard</span>
+        </button>
+        <button
+          type="button"
+          className={`admin-mob-nav-item ${adminActiveTab === 'orders' ? 'active' : ''}`}
+          onClick={() => handleTabChange('orders')}
+        >
+          <div style={{ position: 'relative', display: 'inline-flex' }}>
+            <Truck size={19} />
+            {orders.length > 0 && (
+              <span className="admin-mob-badge">
+                {orders.length}
+              </span>
+            )}
+          </div>
+          <span>Orders</span>
+        </button>
+        <button
+          type="button"
+          className={`admin-mob-nav-item ${adminActiveTab === 'products' ? 'active' : ''}`}
+          onClick={() => handleTabChange('products')}
+        >
+          <Package size={19} />
+          <span>Products</span>
+        </button>
+        <button
+          type="button"
+          className={`admin-mob-nav-item ${isCategoryTab ? 'active' : ''}`}
+          onClick={() => handleTabChange('categories')}
+        >
+          <Layers size={19} />
+          <span>Categories</span>
+        </button>
+        <button
+          type="button"
+          className="admin-mob-nav-item"
+          onClick={() => setIsMobileDrawerOpen(true)}
+        >
+          <Menu size={19} />
+          <span>Menu</span>
+        </button>
+      </nav>
+
+      {/* Comprehensive Responsive Stylesheet (Keeps Web Desktop 100% Unaltered) */}
+      <style>{`
+        /* ========================================================= */
+        /* BASE DESKTOP DEFAULTS (Web View Unchanged)                */
+        /* ========================================================= */
+        .admin-mobile-backdrop {
+          display: none;
+        }
+        .admin-mobile-close-btn {
+          display: none;
+        }
+        .admin-mobile-bottom-nav {
+          display: none;
+        }
+
+        /* ========================================================= */
+        /* TABLET & LAPTOP RESPONSIVENESS (<= 1024px)               */
+        /* ========================================================= */
+        @media (max-width: 1024px) {
+          .admin-sidebar {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            bottom: 0 !important;
+            height: 100vh !important;
+            width: 280px !important;
+            max-width: 85vw !important;
+            z-index: 99999 !important;
+            transform: translateX(-100%);
+            transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35) !important;
+          }
+          .admin-sidebar.mobile-open {
+            transform: translateX(0) !important;
+          }
+          .admin-mobile-backdrop.active {
+            display: block !important;
+            position: fixed !important;
+            inset: 0 !important;
+            background: rgba(8, 39, 76, 0.6) !important;
+            backdrop-filter: blur(4px) !important;
+            -webkit-backdrop-filter: blur(4px) !important;
+            z-index: 99998 !important;
+          }
+          .admin-mobile-close-btn {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: #E2E8F0;
+            border: none;
+            color: #475467;
+            cursor: pointer;
+          }
+          /* 2-Column Category Split stacks vertically on tablet/mobile */
+          div[style*="grid-template-columns: 360px 1fr"] {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        /* ========================================================= */
+        /* MOBILE PHONES RESPONSIVENESS (<= 768px)                   */
+        /* ========================================================= */
+        @media (max-width: 768px) {
+          .admin-top-header {
+            height: 58px !important;
+            padding: 0 10px !important;
+          }
+          .admin-global-search-container {
+            max-width: 150px !important;
+            padding: 0.35rem 0.55rem !important;
+          }
+          .admin-global-search-container input {
+            font-size: 0.78rem !important;
+          }
+          .admin-global-search-container span {
+            display: none !important;
+          }
+          .admin-storefront-btn span {
+            display: none !important;
+          }
+          .admin-storefront-btn {
+            padding: 0.45rem !important;
+          }
+          .admin-main-content {
+            padding: 12px 10px 84px 10px !important;
+          }
+          .admin-mobile-bottom-nav {
+            display: flex !important;
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 60px !important;
+            background-color: #FFFFFF !important;
+            border-top: 1px solid #D6E4F0 !important;
+            z-index: 9990 !important;
+            align-items: center !important;
+            justify-content: space-around !important;
+            padding: 4px 6px max(4px, env(safe-area-inset-bottom, 4px)) 6px !important;
+            box-shadow: 0 -3px 14px rgba(8, 39, 76, 0.08) !important;
+          }
+          .admin-mob-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            background: none;
+            border: none;
+            color: #64748B;
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 5px 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            flex: 1;
+          }
+          .admin-mob-nav-item.active {
+            color: #0066FF !important;
+            background-color: #EFF6FF !important;
+          }
+          .admin-mob-badge {
+            position: absolute;
+            top: -4px;
+            right: -6px;
+            background-color: #EF4444;
+            color: #FFFFFF;
+            font-size: 0.6rem;
+            font-weight: 800;
+            padding: 1px 4px;
+            border-radius: 8px;
+            line-height: 1;
+          }
+          /* Stat Cards grid to 2 columns on mobile */
+          div[style*="repeat(auto-fit, minmax(220px, 1fr))"] {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 0.6rem !important;
+          }
+          div[style*="repeat(auto-fit, minmax(240px, 1fr))"] {
+            grid-template-columns: 1fr !important;
+          }
+          /* All modals responsive width */
+          div[style*="maxWidth: '680px'"],
+          div[style*="maxWidth: '820px'"],
+          div[style*="maxWidth: '540px'"],
+          div[style*="maxWidth: '520px'"] {
+            width: 95% !important;
+            max-width: 95vw !important;
+            max-height: 90vh !important;
+          }
+          /* Notification dropdown on mobile */
+          div[style*="width: '360px'"] {
+            width: 92vw !important;
+            max-width: 360px !important;
+            right: -50px !important;
+          }
+        }
+
+        /* Small Phones (<= 480px) */
+        @media (max-width: 480px) {
+          .admin-global-search-container {
+            display: none !important;
+          }
+          div[style*="repeat(auto-fit, minmax(220px, 1fr))"] {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 
@@ -3184,98 +3804,6 @@ export default function AdminView() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        {/* Top Header Card (Matches Reference Image) */}
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: '16px',
-          border: '1px solid #E2E8F0',
-          padding: '1.15rem 1.5rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
-              backgroundColor: '#F5F3FF',
-              color: '#7C3AED',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <Layers size={22} />
-            </div>
-            <div>
-              <h1 style={{ fontSize: '1.45rem', fontWeight: 900, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
-                Category hierarchy
-              </h1>
-              <p style={{ color: '#64748B', fontSize: '0.82rem', margin: 0, marginTop: '2px' }}>
-                Parent categories and their subcategories ({totalHierarchyItems} items)
-              </p>
-            </div>
-          </div>
-
-          {/* Right Status Badges & Quick Action */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '0.45rem 0.85rem',
-              borderRadius: '20px',
-              backgroundColor: '#EEF2FF',
-              border: '1px solid #E0E7FF',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              color: '#4338CA',
-            }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4F46E5' }} />
-              Parents: <strong>{categories.length}</strong>
-            </div>
-
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '0.45rem 0.85rem',
-              borderRadius: '20px',
-              backgroundColor: '#ECFDF5',
-              border: '1px solid #D1FAE5',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              color: '#047857',
-            }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981' }} />
-              Subcategories: <strong>{allSubCategories.length}</strong>
-            </div>
-
-            <button
-              onClick={() => setActiveModal('add-category')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '0.5rem 1rem',
-                backgroundColor: theme.primaryBlue,
-                color: '#FFFFFF',
-                borderRadius: '9px',
-                border: 'none',
-                fontWeight: 800,
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(0, 102, 255, 0.25)',
-              }}
-            >
-              <Plus size={15} /> Add Category
-            </button>
-          </div>
-        </div>
-
         {/* 2-Column Split: Parent categories (Left) & Subcategories (Right) */}
         <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '1.25rem', alignItems: 'flex-start' }}>
           {/* LEFT CARD: Parent categories List */}
@@ -3776,7 +4304,7 @@ export default function AdminView() {
           <button
             onClick={() => {
               setModalFormData({});
-              setActiveModal('add-category');
+              setActiveModal('add-parent-category');
             }}
             style={{
               display: 'inline-flex',
@@ -5338,76 +5866,647 @@ export default function AdminView() {
   // -------------------------------------------------------------
   // 5. ORDERS & LIVE LOGISTICS
   // -------------------------------------------------------------
+  // -------------------------------------------------------------
+  // 5. ORDERS & LIVE LOGISTICS MANAGEMENT
+  // -------------------------------------------------------------
   function renderOrdersView() {
+    // Filtered orders list based on tabs and search query
+    const filteredOrders = orders.filter((o) => {
+      const isOnline =
+        o.payment?.method?.toLowerCase().includes('online') ||
+        o.payment?.method?.toLowerCase().includes('upi') ||
+        o.payment?.method?.toLowerCase().includes('card') ||
+        o.payment?.method?.toLowerCase().includes('net banking') ||
+        o.paymentMethod?.toLowerCase().includes('online') ||
+        o.paymentMethod?.toLowerCase().includes('upi') ||
+        o.payment?.status === 'Paid';
+
+      const isCOD =
+        o.payment?.method?.toLowerCase().includes('cash') ||
+        o.payment?.method?.toLowerCase().includes('site') ||
+        o.payment?.method?.toLowerCase().includes('cod') ||
+        o.paymentMethod?.toLowerCase().includes('cash');
+
+      if (orderFilterTab === 'online' && !isOnline) return false;
+      if (orderFilterTab === 'cash' && !isCOD) return false;
+      if (orderFilterTab === 'confirmed' && o.status !== 'Confirmed') return false;
+      if (orderFilterTab === 'in_transit' && !['In Transit', 'Warehouse Dispatch', 'Out for Delivery'].includes(o.status)) return false;
+      if (orderFilterTab === 'delivered' && o.status !== 'Delivered' && o.status !== 'Delivered & Unloaded') return false;
+
+      if (orderSearchQuery.trim()) {
+        const query = orderSearchQuery.toLowerCase();
+        const idMatch = (o.id || '').toLowerCase().includes(query) || (o.orderNumber || '').toLowerCase().includes(query);
+        const nameMatch = (o.customerName || o.shippingAddress?.fullName || o.shippingAddress?.recipientName || o.siteAddress?.recipientName || '').toLowerCase().includes(query);
+        const phoneMatch = (o.customerPhone || o.shippingAddress?.phone || o.siteAddress?.phone || '').includes(query);
+        const cityMatch = (o.shippingAddress?.city || o.siteAddress?.city || '').toLowerCase().includes(query);
+        return idMatch || nameMatch || phoneMatch || cityMatch;
+      }
+
+      return true;
+    });
+
+    const onlineOrdersCount = orders.filter(
+      (o) =>
+        o.payment?.method?.toLowerCase().includes('online') ||
+        o.payment?.method?.toLowerCase().includes('upi') ||
+        o.payment?.method?.toLowerCase().includes('card') ||
+        o.payment?.status === 'Paid'
+    ).length;
+
+    const codOrdersCount = orders.filter(
+      (o) =>
+        o.payment?.method?.toLowerCase().includes('cash') ||
+        o.payment?.method?.toLowerCase().includes('site') ||
+        o.payment?.method?.toLowerCase().includes('cod') ||
+        o.paymentMethod?.toLowerCase().includes('cash')
+    ).length;
+
+    const totalRevenue = orders.reduce((acc, o) => acc + (o.grandTotal || o.total || o.summary?.totalAmount || 0), 0);
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div>
-          <div style={{ fontSize: '0.78rem', color: theme.textMuted }}>Home › Orders › <span style={{ color: theme.primaryBlue, fontWeight: 600 }}>Orders & Logistics</span></div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: theme.textDark }}>Orders & Logistics Tracker</h1>
-          <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>Advance delivery timeline, assign driver & vehicle number in real-time.</p>
+        {/* Breadcrumb & Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ fontSize: '0.78rem', color: theme.textMuted }}>
+              Home › Orders › <span style={{ color: theme.primaryBlue, fontWeight: 600 }}>Orders & Requests</span>
+            </div>
+            <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: theme.textDark, margin: '2px 0' }}>
+              Customer Orders & Requests
+            </h1>
+            <p style={{ color: theme.textMuted, fontSize: '0.85rem' }}>
+              Real-time feed of material requests, payment verification (Cash vs Online), and fleet dispatch.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={playOrderNotificationSound}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #D0E2F2',
+                color: theme.primaryBlue,
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+              }}
+            >
+              <span>🔊 Test Order Alert</span>
+            </button>
+            <button
+              onClick={() => {
+                const sampleOrderId = `MST-${Math.floor(100000 + Math.random() * 900000)}`;
+                const dummyOrder = {
+                  id: sampleOrderId,
+                  orderNumber: sampleOrderId,
+                  customerName: 'Shree Balaji Constructions',
+                  customerPhone: '+91 98260 55443',
+                  items: [
+                    { product: { name: 'UltraTech Super Cement (PPC)', brand: 'UltraTech', unit: 'Bags' }, quantity: 150, price: 380 },
+                    { product: { name: 'Jindal Panther 550D TMT Steel 12mm', brand: 'Jindal', unit: 'MT' }, quantity: 2, price: 54000 },
+                  ],
+                  grandTotal: 165000,
+                  total: 165000,
+                  payment: { method: 'Online UPI (GPay)', status: 'Paid', transactionId: `TXN-MST-${Date.now()}` },
+                  paymentMethod: 'Online UPI (GPay)',
+                  paymentStatus: 'Paid',
+                  status: 'Confirmed',
+                  siteAddress: { title: 'Site Plot 88', recipientName: 'Er. Sandeep Joshi', phone: '+91 98260 55443', addressLine: 'Super Corridor Commercial Hub', city: 'Indore', pincode: '452005' },
+                  date: new Date().toISOString().split('T')[0],
+                  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                };
+                orders.unshift(dummyOrder);
+                addToast(`Simulated new incoming order #${sampleOrderId}!`, 'success');
+                playOrderNotificationSound();
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                backgroundColor: '#D84A16',
+                border: 'none',
+                color: '#FFFFFF',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={15} />
+              <span>Simulate New User Order</span>
+            </button>
+          </div>
         </div>
 
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: `1px solid ${theme.cardBorder}`, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
-            <thead>
-              <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `1px solid ${theme.sidebarBorder}`, color: '#64748B' }}>
-                <th style={{ padding: '0.75rem 1rem' }}>Order ID</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Customer / Site</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Items</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Total Amount</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Logistics Status</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Driver / Vehicle</th>
-                <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o) => (
-                <tr key={o.id} style={{ borderBottom: `1px solid ${theme.tableBorder}` }}>
-                  <td style={{ padding: '0.75rem 1rem', fontWeight: 800, color: theme.primaryBlue }}>
-                    {o.orderNumber || o.id}
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem' }}>
-                    <div style={{ fontWeight: 700 }}>{o.shippingAddress?.fullName || 'Er. Rajesh Malviya'}</div>
-                    <div style={{ fontSize: '0.72rem', color: theme.textMuted }}>{o.shippingAddress?.city || 'Indore'}</div>
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>{o.items?.length || 2} Items</td>
-                  <td style={{ padding: '0.75rem 1rem', fontWeight: 800, color: '#10B981' }}>
-                    ₹{(o.grandTotal || o.total || 0).toLocaleString('en-IN')}
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem' }}>
-                    <select
-                      value={o.status || 'Confirmed'}
-                      onChange={(e) => {
-                        updateOrderStatus(o.id, e.target.value);
-                        addToast(`Order ${o.id} status changed to ${e.target.value}`, 'success');
-                      }}
-                      style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #E2E8F0', fontSize: '0.75rem', fontWeight: 700, color: theme.primaryBlue }}
-                    >
-                      <option value="Confirmed">Confirmed</option>
-                      <option value="Warehouse Dispatch">Warehouse Dispatch</option>
-                      <option value="In Transit">In Transit</option>
-                      <option value="Out for Delivery">Out for Delivery</option>
-                      <option value="Delivered">Delivered & Unloaded</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </select>
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem', fontSize: '0.75rem' }}>
-                    <div><strong>{o.driverName || 'Ramesh Patel'}</strong></div>
-                    <div style={{ color: theme.textMuted }}>{o.vehicleNumber || 'MP-09-TR-4421'}</div>
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
-                    <button
-                      onClick={() => navigateTo('order-tracking', { orderId: o.id })}
-                      style={{ padding: '4px 10px', backgroundColor: '#EFF6FF', border: 'none', borderRadius: '6px', color: theme.primaryBlue, fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}
-                    >
-                      Live Track
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* 4 Stats Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+          <div style={{ backgroundColor: '#FFFFFF', padding: '1.25rem', borderRadius: '12px', border: `1px solid ${theme.cardBorder}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textMuted, textTransform: 'uppercase' }}>Total Material Orders</div>
+            <div style={{ fontSize: '1.7rem', fontWeight: 900, color: theme.textDark, marginTop: '4px' }}>{orders.length}</div>
+            <div style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 700, marginTop: '4px' }}>₹{totalRevenue.toLocaleString('en-IN')} Total Value</div>
+          </div>
+
+          <div style={{ backgroundColor: '#FFFFFF', padding: '1.25rem', borderRadius: '12px', border: `1px solid ${theme.cardBorder}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <CreditCard size={14} />
+              <span>Online Paid Orders</span>
+            </div>
+            <div style={{ fontSize: '1.7rem', fontWeight: 900, color: '#059669', marginTop: '4px' }}>{onlineOrdersCount}</div>
+            <div style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: '4px' }}>Instant Razorpay / UPI Settlement</div>
+          </div>
+
+          <div style={{ backgroundColor: '#FFFFFF', padding: '1.25rem', borderRadius: '12px', border: `1px solid ${theme.cardBorder}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#D97706', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <DollarSign size={14} />
+              <span>Cash on Site (COD)</span>
+            </div>
+            <div style={{ fontSize: '1.7rem', fontWeight: 900, color: '#D97706', marginTop: '4px' }}>{codOrdersCount}</div>
+            <div style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: '4px' }}>Pay upon site unloading verification</div>
+          </div>
+
+          <div style={{ backgroundColor: '#FFFFFF', padding: '1.25rem', borderRadius: '12px', border: `1px solid ${theme.cardBorder}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <Truck size={14} />
+              <span>Active Dispatches</span>
+            </div>
+            <div style={{ fontSize: '1.7rem', fontWeight: 900, color: '#2563EB', marginTop: '4px' }}>
+              {orders.filter((o) => ['Confirmed', 'In Transit', 'Warehouse Dispatch', 'Out for Delivery'].includes(o.status)).length}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: '4px' }}>GPS tracked fleet vehicles</div>
+          </div>
         </div>
+
+        {/* Filter Tabs & Search Row */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '12px',
+            border: `1px solid ${theme.cardBorder}`,
+            padding: '1rem',
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {[
+              { id: 'all', label: `All Orders (${orders.length})` },
+              { id: 'online', label: `💳 Online Paid (${onlineOrdersCount})` },
+              { id: 'cash', label: `💵 Cash / COD (${codOrdersCount})` },
+              { id: 'confirmed', label: 'Confirmed' },
+              { id: 'in_transit', label: 'In Transit' },
+              { id: 'delivered', label: 'Delivered' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setOrderFilterTab(tab.id)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  backgroundColor: orderFilterTab === tab.id ? '#071E3D' : '#F1F5F9',
+                  color: orderFilterTab === tab.id ? '#FFFFFF' : '#475467',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Search Box */}
+          <div style={{ position: 'relative', minWidth: '260px' }}>
+            <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+            <input
+              type="text"
+              placeholder="Search by Order ID, Customer, Phone..."
+              value={orderSearchQuery}
+              onChange={(e) => setOrderSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '7px 12px 7px 32px',
+                borderRadius: '8px',
+                border: '1px solid #CBD5E1',
+                fontSize: '0.8rem',
+                outline: 'none',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Orders Table */}
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: `1px solid ${theme.cardBorder}`, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `1px solid ${theme.sidebarBorder}`, color: '#64748B' }}>
+                  <th style={{ padding: '0.85rem 1rem' }}>Order ID & Date</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Customer / Site Location</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Material Items</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Payment Mode & Status</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Total Amount</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Logistics Status</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Driver / Vehicle</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.length > 0 ? (
+                  filteredOrders.map((o) => {
+                    const isOnline =
+                      o.payment?.method?.toLowerCase().includes('online') ||
+                      o.payment?.method?.toLowerCase().includes('upi') ||
+                      o.payment?.method?.toLowerCase().includes('card') ||
+                      o.paymentMethod?.toLowerCase().includes('online') ||
+                      o.payment?.status === 'Paid';
+
+                    const customerName =
+                      o.customerName ||
+                      o.shippingAddress?.fullName ||
+                      o.shippingAddress?.recipientName ||
+                      o.siteAddress?.recipientName ||
+                      'Er. Rajesh Malviya';
+
+                    const phone =
+                      o.customerPhone ||
+                      o.shippingAddress?.phone ||
+                      o.siteAddress?.phone ||
+                      '+91 98260 11223';
+
+                    const siteCity =
+                      o.shippingAddress?.city ||
+                      o.siteAddress?.city ||
+                      'Indore';
+
+                    const siteAddressLine =
+                      o.shippingAddress?.addressLine ||
+                      o.siteAddress?.addressLine ||
+                      'Plot 42, Super Corridor';
+
+                    const itemsCount =
+                      o.items?.reduce((acc, it) => acc + (it.quantity || 1), 0) ||
+                      o.items?.length ||
+                      2;
+
+                    const grandTotal =
+                      o.grandTotal ||
+                      o.total ||
+                      o.summary?.totalAmount ||
+                      0;
+
+                    return (
+                      <tr key={o.id} style={{ borderBottom: `1px solid ${theme.tableBorder}` }}>
+                        {/* Order ID */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div
+                            onClick={() => setSelectedOrderDetailsModal(o)}
+                            style={{ fontWeight: 800, color: theme.primaryBlue, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <span>{o.orderNumber || o.id}</span>
+                            <ExternalLink size={12} />
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: theme.textMuted, marginTop: '2px' }}>
+                            {o.date || 'Today'} • {o.time || '10:30 AM'}
+                          </div>
+                        </td>
+
+                        {/* Customer / Site */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ fontWeight: 800, color: theme.textDark }}>{customerName}</div>
+                          <div style={{ fontSize: '0.72rem', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Phone size={11} />
+                            <span>{phone}</span>
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: '#475467', marginTop: '2px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            📍 {siteAddressLine}, {siteCity}
+                          </div>
+                        </td>
+
+                        {/* Items */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ fontWeight: 700, color: theme.textDark }}>
+                            {itemsCount} Units / Items
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: theme.textMuted, maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {o.items?.map((it) => it.product?.name || it.name || 'Material Item').join(', ') || 'Building Materials'}
+                          </div>
+                        </td>
+
+                        {/* Payment Mode */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 8px', borderRadius: '6px', backgroundColor: isOnline ? '#DCFCE7' : '#FEF3C7', color: isOnline ? '#15803D' : '#B45309', fontWeight: 800, fontSize: '0.72rem' }}>
+                            {isOnline ? <CreditCard size={12} /> : <DollarSign size={12} />}
+                            <span>{isOnline ? 'Online (Paid)' : 'Cash / Pay on Site'}</span>
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: theme.textMuted, marginTop: '3px' }}>
+                            {o.payment?.method || (isOnline ? 'Razorpay UPI' : 'Cash on Delivery')}
+                          </div>
+                        </td>
+
+                        {/* Total Amount */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ fontWeight: 900, color: '#10B981', fontSize: '0.95rem' }}>
+                            ₹{grandTotal.toLocaleString('en-IN')}
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: '#64748B' }}>GST 18% Included</div>
+                        </td>
+
+                        {/* Logistics Status */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <select
+                            value={o.status || 'Confirmed'}
+                            onChange={(e) => {
+                              updateOrderStatus(o.id, e.target.value);
+                            }}
+                            style={{
+                              padding: '5px 8px',
+                              borderRadius: '6px',
+                              border: '1.5px solid #E2E8F0',
+                              fontSize: '0.75rem',
+                              fontWeight: 800,
+                              color:
+                                o.status === 'Delivered' || o.status === 'Delivered & Unloaded'
+                                  ? '#10B981'
+                                  : o.status === 'Cancelled'
+                                  ? '#EF4444'
+                                  : theme.primaryBlue,
+                              backgroundColor: '#FFFFFF',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <option value="Confirmed">Confirmed</option>
+                            <option value="Warehouse Dispatch">Warehouse Dispatch</option>
+                            <option value="In Transit">In Transit</option>
+                            <option value="Out for Delivery">Out for Delivery</option>
+                            <option value="Delivered">Delivered & Unloaded</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        </td>
+
+                        {/* Driver */}
+                        <td style={{ padding: '0.85rem 1rem', fontSize: '0.75rem' }}>
+                          <div><strong>{o.driverName || o.tracking?.driverName || 'Ramesh Patel'}</strong></div>
+                          <div style={{ color: theme.textMuted }}>{o.vehicleNumber || o.tracking?.vehicleNumber || 'MP-09-TR-4421'}</div>
+                        </td>
+
+                        {/* Actions */}
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOrderDetailsModal(o)}
+                              title="View Full Order Details"
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#EFF6FF',
+                                border: '1px solid #BFDBFE',
+                                borderRadius: '6px',
+                                color: theme.primaryBlue,
+                                fontWeight: 700,
+                                fontSize: '0.72rem',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Details
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => navigateTo('order-tracking', { orderId: o.id })}
+                              title="Live Fleet Tracking"
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#F1F5F9',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: '6px',
+                                color: '#475467',
+                                fontWeight: 700,
+                                fontSize: '0.72rem',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Track
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: '#94A3B8' }}>
+                      <Truck size={36} style={{ margin: '0 auto 8px auto', opacity: 0.5 }} />
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: theme.textDark }}>No orders match this filter</div>
+                      <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>Try switching tabs or resetting your search term.</div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Order Details Pop-up Modal */}
+        {selectedOrderDetailsModal && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(4, 22, 44, 0.75)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 99999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '14px',
+                width: '100%',
+                maxWidth: '680px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              {/* Modal Header */}
+              <div
+                style={{
+                  backgroundColor: '#071E3D',
+                  color: '#FFFFFF',
+                  padding: '1.25rem 1.5rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#94A3B8', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Order Details & Tax Invoice
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>
+                    {selectedOrderDetailsModal.orderNumber || selectedOrderDetailsModal.id}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderDetailsModal(null)}
+                  style={{
+                    background: 'rgba(255,255,255,0.15)',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    color: '#FFFFFF',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* Customer & Delivery Site info */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', backgroundColor: '#F8FAFC', padding: '1rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: theme.primaryBlue, textTransform: 'uppercase' }}>
+                      Customer Contact
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: '0.95rem', marginTop: '2px' }}>
+                      {selectedOrderDetailsModal.customerName || selectedOrderDetailsModal.siteAddress?.recipientName || 'Er. Rajesh Malviya'}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#475467', marginTop: '2px' }}>
+                      Phone: {selectedOrderDetailsModal.customerPhone || selectedOrderDetailsModal.siteAddress?.phone || '+91 98260 11223'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: theme.primaryBlue, textTransform: 'uppercase' }}>
+                      Delivery Site Destination
+                    </div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, marginTop: '2px' }}>
+                      {selectedOrderDetailsModal.siteAddress?.title || 'Main Construction Site'}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#475467' }}>
+                      {selectedOrderDetailsModal.siteAddress?.addressLine || 'Super Corridor Tech Zone'}, {selectedOrderDetailsModal.siteAddress?.city || 'Indore'} - {selectedOrderDetailsModal.siteAddress?.pincode || '452005'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment & Logistics Status row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                  <div style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 700 }}>Payment Mode</div>
+                    <div style={{ fontWeight: 800, color: '#071E3D', marginTop: '2px' }}>
+                      {selectedOrderDetailsModal.payment?.method || selectedOrderDetailsModal.paymentMethod || 'Online UPI'}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: selectedOrderDetailsModal.payment?.status === 'Paid' ? '#10B981' : '#D97706', fontWeight: 700, marginTop: '2px' }}>
+                      Status: {selectedOrderDetailsModal.payment?.status || 'Paid'}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 700 }}>Logistics Driver</div>
+                    <div style={{ fontWeight: 800, color: '#071E3D', marginTop: '2px' }}>
+                      {selectedOrderDetailsModal.driverName || 'Ramesh Patel (Driver)'}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px' }}>
+                      Truck: {selectedOrderDetailsModal.vehicleNumber || 'MP-09-TR-4421'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items List */}
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem', color: theme.textDark, marginBottom: '8px' }}>
+                    Ordered Materials & Items
+                  </div>
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', textAlign: 'left' }}>
+                          <th style={{ padding: '8px 12px' }}>Material</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Qty</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Price</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedOrderDetailsModal.items?.map((it, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                            <td style={{ padding: '8px 12px', fontWeight: 700, color: theme.textDark }}>
+                              {it.product?.name || it.name || 'Building Material Item'}
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                              {it.quantity || 1} {it.product?.unit || 'Units'}
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                              ₹{(it.price || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: theme.primaryBlue }}>
+                              ₹{((it.price || 0) * (it.quantity || 1)).toLocaleString('en-IN')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Total Summary */}
+                <div style={{ padding: '12px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 800, fontSize: '1rem', color: '#071E3D' }}>Total Invoice Amount:</span>
+                  <span style={{ fontWeight: 900, fontSize: '1.35rem', color: '#10B981' }}>
+                    ₹{(selectedOrderDetailsModal.grandTotal || selectedOrderDetailsModal.total || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{ padding: '1rem 1.5rem', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.print();
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'flex', gap: '6px', alignItems: 'center' }}
+                >
+                  <FileText size={14} />
+                  <span>Print Tax Invoice & Challan</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderDetailsModal(null)}
+                  className="btn btn-primary btn-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

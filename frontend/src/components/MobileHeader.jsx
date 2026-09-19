@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, ShoppingCart, Wallet, X, Zap } from 'lucide-react';
+import { Search, ChevronDown, ShoppingCart, Wallet, X } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import Logo from './Logo';
 
@@ -69,19 +69,14 @@ export const MobileHeader = () => {
         transition: 'box-shadow 0.25s ease',
       }}
     >
-      {/* Row 1: Left (Logo + Location Pill), Right (Wallet Pill + Cart Icon) — Collapses on Scroll */}
+      {/* Row 1: Left (Logo + Location Pill), Right (Wallet Pill + Cart Icon) */}
       <div
         style={{
-          maxHeight: isScrolled ? '0px' : '56px',
-          opacity: isScrolled ? 0 : 1,
-          overflow: 'hidden',
-          padding: isScrolled ? '0 12px' : '8px 12px 6px 12px',
-          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          padding: '8px 12px 6px 12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '8px',
-          pointerEvents: isScrolled ? 'none' : 'auto',
         }}
       >
         {/* Left: Brand Logo + Location Pincode Pill */}
@@ -159,23 +154,6 @@ export const MobileHeader = () => {
             </span>
           </div>
 
-          {/* Admin Panel Quick Access */}
-          <button
-            onClick={() => navigateTo('admin')}
-            style={{
-              padding: '3px 7px',
-              borderRadius: '6px',
-              backgroundColor: 'rgba(241, 90, 36, 0.15)',
-              color: 'var(--primary-orange)',
-              border: '1px solid rgba(241, 90, 36, 0.4)',
-              fontSize: '0.65rem',
-              fontWeight: '800',
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            ADMIN
-          </button>
 
           {/* Dark Cart Circle Button with Bright Green Notification Badge (Exact Screenshot 1) */}
           <button
@@ -275,48 +253,6 @@ export const MobileHeader = () => {
             </button>
           )}
         </form>
-      </div>
-
-      {/* Row 3: Cashback & Promises Ticker Strip — Collapses on Scroll */}
-      <div
-        style={{
-          maxHeight: isScrolled ? '0px' : '32px',
-          opacity: isScrolled ? 0 : 1,
-          overflow: 'hidden',
-          padding: isScrolled ? '0 12px' : '4px 12px',
-          borderTop: isScrolled ? 'none' : '1px solid #FEF3C7',
-          borderBottom: isScrolled ? 'none' : '1px solid #FEF3C7',
-          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-          pointerEvents: isScrolled ? 'none' : 'auto',
-          backgroundColor: '#FFFDF0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          overflowX: 'auto',
-          scrollbarWidth: 'none',
-          gap: '12px',
-          whiteSpace: 'nowrap',
-          fontSize: '0.72rem',
-          color: '#854D0E',
-          fontWeight: '700',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Zap size={12} color="#D97706" fill="#D97706" />
-          <span>Assured 1% Cashback</span>
-        </div>
-        <div style={{ color: '#CBD5E1' }}>•</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <span>🚚 Pay on Delivery</span>
-        </div>
-        <div style={{ color: '#CBD5E1' }}>•</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <span>🚚 Express Site Delivery</span>
-        </div>
-        <div style={{ color: '#CBD5E1' }}>•</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <span>🛡️ 100% Genuine</span>
-        </div>
       </div>
     </header>
   );

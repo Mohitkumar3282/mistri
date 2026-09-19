@@ -1,10 +1,21 @@
 import React, { useState } from 'react';
-import { MapPin, X, Check, Search, Building } from 'lucide-react';
+import { MapPin, X, Check, Search, Building, Navigation } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { CITIES } from '../data/mockData';
 
 export const LocationModal = () => {
-  const { isLocationModalOpen, setIsLocationModalOpen, currentCity, setCurrentCity, currentPincode, setCurrentPincode, addToast, cities } = useStore();
+  const {
+    isLocationModalOpen,
+    setIsLocationModalOpen,
+    currentCity,
+    setCurrentCity,
+    currentPincode,
+    setCurrentPincode,
+    addToast,
+    cities,
+    fetchCurrentGpsLocation,
+    isDetectingLocation,
+  } = useStore();
   const [searchCity, setSearchCity] = useState('');
   const [tempPincode, setTempPincode] = useState(currentPincode);
 
@@ -20,6 +31,17 @@ export const LocationModal = () => {
     }
     setIsLocationModalOpen(false);
     addToast(`Delivery location updated to ${cityName}`, 'success');
+  };
+
+  const handleGpsClick = async () => {
+    try {
+      const res = await fetchCurrentGpsLocation();
+      if (res) {
+        setIsLocationModalOpen(false);
+      }
+    } catch (err) {
+      console.error('GPS fetch error in LocationModal:', err);
+    }
   };
 
   return (
@@ -43,6 +65,51 @@ export const LocationModal = () => {
 
         {/* Body */}
         <div style={{ padding: '1.5rem' }}>
+          {/* Automatic GPS Location Detection Button */}
+          <button
+            type="button"
+            onClick={handleGpsClick}
+            disabled={isDetectingLocation}
+            style={{
+              width: '100%',
+              padding: '11px 16px',
+              backgroundColor: isDetectingLocation ? '#FFF5F5' : '#FFF1F2',
+              border: '1.5px solid #FECDD3',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              color: '#E11D48',
+              fontWeight: '700',
+              fontSize: '0.88rem',
+              cursor: isDetectingLocation ? 'wait' : 'pointer',
+              marginBottom: '1.25rem',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {isDetectingLocation ? (
+              <>
+                <span
+                  style={{
+                    width: '14px',
+                    height: '14px',
+                    border: '2px solid #E11D48',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    display: 'inline-block',
+                    animation: 'spin 0.8s linear infinite',
+                  }}
+                />
+                <span>Detecting GPS satellite location...</span>
+              </>
+            ) : (
+              <>
+                <Navigation size={16} color="#E11D48" />
+                <span>Use Current Location (Automatic GPS)</span>
+              </>
+            )}
+          </button>
           {/* Pincode Input */}
           <div style={{ marginBottom: '1.5rem' }}>
             <label className="form-label" style={{ fontSize: '0.85rem' }}>Enter 6-Digit Site Pincode</label>

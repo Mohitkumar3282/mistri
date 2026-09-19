@@ -12,8 +12,8 @@ export const MobileBottomNav = () => {
   const isOrdersActive = currentView === 'orders' || currentView === 'order-details' || currentView === 'order-tracking' || currentView === 'order-confirmation';
   const isAccountActive = currentView === 'profile' || currentView === 'addresses' || currentView === 'notifications' || currentView === 'login' || currentView === 'signup' || currentView === 'forgot-password';
 
-  // Do not show the 5-tab generic bottom bar on product details view (as it uses the sticky purchase bar)
-  if (currentView === 'product-details') return null;
+  // Do not show the 5-tab generic bottom bar on product details, cart, or checkout view (as they use dedicated bottom action bars)
+  if (currentView === 'product-details' || currentView === 'cart' || currentView === 'checkout') return null;
 
   return (
     <nav

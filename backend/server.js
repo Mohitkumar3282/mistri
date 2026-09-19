@@ -13,6 +13,8 @@ import productRoutes from './routes/productRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
 
 // Import Middlewares
 import { notFound, errorHandler } from './middlewares/errorMiddleware.js';
@@ -23,8 +25,8 @@ connectDB();
 const app = express();
 
 // Middlewares
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(
   cors({
     origin: '*', // Allow requests from frontend
@@ -52,6 +54,8 @@ app.get('/', (req, res) => {
       mistris: '/api/mistris',
       bookings: '/api/bookings',
       admin: '/api/admin',
+      payments: '/api/payments',
+      upload: '/api/upload',
     },
   });
 });
@@ -65,6 +69,8 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/mistris', mistriRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Error Handling Middlewares
 app.use(notFound);

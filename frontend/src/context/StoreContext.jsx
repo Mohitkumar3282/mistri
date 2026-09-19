@@ -1,5 +1,27 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
+import { auth, googleProvider } from '../config/firebase';
+import {
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
+import {
+  trackPageView,
+  trackAddToCart,
+  trackRemoveFromCart,
+  trackPurchase,
+  trackUserLogin,
+  trackUserSignUp,
+} from '../services/analyticsService';
+import {
+  registerServiceWorker,
+  sendCustomerOrderNotification,
+  sendAdminNewOrderNotification,
+  requestNotificationPermission,
+  getNotificationPermission,
+} from '../services/pushNotificationService';
 import {
   PRODUCTS as INITIAL_PRODUCTS,
   CATEGORIES as INITIAL_CATEGORIES,
@@ -610,37 +632,96 @@ export const StoreProvider = ({ children }) => {
   // Exclusive Admin Authentication State
   const [adminUser, setAdminUser] = useState(() => getStored('admin_user', null));
 
-  // Cart State (Initialized with demo construction items)
-  const [cart, setCart] = useState([
-    {
-      product: products[0] || INITIAL_PRODUCTS[0],
-      quantity: 50,
-      price: 405,
-    },
-    {
-      product: products[3] || INITIAL_PRODUCTS[3],
-      quantity: 1,
-      price: 64500,
-    },
-  ]);
+  // Cart State (Initialized from storage or starts empty for real shopping)
+  const [cart, setCart] = useState(() => getStored('cart', []));
 
-  const [appliedCoupon, setAppliedCoupon] = useState({
-    code: 'BUILDMISTRI',
-    discountPercentage: 5,
-    discountAmount: 4237,
-  });
+  const [appliedCoupon, setAppliedCoupon] = useState(() => getStored('applied_coupon', null));
 
   // Wishlist State
-  const [wishlist, setWishlist] = useState([
-    products[2] || INITIAL_PRODUCTS[2],
-    products[5] || INITIAL_PRODUCTS[5],
-  ]);
+  const [wishlist, setWishlist] = useState(() => getStored('wishlist', []));
 
   // Addresses State
-  const [addresses, setAddresses] = useState(MOCK_ADDRESSES);
+  const [addresses, setAddresses] = useState(() => getStored('saved_addresses', MOCK_ADDRESSES));
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 
-  // Notifications State
+  // Notifications State (Customer)
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+
+  // Admin Real-time Notifications State
+  const INITIAL_ADMIN_NOTIFICATIONS = [
+    {
+      id: 'anot_1',
+      type: 'new_order',
+      title: 'New Online Order #MST-99201',
+      message: 'Er. Rajesh Malviya placed an order for ₹45,200 (Paid via UPI)',
+      orderId: 'MST-99201',
+      amount: 45200,
+      paymentMethod: 'UPI Instant Transfer',
+      customerName: 'Er. Rajesh Malviya',
+      time: '5 mins ago',
+      unread: true,
+    },
+    {
+      id: 'anot_2',
+      type: 'new_order',
+      title: 'New Cash Order #MST-99202',
+      message: 'Amit Verma placed a COD order for ₹18,400 (Pay on Site)',
+      orderId: 'MST-99202',
+      amount: 18400,
+      paymentMethod: 'Cash on Delivery',
+      customerName: 'Amit Verma',
+      time: '25 mins ago',
+      unread: false,
+    },
+  ];
+  const [adminNotifications, setAdminNotifications] = useState(() => getStored('admin_notifications', INITIAL_ADMIN_NOTIFICATIONS));
+
+  // Web Audio Synthesizer for instant Order Alert Chime
+  const playOrderNotificationSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5 -> E5 -> G5 -> C6 chime
+      notes.forEach((freq, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + index * 0.11);
+
+        gain.gain.setValueAtTime(0, ctx.currentTime + index * 0.11);
+        gain.gain.linearRampToValueAtTime(0.35, ctx.currentTime + index * 0.11 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + index * 0.11 + 0.35);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(ctx.currentTime + index * 0.11);
+        osc.stop(ctx.currentTime + index * 0.11 + 0.36);
+      });
+    } catch (e) {
+      console.log('Audio chime error:', e);
+    }
+  };
+
+  const markAdminNotificationRead = (id) => {
+    setAdminNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
+    );
+  };
+
+  const markAllAdminNotificationsRead = () => {
+    setAdminNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  };
+
+  const clearAdminNotifications = () => {
+    setAdminNotifications([]);
+  };
 
   // Toast System
   const [toasts, setToasts] = useState([]);
@@ -660,6 +741,10 @@ export const StoreProvider = ({ children }) => {
   // Persistent storage sync effects
   useEffect(() => { setStored('current_user', user); }, [user]);
   useEffect(() => { setStored('admin_user', adminUser); }, [adminUser]);
+  useEffect(() => { setStored('admin_notifications', adminNotifications); }, [adminNotifications]);
+  useEffect(() => { setStored('cart', cart); }, [cart]);
+  useEffect(() => { setStored('applied_coupon', appliedCoupon); }, [appliedCoupon]);
+  useEffect(() => { setStored('wishlist', wishlist); }, [wishlist]);
   useEffect(() => { setStored('products', products); }, [products]);
   useEffect(() => { setStored('categories', categories); }, [categories]);
   useEffect(() => { setStored('category_sections', categorySections); }, [categorySections]);
@@ -693,6 +778,9 @@ export const StoreProvider = ({ children }) => {
     }
 
     window.addEventListener('popstate', handleLocationChange);
+    // Initialize push notification service worker
+    registerServiceWorker();
+
     return () => {
       window.removeEventListener('popstate', handleLocationChange);
     };
@@ -716,6 +804,7 @@ export const StoreProvider = ({ children }) => {
     if (params.query) setSearchQuery(params.query);
     if (params.tab) setAdminActiveTab(params.tab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    trackPageView(view, params);
   };
 
   // Cart Calculations
@@ -749,10 +838,12 @@ export const StoreProvider = ({ children }) => {
       return [...prev, { product, quantity, price: newPrice }];
     });
 
+    trackAddToCart(product, quantity);
     addToast(`Added ${quantity}x ${product.name} to Cart`, 'success');
   };
 
   const removeFromCart = (productId) => {
+    trackRemoveFromCart(productId);
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
     addToast('Item removed from cart', 'info');
   };
@@ -836,36 +927,68 @@ export const StoreProvider = ({ children }) => {
   };
 
   // Order Operations
-  const placeOrder = (orderData) => {
+  const placeOrder = (orderData = {}) => {
     const newOrderId = `MST-${Math.floor(100000 + Math.random() * 900000)}`;
+    const isOnline =
+      orderData.paymentMethod?.toLowerCase().includes('online') ||
+      orderData.paymentMethod?.toLowerCase().includes('upi') ||
+      orderData.paymentMethod?.toLowerCase().includes('card') ||
+      orderData.paymentMethod?.toLowerCase().includes('net banking') ||
+      orderData.paymentMethod?.toLowerCase().includes('wallet');
+
+    const paymentStatus = orderData.paymentStatus || (isOnline ? 'Paid' : 'Pending (Pay on Site)');
+    const customerName = user?.name || orderData.siteAddress?.recipientName || 'Er. Rajesh Malviya';
+    const customerPhone = user?.phone || orderData.siteAddress?.phone || '+91 98260 11223';
+    const orderItems = orderData.items && orderData.items.length > 0 ? orderData.items : [...cart];
+    const orderSubtotal = orderData.subtotal !== undefined ? orderData.subtotal : cartSubtotal;
+    const orderDiscount = orderData.discount !== undefined ? orderData.discount : discountAmount;
+    const orderTotal = orderData.totalAmount !== undefined ? orderData.totalAmount : grandTotal;
+
     const newOrder = {
       id: newOrderId,
+      orderNumber: newOrderId,
       date: new Date().toISOString().split('T')[0],
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'Order Confirmed',
+      createdAt: new Date().toISOString(),
+      customerName,
+      customerPhone,
+      customerEmail: user?.email || 'builder@mistri.com',
+      status: 'Confirmed',
       statusCode: 'confirmed',
       expectedDelivery: 'Tomorrow, by 12:00 PM',
-      deliverySlot: orderData.deliverySlot || 'Express Morning',
-      items: [...cart],
+      deliverySlot: orderData.deliverySlot || 'Express Morning (08:00 AM - 12:00 PM)',
+      vehicleAccess: orderData.siteVehicleAccess || 'Heavy 10-Wheeler Truck Access',
+      unloadingNotes: orderData.unloadingNotes || '',
+      items: orderItems,
+      itemCount: orderItems.reduce((acc, item) => acc + (item.quantity || 1), 0),
+      grandTotal: orderTotal,
+      total: orderTotal,
       summary: {
-        subtotal: cartSubtotal,
-        bulkDiscount: discountAmount,
-        unloadingCharge,
-        gstAmount,
+        subtotal: orderSubtotal,
+        bulkDiscount: orderDiscount,
+        unloadingCharge: orderData.unloadingCharge !== undefined ? orderData.unloadingCharge : unloadingCharge,
+        gstAmount: orderData.gstAmount !== undefined ? orderData.gstAmount : gstAmount,
         deliveryCharge: 0,
-        totalAmount: grandTotal,
+        totalAmount: orderTotal,
       },
       siteAddress: orderData.siteAddress || addresses[0],
+      shippingAddress: orderData.siteAddress || addresses[0],
       payment: {
-        method: orderData.paymentMethod || 'UPI Instant',
-        status: 'Paid',
-        transactionId: `TXN-MST-${Date.now()}`,
+        method: orderData.paymentMethod || (isOnline ? 'Online Payment (UPI/Card)' : 'Cash on Delivery'),
+        status: paymentStatus,
+        transactionId: orderData.transactionId || `TXN-MST-${Date.now()}`,
+        gateway: orderData.gateway || (isOnline ? 'Razorpay Direct' : 'Cash On Site'),
       },
+      paymentMethod: orderData.paymentMethod || (isOnline ? 'Online Payment (UPI/Card)' : 'Cash on Delivery'),
+      paymentStatus: paymentStatus,
+      driverName: 'Ramesh Patel',
+      driverPhone: '+91 98260 99881',
+      vehicleNumber: 'MP-09-TR-4421',
       tracking: {
         currentStep: 2,
-        driverName: 'Assigned upon dispatch',
-        driverPhone: '+91 98260 00000',
-        vehicleNumber: 'MP 09 Logistics Truck',
+        driverName: 'Ramesh Patel',
+        driverPhone: '+91 98260 99881',
+        vehicleNumber: 'MP-09-TR-4421',
         liveEtaMinutes: 720,
         steps: [
           { title: 'Order Placed', time: 'Just now', done: true, desc: 'Material order received & approved' },
@@ -879,8 +1002,55 @@ export const StoreProvider = ({ children }) => {
     };
 
     setOrders((prev) => [newOrder, ...prev]);
+
+    // Customer notification
+    const customerNotification = {
+      id: `notif_${Date.now()}`,
+      type: 'delivery',
+      title: `Order Placed Successfully (${newOrderId})`,
+      message: `Your material order for ₹${orderTotal.toLocaleString('en-IN')} is confirmed for delivery. Payment: ${newOrder.payment.method}.`,
+      time: 'Just now',
+      unread: true,
+      orderId: newOrderId,
+    };
+    setNotifications((prev) => [customerNotification, ...prev]);
+
+    // Admin Real-Time Notification & Audio Alert
+    const adminNotification = {
+      id: `anot_${Date.now()}`,
+      type: 'new_order',
+      title: `New ${isOnline ? 'Online' : 'Cash'} Order #${newOrderId}`,
+      message: `${customerName} placed an order for ₹${orderTotal.toLocaleString('en-IN')} (${newOrder.payment.method})`,
+      orderId: newOrderId,
+      amount: orderTotal,
+      paymentMethod: newOrder.payment.method,
+      customerName,
+      time: 'Just now',
+      unread: true,
+      createdAt: new Date().toISOString(),
+    };
+    setAdminNotifications((prev) => [adminNotification, ...prev]);
+    playOrderNotificationSound();
+
+    // Trigger Native Device & Browser Push Notifications (Customer & Admin)
+    sendCustomerOrderNotification(newOrder).catch((err) =>
+      console.debug('Customer push notification note:', err)
+    );
+    sendAdminNewOrderNotification(newOrder).catch((err) =>
+      console.debug('Admin push notification note:', err)
+    );
+
     clearCart();
-    addToast(`Order ${newOrderId} placed successfully!`, 'success');
+
+    // Track e-commerce purchase in Firebase Analytics
+    trackPurchase(newOrder);
+
+    // Sync to backend API asynchronously
+    api.post('/orders', newOrder).catch((err) => {
+      console.log('Order created locally. (Backend sync note:', err.message || err, ')');
+    });
+
+    addToast(`Order #${newOrderId} placed successfully! (${isOnline ? 'Online Paid' : 'Cash on Delivery'})`, 'success');
     return newOrder;
   };
 
@@ -902,29 +1072,74 @@ export const StoreProvider = ({ children }) => {
            INITIAL_PRODUCTS[0];
   };
 
-  // Address Operations
-  const addAddress = (newAddr) => {
-    const addrWithId = { ...newAddr, id: `addr_${Date.now()}` };
-    setAddresses((prev) => [...prev, addrWithId]);
-    addToast('New delivery site address added', 'success');
-  };
 
-  const deleteAddress = (id) => {
-    setAddresses((prev) => prev.filter((a) => a.id !== id));
-    addToast('Site address deleted', 'info');
-  };
-
-  const setDefaultAddress = (id) => {
-    setAddresses((prev) =>
-      prev.map((a) => ({
-        ...a,
-        isDefault: a.id === id,
-      }))
-    );
-    addToast('Default delivery site updated', 'success');
-  };
 
   // Auth Operations
+  const loginWithGoogle = async (callback = null) => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+
+      let loggedInUser = {
+        id: fbUser.uid,
+        name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Contractor User'),
+        company: 'Indore Prime Builders',
+        email: fbUser.email || 'builder@mistri.com',
+        phone: fbUser.phoneNumber || '+91 98260 11223',
+        avatar: fbUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+        role: 'Commercial Contractor / Builder',
+        gstin: '23AABCM9821K1ZM',
+        tier: 'Gold Contractor Tier (5% Extra Rebate)',
+        status: 'Active',
+        authProvider: 'firebase_google',
+        city: currentCity,
+      };
+
+      // Try backend authentication bridge
+      try {
+        const res = await api.login(fbUser.email, 'google_oauth_firebase_token');
+        if (res && res.data && res.data.token) {
+          localStorage.setItem('mistri_token', res.data.token);
+        }
+      } catch (backendErr) {
+        console.debug('Backend JWT sync note for Google Auth:', backendErr.message);
+      }
+
+      setUsersList((prev) => {
+        const existingIdx = prev.findIndex((u) => u.email?.toLowerCase() === fbUser.email?.toLowerCase());
+        if (existingIdx > -1) {
+          const updated = [...prev];
+          updated[existingIdx] = { ...updated[existingIdx], ...loggedInUser };
+          return updated;
+        }
+        return [loggedInUser, ...prev];
+      });
+
+      setUser(loggedInUser);
+      setIsLoginModalOpen(false);
+      addToast(`Welcome to MISTRI, ${loggedInUser.name}! (Signed in via Google)`, 'success');
+      trackUserLogin('google');
+
+      const execCb = callback || authSuccessCallback;
+      if (typeof execCb === 'function') {
+        execCb(loggedInUser);
+        setAuthSuccessCallback(null);
+      }
+
+      return { success: true, user: loggedInUser };
+    } catch (err) {
+      console.error('Google Sign-In error:', err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        addToast('Google Sign-In was cancelled.', 'warning');
+      } else if (err.code === 'auth/popup-blocked') {
+        addToast('Google popup was blocked by browser. Please allow popups.', 'error');
+      } else {
+        addToast(err.message || 'Google Sign-In failed', 'error');
+      }
+      throw err;
+    }
+  };
+
   const login = async (emailOrPhone, password, callback = null) => {
     const trimmed = String(emailOrPhone || '').trim().toLowerCase();
     const existing = usersList.find(
@@ -942,6 +1157,24 @@ export const StoreProvider = ({ children }) => {
       tier: 'Gold Contractor Tier (5% Extra Rebate)',
       status: 'Active',
     };
+
+    // Attempt Firebase Email/Password Auth if email format
+    if (trimmed.includes('@')) {
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, trimmed, password);
+        if (userCredential?.user) {
+          loggedInUser = {
+            ...loggedInUser,
+            id: userCredential.user.uid,
+            email: userCredential.user.email,
+            name: userCredential.user.displayName || loggedInUser.name,
+            authProvider: 'firebase_email',
+          };
+        }
+      } catch (fbAuthErr) {
+        console.debug('Firebase direct email auth note:', fbAuthErr.code || fbAuthErr.message);
+      }
+    }
 
     try {
       const res = await api.login(emailOrPhone, password);
@@ -969,6 +1202,7 @@ export const StoreProvider = ({ children }) => {
     setUser(loggedInUser);
     setIsLoginModalOpen(false);
     addToast(`Welcome back, ${loggedInUser.name}!`, 'success');
+    trackUserLogin(trimmed.includes('@') ? 'email' : 'phone');
 
     // Execute callback if queued
     const execCb = callback || authSuccessCallback;
@@ -995,6 +1229,22 @@ export const StoreProvider = ({ children }) => {
       totalSpend: 0,
       city: currentCity,
     };
+
+    // Attempt Firebase Registration
+    if (formData.email && formData.password) {
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+        if (userCredential?.user) {
+          newUser = {
+            ...newUser,
+            id: userCredential.user.uid,
+            authProvider: 'firebase_email',
+          };
+        }
+      } catch (fbRegErr) {
+        console.debug('Firebase signup note:', fbRegErr.code || fbRegErr.message);
+      }
+    }
 
     try {
       const res = await api.register({
@@ -1026,6 +1276,7 @@ export const StoreProvider = ({ children }) => {
     setUsersList((prev) => [newUser, ...prev]);
     setIsLoginModalOpen(false);
     addToast(`Account created successfully! Welcome to MISTRI, ${newUser.name}.`, 'success');
+    trackUserSignUp('email_or_form');
 
     // Execute callback if queued
     const execCb = callback || authSuccessCallback;
@@ -1038,6 +1289,7 @@ export const StoreProvider = ({ children }) => {
   };
 
   const logout = () => {
+    signOut(auth).catch(() => {});
     setUser(null);
     try {
       localStorage.removeItem('mistri_current_user');
@@ -1198,31 +1450,47 @@ export const StoreProvider = ({ children }) => {
 
   // 2. CATEGORY CRUD
   const addCategory = (newCat) => {
-    const id = `cat_${Date.now()}`;
+    const id = newCat.id || `cat_${Date.now()}`;
     const slug = newCat.slug || newCat.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const sectionName = newCat.section || 'Civil & Interiors';
     const created = {
       id,
       slug,
       itemCount: '25+ Products',
-      subcategories: [newCat.name, 'Accessories', 'Premium Grade', 'Fast Dispatch'],
+      subcategories: newCat.subcategories || [newCat.name, 'Accessories', 'Premium Grade', 'Fast Dispatch'],
       ...newCat,
+      section: sectionName,
     };
     setCategories((prev) => [created, ...prev]);
 
-    // Also update matching category section
-    if (newCat.sectionId) {
-      setCategorySections((prev) =>
-        prev.map((sec) => {
-          if (sec.id === newCat.sectionId) {
-            return {
-              ...sec,
-              categories: [...sec.categories, created],
-            };
-          }
-          return sec;
-        })
+    // Also update or create matching category section
+    setCategorySections((prev) => {
+      const existing = prev.find(
+        (sec) =>
+          sec.id === newCat.sectionId ||
+          (sec.title && sec.title.toLowerCase() === sectionName.toLowerCase()) ||
+          (sec.name && sec.name.toLowerCase() === sectionName.toLowerCase())
       );
-    }
+      if (existing) {
+        return prev.map((sec) =>
+          sec.id === existing.id
+            ? { ...sec, categories: [...(sec.categories || []), created] }
+            : sec
+        );
+      } else {
+        const newSecObj = {
+          id: newCat.sectionId || `sec_${Date.now()}`,
+          title: sectionName,
+          slug: sectionName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          description: `All products under ${sectionName}`,
+          image: newCat.image || 'https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?auto=format&fit=crop&q=80&w=600',
+          categories: [created],
+          isActive: true,
+        };
+        return [newSecObj, ...prev];
+      }
+    });
+
     addToast(`Category "${created.name}" added!`, 'success');
     return created;
   };
@@ -1242,9 +1510,12 @@ export const StoreProvider = ({ children }) => {
   // Parent Categories / Sections CRUD
   const addCategorySection = (newSec) => {
     const id = newSec.id || `sec_${Date.now()}`;
+    const title = newSec.title || newSec.name;
+    const slug = newSec.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const created = {
       id,
-      title: newSec.title || newSec.name,
+      title,
+      slug,
       description: newSec.description || '',
       image: newSec.image || 'https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?auto=format&fit=crop&q=80&w=600',
       categories: newSec.categories || [],
@@ -1252,6 +1523,28 @@ export const StoreProvider = ({ children }) => {
       ...newSec,
     };
     setCategorySections((prev) => [created, ...prev]);
+
+    // Also create parent category in `categories` list
+    const catEntry = {
+      id: `cat_${Date.now()}`,
+      name: title,
+      slug,
+      section: title,
+      sectionId: id,
+      description: created.description,
+      image: created.image,
+      subcategories: newSec.subcategories || ['Standard Grade', 'Premium Grade', 'Accessories'],
+      isActive: true,
+      createdOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      lastUpdated: 'Just now',
+    };
+    setCategories((prev) => {
+      if (prev.some((c) => c.name.toLowerCase() === title.toLowerCase() || c.slug === slug)) {
+        return prev;
+      }
+      return [catEntry, ...prev];
+    });
+
     addToast(`Parent Category "${created.title}" created successfully!`, 'success');
     return created;
   };
@@ -1750,6 +2043,205 @@ export const StoreProvider = ({ children }) => {
     addToast(`City "${cityToRemove}" removed`, 'info');
   };
 
+  // Site Address Management
+  const addAddress = (addr) => {
+    const newAddrObj = {
+      id: addr.id || `addr_${Date.now()}`,
+      title: addr.title || 'Site Location',
+      recipientName: addr.recipientName || user?.name || 'Site In-Charge',
+      phone: addr.phone || user?.phone || '+91 98260 11223',
+      addressLine: addr.addressLine || '',
+      locality: addr.locality || '',
+      city: addr.city || currentCity || 'Indore',
+      state: addr.state || 'Madhya Pradesh',
+      pincode: addr.pincode || currentPincode || '452001',
+      unloadingNotes: addr.unloadingNotes || '',
+      isDefault: addr.isDefault || false,
+      ...addr,
+    };
+    setAddresses((prev) => {
+      const updated = newAddrObj.isDefault
+        ? [newAddrObj, ...prev.map((a) => ({ ...a, isDefault: false }))]
+        : [newAddrObj, ...prev];
+      setStored('saved_addresses', updated);
+      return updated;
+    });
+    addToast('Site address saved successfully!', 'success');
+    return newAddrObj;
+  };
+
+  const deleteAddress = (id) => {
+    setAddresses((prev) => {
+      const updated = prev.filter((a) => a.id !== id);
+      setStored('saved_addresses', updated);
+      return updated;
+    });
+    addToast('Address removed', 'info');
+  };
+
+  const setDefaultAddress = (id) => {
+    setAddresses((prev) => {
+      const updated = prev.map((a) => ({
+        ...a,
+        isDefault: a.id === id,
+      }));
+      setStored('saved_addresses', updated);
+      return updated;
+    });
+    addToast('Default delivery site address updated', 'success');
+  };
+
+  // Real-time GPS Geolocation Fetcher with high accuracy reverse geocoding
+  const fetchCurrentGpsLocation = async () => {
+    setIsDetectingLocation(true);
+    addToast('📍 Requesting GPS satellite coordinates...', 'info');
+
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        setIsDetectingLocation(false);
+        addToast('Geolocation is not supported by your browser', 'error');
+        reject(new Error('Geolocation not supported'));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            let detectedCity = currentCity || 'Indore';
+            let detectedPincode = currentPincode || '452001';
+            let detectedState = 'Madhya Pradesh';
+            let detectedRoad = '';
+            let detectedArea = '';
+            let formattedAddress = `Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`;
+
+            // 1. Try reverse geocoding via OpenStreetMap Nominatim
+            try {
+              const res = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+                { headers: { 'Accept-Language': 'en' } }
+              );
+              if (res.ok) {
+                const data = await res.json();
+                if (data && data.address) {
+                  const addr = data.address;
+                  detectedCity = addr.city || addr.town || addr.county || addr.state_district || addr.village || detectedCity;
+                  detectedPincode = addr.postcode ? addr.postcode.replace(/\D/g, '').slice(0, 6) : detectedPincode;
+                  detectedState = addr.state || detectedState;
+                  detectedRoad = addr.road || addr.suburb || addr.neighbourhood || addr.residential || '';
+                  detectedArea = addr.suburb || addr.neighbourhood || addr.commercial || addr.industrial || '';
+                  formattedAddress = data.display_name || `${detectedRoad}, ${detectedArea}, ${detectedCity}`;
+                }
+              }
+            } catch (geoErr) {
+              console.warn('Nominatim reverse geocode fallback:', geoErr);
+              try {
+                const bdcRes = await fetch(
+                  `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+                );
+                if (bdcRes.ok) {
+                  const bdcData = await bdcRes.json();
+                  detectedCity = bdcData.city || bdcData.locality || detectedCity;
+                  detectedPincode = (bdcData.postcode || detectedPincode).replace(/\D/g, '').slice(0, 6);
+                  detectedState = bdcData.principalSubdivision || detectedState;
+                  formattedAddress = `${bdcData.locality || ''}, ${detectedCity}, ${detectedState}`;
+                }
+              } catch (bdcErr) {
+                console.warn('BDC reverse geocode error:', bdcErr);
+              }
+            }
+
+            // Create GPS Address Object
+            const addressLineText = detectedRoad
+              ? `${detectedRoad}${detectedArea ? ', ' + detectedArea : ''}`
+              : formattedAddress.split(',').slice(0, 3).join(',');
+
+            const gpsAddress = {
+              id: `addr_gps_${Date.now()}`,
+              title: 'Current Location (GPS)',
+              recipientName: user?.name || 'Site In-Charge',
+              phone: user?.phone || '+91 98260 11223',
+              addressLine: addressLineText || 'Current Site Location',
+              city: detectedCity,
+              state: detectedState,
+              pincode: detectedPincode,
+              isDefault: true,
+              isGps: true,
+              coordinates: { latitude, longitude },
+            };
+
+            // Update state
+            setCurrentCity(detectedCity);
+            if (detectedPincode && detectedPincode.length === 6) {
+              setCurrentPincode(detectedPincode);
+            }
+            setAddresses((prev) => {
+              const updated = [gpsAddress, ...prev.filter((a) => !a.isGps)];
+              setStored('saved_addresses', updated);
+              return updated;
+            });
+
+            setIsDetectingLocation(false);
+            addToast(`📍 Location fetched: ${detectedCity} (${detectedPincode})`, 'success');
+            resolve(gpsAddress);
+          } catch (err) {
+            console.error('Error processing GPS coordinates:', err);
+            setIsDetectingLocation(false);
+            addToast('Could not convert GPS to address. Location fallback applied.', 'warning');
+            resolve(null);
+          }
+        },
+        (error) => {
+          console.warn('Geolocation error:', error);
+          setIsDetectingLocation(false);
+          let errMsg = 'Failed to get location';
+          if (error.code === 1) {
+            errMsg = 'Location permission denied. Please allow GPS access in browser settings.';
+          } else if (error.code === 2) {
+            errMsg = 'Position unavailable. Checking network location...';
+          } else if (error.code === 3) {
+            errMsg = 'Location request timed out.';
+          }
+          addToast(errMsg, 'error');
+
+          // Fallback to IP-based location
+          fetch('https://ipapi.co/json/')
+            .then((r) => r.json())
+            .then((ipData) => {
+              if (ipData && ipData.city) {
+                const ipCity = ipData.city;
+                const ipPin = (ipData.postal || '452001').replace(/\D/g, '').slice(0, 6) || '452001';
+                const ipAddress = {
+                  id: `addr_ip_${Date.now()}`,
+                  title: 'Network Location',
+                  recipientName: user?.name || 'Site In-Charge',
+                  phone: user?.phone || '+91 98260 11223',
+                  addressLine: `${ipData.region || ipCity} Area`,
+                  city: ipCity,
+                  state: ipData.region || 'Madhya Pradesh',
+                  pincode: ipPin,
+                  isDefault: true,
+                };
+                setCurrentCity(ipCity);
+                setCurrentPincode(ipPin);
+                setAddresses((prev) => [ipAddress, ...prev]);
+                addToast(`📍 Network location applied: ${ipCity} (${ipPin})`, 'success');
+                resolve(ipAddress);
+              }
+            })
+            .catch(() => {
+              reject(error);
+            });
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    });
+  };
+
   const resetToDefaultData = () => {
     localStorage.removeItem('mistri_products');
     localStorage.removeItem('mistri_categories');
@@ -1838,6 +2330,7 @@ export const StoreProvider = ({ children }) => {
         user,
         setUser,
         login,
+        loginWithGoogle,
         signup,
         logout,
 
@@ -1873,8 +2366,18 @@ export const StoreProvider = ({ children }) => {
         addAddress,
         deleteAddress,
         setDefaultAddress,
+        fetchCurrentGpsLocation,
+        isDetectingLocation,
         notifications,
         setNotifications,
+        adminNotifications,
+        setAdminNotifications,
+        markAdminNotificationRead,
+        markAllAdminNotificationsRead,
+        clearAdminNotifications,
+        playOrderNotificationSound,
+        requestNotificationPermission,
+        getNotificationPermission,
 
         // Toast
         toasts,

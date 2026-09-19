@@ -1,16 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  ShoppingCart,
+  ChevronLeft,
   Trash2,
   Plus,
   Minus,
   ArrowRight,
-  ShieldCheck,
-  Truck,
-  Tag,
   FileText,
-  AlertCircle,
-  Heart,
+  ShoppingCart,
+  Receipt,
+  Sparkles,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
@@ -23,304 +21,524 @@ export const CartView = () => {
     cartSubtotal,
     cartItemCount,
     appliedCoupon,
-    applyCoupon,
-    removeCoupon,
     discountAmount,
     unloadingCharge,
     gstAmount,
     grandTotal,
     navigateTo,
-    toggleWishlist,
-    currentCity,
-    user,
-    requireAuth,
-    openLoginModal,
   } = useStore();
-
-  const [couponInput, setCouponInput] = useState('');
-  const [gstInvoiceRequired, setGstInvoiceRequired] = useState(true);
-
-  const handleApplyCoupon = (e) => {
-    e.preventDefault();
-    if (couponInput.trim()) {
-      applyCoupon(couponInput);
-      setCouponInput('');
-    }
-  };
 
   if (cart.length === 0) {
     return (
-      <div className="container page-container" style={{ textAlign: 'center' }}>
+      <div style={{ backgroundColor: '#F8FAFC', minHeight: '100vh', paddingBottom: '40px' }}>
+        {/* Clean Top Header */}
         <div
           style={{
-            maxWidth: '520px',
-            margin: '2rem auto',
+            position: 'sticky',
+            top: 0,
+            zIndex: 100,
             backgroundColor: '#FFFFFF',
-            borderRadius: 'var(--radius-md)',
-            padding: '3rem 1.5rem',
-            border: '1px solid var(--border-subtle)',
-            boxShadow: 'var(--shadow-sm)',
+            borderBottom: '1px solid #E2E8F0',
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
           }}
         >
-          <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--light-orange)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem auto', color: 'var(--primary-orange)' }}>
-            <ShoppingCart size={32} />
-          </div>
-          <h2 style={{ fontSize: '1.4rem', color: 'var(--primary-navy)', marginBottom: '0.5rem', fontWeight: '800' }}>
-            Your Construction Cart is Empty
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.75rem' }}>
-            You haven't added any building materials or tools to your project site cart yet.
-          </p>
           <button
-            onClick={() => navigateTo('categories')}
-            className="btn btn-primary btn-lg mobile-w-full"
-            style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}
+            type="button"
+            onClick={() => navigateTo('home')}
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              border: '1px solid #E2E8F0',
+              backgroundColor: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+            }}
           >
-            <span>Explore Construction Materials</span>
-            <ArrowRight size={18} />
+            <ChevronLeft size={20} color="#0F172A" />
           </button>
+          <div>
+            <h1 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0F172A', margin: 0, lineHeight: 1.2 }}>
+              Your cart
+            </h1>
+            <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: '500' }}>
+              0 items
+            </span>
+          </div>
+        </div>
+
+        {/* Empty State */}
+        <div style={{ maxWidth: '520px', margin: '3rem auto', padding: '0 16px', textAlign: 'center' }}>
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              padding: '3rem 1.5rem',
+              border: '1px solid #E2E8F0',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            }}
+          >
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                backgroundColor: '#FFE4E6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1.25rem auto',
+                color: '#E11D48',
+              }}
+            >
+              <ShoppingCart size={32} />
+            </div>
+            <h2 style={{ fontSize: '1.3rem', color: '#0F172A', marginBottom: '0.5rem', fontWeight: '800' }}>
+              Your cart is empty
+            </h2>
+            <p style={{ color: '#64748B', fontSize: '0.88rem', marginBottom: '1.75rem', lineHeight: 1.5 }}>
+              You haven't added any building materials or products to your cart yet.
+            </p>
+            <button
+              onClick={() => navigateTo('home')}
+              style={{
+                display: 'inline-flex',
+                gap: '8px',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#E11D48',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '12px 24px',
+                fontSize: '0.92rem',
+                fontWeight: '700',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(225, 29, 72, 0.25)',
+              }}
+            >
+              <span>Explore Materials & Products</span>
+              <ArrowRight size={18} />
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container page-container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 className="page-title">
-          Project Site Shopping Cart
-        </h1>
-        <p className="page-subtitle">
-          Review quantities, apply volume contractor discounts, and schedule delivery to {currentCity}.
-        </p>
+    <div style={{ backgroundColor: '#F8FAFC', minHeight: '100vh', paddingBottom: '90px' }}>
+      {/* 1. Clean Top Header: Back Button + Your cart Title + Subtitle */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          backgroundColor: '#FFFFFF',
+          borderBottom: '1px solid #E2E8F0',
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            onClick={() => navigateTo('home')}
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              border: '1px solid #E2E8F0',
+              backgroundColor: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+            }}
+          >
+            <ChevronLeft size={20} color="#0F172A" />
+          </button>
+          <div>
+            <h1 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0F172A', margin: 0, lineHeight: 1.2 }}>
+              Your cart
+            </h1>
+            <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: '500' }}>
+              {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'} · ₹{(grandTotal || 0).toLocaleString('en-IN')}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={clearCart}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#E11D48',
+            fontSize: '0.78rem',
+            fontWeight: '700',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          <Trash2 size={13} />
+          <span>Clear</span>
+        </button>
       </div>
 
-      {/* Cart Grid Layout */}
-      <div className="responsive-split-cart">
-        {/* Left Column: Cart Items List */}
-        <div>
-          <div style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.25rem', boxShadow: 'var(--shadow-xs)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-subtle)', marginBottom: '1rem' }}>
-              <span style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--primary-navy)' }}>
-                {cartItemCount} Items in Order
-              </span>
-              <button
-                onClick={clearCart}
-                style={{ background: 'none', border: 'none', color: '#D92D20', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-              >
-                <Trash2 size={13} />
-                <span>Clear Cart</span>
-              </button>
-            </div>
+      {/* Main Cart Content Container */}
+      <div
+        style={{
+          maxWidth: '600px',
+          margin: '0 auto',
+          padding: '14px 14px 20px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+        }}
+      >
+        {/* 2. Your items Card (Exact Reference Image Match) */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '14px',
+            border: '1px solid #E2E8F0',
+            padding: '16px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '0.95rem',
+              fontWeight: '800',
+              color: '#0F172A',
+              marginBottom: '16px',
+            }}
+          >
+            Your items
+          </div>
 
-            {/* Item Rows */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {cart.map((item) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            {cart.map((item, index) => {
+              const itemTotal = (item.price || 0) * item.quantity;
+              const isLast = index === cart.length - 1;
+
+              return (
                 <div
                   key={item.product.id}
                   style={{
-                    display: 'flex',
-                    gap: '1rem',
-                    paddingBottom: '1.25rem',
-                    borderBottom: '1px solid var(--border-subtle)',
-                    alignItems: 'flex-start',
-                    flexWrap: 'wrap',
+                    paddingBottom: isLast ? '0' : '16px',
+                    borderBottom: isLast ? 'none' : '1px solid #F1F5F9',
                   }}
                 >
-                  {/* Thumbnail */}
-                  <img
-                    src={item.product.image}
-                    alt={item.product.name}
-                    style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '6px', backgroundColor: 'var(--bg-surface)', flexShrink: 0 }}
-                  />
-
-                  {/* Title & Brand */}
-                  <div style={{ flex: '1 1 200px' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--primary-navy)', textTransform: 'uppercase' }}>
-                      {item.product.brand}
-                    </span>
-                    <h3 style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '4px' }}>
-                      {item.product.name}
-                    </h3>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      ₹{item.price?.toLocaleString()} / {item.product.unit}
+                  {/* Top Row: Thumbnail + Info */}
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    {/* Thumbnail */}
+                    <div
+                      style={{
+                        width: '72px',
+                        height: '72px',
+                        borderRadius: '10px',
+                        border: '1px solid #F1F5F9',
+                        backgroundColor: '#F8FAFC',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <img
+                        src={item.product.image}
+                        alt={item.product.name}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain',
+                          borderRadius: '6px',
+                        }}
+                      />
                     </div>
 
-                    {/* Stepper + Wishlist */}
-                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.85rem', marginTop: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-medium)', borderRadius: '6px', overflow: 'hidden' }}>
-                        <button
-                          type="button"
-                          onClick={() => updateCartQty(item.product.id, item.quantity - 1)}
-                          style={{ width: '28px', height: '28px', background: 'var(--bg-surface)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <h3
+                        style={{
+                          fontSize: '0.88rem',
+                          fontWeight: '700',
+                          color: '#0F172A',
+                          margin: '0 0 4px 0',
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {item.product.name}
+                      </h3>
+
+                      {/* Variant Badge */}
+                      <div style={{ marginBottom: '4px' }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            backgroundColor: '#FFE4E6',
+                            color: '#E11D48',
+                            fontSize: '0.7rem',
+                            fontWeight: '800',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.3px',
+                          }}
                         >
-                          <Minus size={13} />
-                        </button>
-                        <span style={{ width: '38px', textAlign: 'center', fontWeight: '700', fontSize: '0.85rem' }}>
-                          {item.quantity}
+                          VARIANT {item.variant || item.product.unit || 'Standard'}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => updateCartQty(item.product.id, item.quantity + 1)}
-                          style={{ width: '28px', height: '28px', background: 'var(--bg-surface)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          <Plus size={13} />
-                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => toggleWishlist(item.product)}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        <Heart size={14} />
-                        <span>Save</span>
-                      </button>
+                      {/* Price Per Unit */}
+                      <div style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: '4px', fontWeight: '500' }}>
+                        ₹{(item.price || 0).toLocaleString('en-IN')} each
+                      </div>
 
+                      {/* Remove Action */}
                       <button
                         type="button"
                         onClick={() => removeFromCart(item.product.id)}
-                        style={{ background: 'none', border: 'none', color: '#D92D20', fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          fontSize: '0.75rem',
+                          color: '#94A3B8',
+                          cursor: 'pointer',
+                          fontWeight: '500',
+                        }}
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={12} />
                         <span>Remove</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Subtotal */}
-                  <div style={{ textAlign: 'right', marginLeft: 'auto', minWidth: '80px' }}>
-                    <div style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--primary-navy)' }}>
-                      ₹{(item.price * item.quantity)?.toLocaleString()}
+                  {/* Bottom Row: Red outlined Stepper on left + Total Price on right */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginTop: '12px',
+                    }}
+                  >
+                    {/* Red Outline Stepper (Exact Reference Match) */}
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        border: '1.5px solid #E11D48',
+                        borderRadius: '8px',
+                        height: '32px',
+                        backgroundColor: '#FFFFFF',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => updateCartQty(item.product.id, item.quantity - 1)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#E11D48',
+                        }}
+                      >
+                        {item.quantity === 1 ? (
+                          <Trash2 size={14} color="#E11D48" />
+                        ) : (
+                          <Minus size={14} color="#E11D48" strokeWidth={2.5} />
+                        )}
+                      </button>
+
+                      <span
+                        style={{
+                          minWidth: '28px',
+                          textAlign: 'center',
+                          fontWeight: '800',
+                          fontSize: '0.88rem',
+                          color: '#E11D48',
+                        }}
+                      >
+                        {item.quantity}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => updateCartQty(item.product.id, item.quantity + 1)}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#E11D48',
+                        }}
+                      >
+                        <Plus size={14} color="#E11D48" strokeWidth={2.5} />
+                      </button>
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      {item.quantity} {item.product.unit}s
+
+                    {/* Total Price for item */}
+                    <div
+                      style={{
+                        fontSize: '1.15rem',
+                        fontWeight: '800',
+                        color: '#0F172A',
+                      }}
+                    >
+                      ₹{itemTotal.toLocaleString('en-IN')}
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Right Column: Order Summary & Checkout */}
-        <div>
-          {/* Coupon Box */}
-          <div style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1.25rem', boxShadow: 'var(--shadow-xs)' }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: 'var(--primary-navy)', marginBottom: '8px' }}>
-              Contractor Promo / Coupon Code
-            </label>
-            {appliedCoupon ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--light-orange)', border: '1px solid var(--primary-orange)', padding: '8px 12px', borderRadius: '6px' }}>
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--primary-orange)' }}>
-                    Coupon '{appliedCoupon.code}' Applied!
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    Saved extra {appliedCoupon.discountPercentage}% (₹{discountAmount.toLocaleString()})
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={removeCoupon}
-                  style={{ background: 'none', border: 'none', color: '#D92D20', fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer' }}
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  placeholder="e.g. BUILDMISTRI"
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value)}
-                  className="form-control"
-                  style={{ flex: 1, textTransform: 'uppercase', fontSize: '0.875rem', fontWeight: '600' }}
-                />
-                <button type="submit" className="btn btn-navy btn-sm">
-                  Apply
-                </button>
-              </form>
-            )}
+        {/* 3. Bill details Card (Exact Reference Image Match) */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '14px',
+            border: '1px solid #E2E8F0',
+            padding: '16px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '0.95rem',
+              fontWeight: '800',
+              color: '#0F172A',
+              marginBottom: '14px',
+            }}
+          >
+            <Receipt size={18} color="#E11D48" />
+            <span>Bill details</span>
           </div>
 
-          {/* Price Summary Breakdown */}
-          <div style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.25rem', boxShadow: 'var(--shadow-xs)' }}>
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--primary-navy)', fontWeight: '800', marginBottom: '1rem', paddingBottom: '0.65rem', borderBottom: '1px solid var(--border-subtle)' }}>
-              Order Price Breakdown
-            </h3>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                <span>Material Subtotal:</span>
-                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>₹{cartSubtotal.toLocaleString()}</span>
-              </div>
-
-              {discountAmount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--primary-orange)' }}>
-                  <span>Contractor Rebate / Coupon:</span>
-                  <span style={{ fontWeight: '700' }}>- ₹{discountAmount.toLocaleString()}</span>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                <span>Crane & Site Unloading:</span>
-                <span style={{ fontWeight: '600', color: unloadingCharge === 0 ? '#10b981' : 'var(--text-primary)' }}>
-                  {unloadingCharge === 0 ? 'FREE (Orders ₹50k+)' : `₹${unloadingCharge}`}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                <span>Direct Site Freight:</span>
-                <span style={{ fontWeight: '700', color: '#10b981' }}>FREE</span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                <span>Estimated GST (18% ITC benefit):</span>
-                <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>₹{gstAmount.toLocaleString()}</span>
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <span>Item total</span>
+              <span style={{ fontWeight: '600', color: '#0F172A' }}>₹{cartSubtotal.toLocaleString('en-IN')}</span>
             </div>
 
-            {/* GST Tax Invoice Checkbox */}
-            <div style={{ padding: '8px 10px', backgroundColor: 'var(--bg-surface)', borderRadius: '6px', marginBottom: '1.25rem', border: '1px solid var(--border-subtle)' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={gstInvoiceRequired}
-                  onChange={(e) => setGstInvoiceRequired(e.target.checked)}
-                  style={{ accentColor: 'var(--primary-orange)' }}
-                />
-                <span>Generate B2B GST Tax Invoice for ITC</span>
-              </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <span>Delivery</span>
+              <span style={{ fontWeight: '700', color: '#10B981' }}>FREE</span>
             </div>
 
-            {/* Total Row */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '0.85rem', borderTop: '2px solid var(--border-subtle)', marginBottom: '1.25rem' }}>
-              <span style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--primary-navy)' }}>
-                Grand Total:
-              </span>
-              <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary-orange)' }}>
-                ₹{grandTotal.toLocaleString()}
-              </span>
-            </div>
+            {gstAmount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                <span>Estimated GST (18% ITC Benefit)</span>
+                <span style={{ fontWeight: '600', color: '#0F172A' }}>₹{gstAmount.toLocaleString('en-IN')}</span>
+              </div>
+            )}
 
-            {/* Checkout Button */}
-            <button
-              onClick={() => requireAuth(() => navigateTo('checkout'))}
-              className="btn btn-primary btn-lg btn-block"
-              style={{ fontWeight: '800', display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}
+            {discountAmount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#E11D48' }}>
+                <span>Contractor Coupon / Rebate</span>
+                <span style={{ fontWeight: '700' }}>-₹{discountAmount.toLocaleString('en-IN')}</span>
+              </div>
+            )}
+
+            {/* Divider */}
+            <div style={{ borderTop: '1px solid #F1F5F9', margin: '4px 0' }} />
+
+            {/* Grand Total */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingTop: '2px',
+              }}
             >
-              <span>Proceed to Checkout</span>
-              <ArrowRight size={18} />
-            </button>
-
-            {!user && (
-              <div style={{ marginTop: '0.85rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                🔒 Fast checkout: You'll be prompted to sign in or register before confirming.
-              </div>
-            )}
+              <span style={{ fontSize: '1rem', fontWeight: '800', color: '#0F172A' }}>
+                Grand total
+              </span>
+              <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0F172A' }}>
+                ₹{grandTotal.toLocaleString('en-IN')}
+              </span>
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* 4. Sticky Bottom Action Bar: Continue to checkout Button (Sleek Mobile-Responsive) */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: '#FFFFFF',
+          borderTop: '1px solid #E2E8F0',
+          padding: '8px 14px max(8px, env(safe-area-inset-bottom, 8px)) 14px',
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
+          zIndex: 1000,
+        }}
+      >
+        <div style={{ maxWidth: '540px', margin: '0 auto' }}>
+          <button
+            type="button"
+            onClick={() => navigateTo('checkout')}
+            style={{
+              width: '100%',
+              height: '42px',
+              backgroundColor: '#E11D48',
+              color: '#FFFFFF',
+              borderRadius: '10px',
+              border: 'none',
+              fontWeight: '700',
+              fontSize: '0.88rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 8px rgba(225, 29, 72, 0.22)',
+              transition: 'transform 0.15s ease, opacity 0.15s ease',
+            }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            <span>Continue to checkout</span>
+          </button>
         </div>
       </div>
     </div>

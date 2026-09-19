@@ -14,7 +14,9 @@ import { useStore } from '../context/StoreContext';
 export const ProductCard = ({ product }) => {
   const { navigateTo, addToCart, cart, updateCartQty, openOptionsModal } = useStore();
 
-  const cartItem = cart.find((item) => item.product.id === product.id);
+  const cartItem = cart.find(
+    (item) => item.product?.id === product.id || item.product?.slug === product.slug || item.id === product.id
+  );
   const qtyInCart = cartItem ? cartItem.quantity : 0;
 
   const handleCardClick = () => {

@@ -171,6 +171,45 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+
+  // Payments
+  getPaymentKey: () => request('/payments/key'),
+  createPaymentOrder: (data) =>
+    request('/payments/create-order', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  verifyPayment: (data) =>
+    request('/payments/verify', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // Media & Cloudinary Uploads
+  uploadImage: async (file, folder = 'mistri/general') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', folder);
+    const token = localStorage.getItem('mistri_token');
+    const response = await fetch(`${API_BASE}/upload/image`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Upload failed');
+    }
+    return data;
+  },
+  uploadBase64Image: (base64String, folder = 'mistri/general') =>
+    request('/upload/base64', {
+      method: 'POST',
+      body: JSON.stringify({ image: base64String, folder }),
+    }),
+  getUploadStatus: () => request('/upload/status'),
 };
 
 export default api;

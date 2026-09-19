@@ -47,15 +47,34 @@ export const getCategoryByIdOrSlug = async (req, res) => {
  */
 export const createCategory = async (req, res) => {
   try {
+    const sectionName = req.body.section || 'Civil & Interiors';
     const newCategory = {
       id: `cat_${Date.now()}`,
       slug: req.body.slug || req.body.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       itemCount: 0,
+      section: sectionName,
       ...req.body,
     };
 
     categoriesDatabase.push(newCategory);
-    res.status(201).json({ success: true, data: newCategory });
+
+    // Sync sections
+    const existingSec = sectionsDatabase.find(
+      (s) => (s.title || s.name)?.toLowerCase() === sectionName.toLowerCase()
+    );
+    if (existingSec) {
+      if (!existingSec.categories) existingSec.categories = [];
+      existingSec.categories.push(newCategory);
+    } else {
+      sectionsDatabase.push({
+        id: `sec_${Date.now()}`,
+        title: sectionName,
+        categories: [newCategory],
+        isActive: true,
+      });
+    }
+
+    res.status(201).json({ success: true, data: newCategory, sections: sectionsDatabase });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
