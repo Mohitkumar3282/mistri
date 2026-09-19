@@ -179,6 +179,7 @@ export const OnlinePaymentModal = ({
     let rzpKey = RAZORPAY_KEY_ID;
 
     try {
+      // Step 1: Create Order on Backend
       const apiBase = import.meta.env.VITE_API_URL || '/api';
       const orderRes = await fetch(`${apiBase}/payments/create-order`, {
         method: 'POST',
