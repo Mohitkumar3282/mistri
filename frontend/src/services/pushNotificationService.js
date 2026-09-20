@@ -167,6 +167,37 @@ export const sendAdminNewOrderNotification = async (order) => {
   });
 };
 
+/**
+ * Sync FCM Token with Mistri Backend
+ * @param {string} fcmToken - The Firebase Cloud Messaging device registration token
+ * @param {string} authToken - Optional Bearer JWT token of the user
+ */
+export const syncFcmTokenWithBackend = async (fcmToken, authToken = null) => {
+  if (!fcmToken) return null;
+
+  try {
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://mistri-s2c0.onrender.com/api';
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${apiUrl}/auth/fcm-token`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ fcmToken }),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.warn('Failed to sync FCM token with backend:', err);
+    return null;
+  }
+};
+
 export default {
   registerServiceWorker,
   isNotificationSupported,
@@ -175,4 +206,6 @@ export default {
   sendNativeNotification,
   sendCustomerOrderNotification,
   sendAdminNewOrderNotification,
+  syncFcmTokenWithBackend,
 };
+

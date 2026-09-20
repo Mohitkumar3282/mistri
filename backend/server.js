@@ -39,7 +39,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Root / Health Route
-app.get('/', (req, res) => {
+app.get(['/', '/api'], (req, res) => {
   res.json({
     status: 'online',
     app: 'Mistri Construction & Technician Booking API',

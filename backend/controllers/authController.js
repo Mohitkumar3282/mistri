@@ -192,3 +192,85 @@ export const getMe = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc    Save or update user FCM Device Token for Push Notifications
+ * @route   POST /api/auth/fcm-token
+ * @access  Public / Private (supports optional auth or user identification)
+ */
+export const updateFcmToken = async (req, res, next) => {
+  try {
+    const { fcmToken, token, deviceToken, userId, email } = req.body;
+    const receivedToken = fcmToken || token || deviceToken;
+
+    if (!receivedToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid fcmToken',
+      });
+    }
+
+    const targetUserId = req.user?._id || userId;
+    let updatedUser = null;
+
+    if (targetUserId) {
+      try {
+        updatedUser = await User.findByIdAndUpdate(
+          targetUserId,
+          { fcmToken: receivedToken },
+          { new: true }
+        ).select('-password');
+      } catch (dbErr) {
+        // Fallback for mock users
+        const mock = mockUsers.find((u) => u._id === targetUserId);
+        if (mock) {
+          mock.fcmToken = receivedToken;
+          updatedUser = mock;
+        }
+      }
+    } else if (email) {
+      try {
+        updatedUser = await User.findOneAndUpdate(
+          { email: email.toLowerCase() },
+          { fcmToken: receivedToken },
+          { new: true }
+        ).select('-password');
+      } catch (dbErr) {}
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'FCM token registered successfully',
+      data: {
+        fcmToken: receivedToken,
+        user: updatedUser ? { _id: updatedUser._id, name: updatedUser.name, role: updatedUser.role } : null,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get FCM Token Endpoint Status (Handles GET requests with helpful info)
+ * @route   GET /api/auth/fcm-token
+ * @access  Public
+ */
+export const getFcmTokenStatus = async (req, res) => {
+  return res.status(200).json({
+    success: true,
+    message: 'FCM Token endpoint is operational. Send an HTTP POST request with { "fcmToken": "<TOKEN>" } to register or update device push tokens.',
+    usage: {
+      method: 'POST',
+      url: '/api/auth/fcm-token',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer <YOUR_JWT_TOKEN> (Optional if userId or email passed in body)',
+      },
+      body: {
+        fcmToken: 'your_device_firebase_token_here',
+      },
+    },
+  });
+};
+
