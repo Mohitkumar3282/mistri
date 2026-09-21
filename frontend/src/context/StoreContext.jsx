@@ -1022,11 +1022,18 @@ export const StoreProvider = ({ children }) => {
     };
 
     setProducts((prev) => [created, ...prev.filter((p) => p.id !== id)]);
+    try {
+      api.createProduct(created).then(() => markSynced('products', created)).catch((err) => {
+        console.warn('Backend product save warning:', err);
+      });
+    } catch (e) {}
+
     addToast(`Product "${created.name}" added to catalog!`, 'success');
     return created;
   };
 
   const updateProduct = (id, updatedFields) => {
+    let updatedDoc = null;
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id === id) {
@@ -1035,16 +1042,29 @@ export const StoreProvider = ({ children }) => {
           if (updatedFields.mrp !== undefined) updated.mrp = Number(updatedFields.mrp) || 0;
           if (updatedFields.stockCount !== undefined) updated.stockCount = Number(updatedFields.stockCount) || 0;
           if (updatedFields.status === 'OUT_OF_STOCK') updated.inStock = false;
+          updatedDoc = updated;
           return updated;
         }
         return p;
       })
     );
+
+    if (updatedDoc) {
+      try {
+        api.updateProduct(id, updatedFields).then(() => markSynced('products', updatedDoc)).catch((err) => {
+          console.warn('Backend product update warning:', err);
+        });
+      } catch (e) {}
+    }
+
     addToast('Product updated successfully', 'success');
   };
 
   const deleteProduct = (id) => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
+    try {
+      api.deleteProduct(id).catch((err) => console.warn('Backend product delete warning:', err));
+    } catch (e) {}
     addToast('Product removed from catalog', 'info');
   };
 
@@ -1076,6 +1096,11 @@ export const StoreProvider = ({ children }) => {
       section: sectionName,
     };
     setCategories((prev) => [created, ...prev]);
+    try {
+      api.createCategory(created).then(() => markSynced('categories', created)).catch((err) => {
+        console.warn('Backend category save warning:', err);
+      });
+    } catch (e) {}
 
     // Also update or create matching category section
     setCategorySections((prev) => {
@@ -1101,6 +1126,11 @@ export const StoreProvider = ({ children }) => {
           categories: [created],
           isActive: true,
         };
+        try {
+          api.collection.save('/category-sections', newSecObj.id, newSecObj, { auth: 'admin' })
+            .then(() => markSynced('categorySections', newSecObj))
+            .catch(() => {});
+        } catch (e) {}
         return [newSecObj, ...prev];
       }
     });
@@ -1110,14 +1140,32 @@ export const StoreProvider = ({ children }) => {
   };
 
   const updateCategory = (id, updatedFields) => {
+    let updatedDoc = null;
     setCategories((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updatedFields } : c))
+      prev.map((c) => {
+        if (c.id === id) {
+          const updated = { ...c, ...updatedFields };
+          updatedDoc = updated;
+          return updated;
+        }
+        return c;
+      })
     );
+    if (updatedDoc) {
+      try {
+        api.updateCategory(id, updatedFields).then(() => markSynced('categories', updatedDoc)).catch((err) => {
+          console.warn('Backend category update warning:', err);
+        });
+      } catch (e) {}
+    }
     addToast('Category updated successfully', 'success');
   };
 
   const deleteCategory = (id) => {
     setCategories((prev) => prev.filter((c) => c.id !== id && c.slug !== id));
+    try {
+      api.deleteCategory(id).catch((err) => console.warn('Backend category delete warning:', err));
+    } catch (e) {}
     addToast('Category deleted', 'info');
   };
 
@@ -1138,21 +1186,43 @@ export const StoreProvider = ({ children }) => {
     };
     setCategorySections((prev) => [created, ...prev]);
 
-
+    try {
+      api.collection.save('/category-sections', created.id, created, { auth: 'admin' })
+        .then(() => markSynced('categorySections', created))
+        .catch((err) => console.warn('Backend section save warning:', err));
+    } catch (e) {}
 
     addToast(`Parent Category "${created.title}" created successfully!`, 'success');
     return created;
   };
 
   const updateCategorySection = (id, updatedFields) => {
+    let updatedDoc = null;
     setCategorySections((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, ...updatedFields } : s))
+      prev.map((s) => {
+        if (s.id === id) {
+          const updated = { ...s, ...updatedFields };
+          updatedDoc = updated;
+          return updated;
+        }
+        return s;
+      })
     );
+    if (updatedDoc) {
+      try {
+        api.collection.save('/category-sections', id, updatedDoc, { auth: 'admin' })
+          .then(() => markSynced('categorySections', updatedDoc))
+          .catch((err) => console.warn('Backend section update warning:', err));
+      } catch (e) {}
+    }
     addToast('Parent Category updated successfully', 'success');
   };
 
   const deleteCategorySection = (id) => {
     setCategorySections((prev) => prev.filter((s) => s.id !== id));
+    try {
+      api.collection.remove('/category-sections', id, { auth: 'admin' }).catch((err) => console.warn('Backend section delete warning:', err));
+    } catch (e) {}
     addToast('Parent Category removed', 'info');
   };
 

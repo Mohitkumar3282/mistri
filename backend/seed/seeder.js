@@ -1,8 +1,11 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import { initialServices, initialMistris } from '../utils/mockData.js';
+import { initialServices, initialMistris, initialProducts, initialCategories, initialCategorySections } from '../utils/mockData.js';
 import Service from '../models/Service.js';
 import Mistri from '../models/Mistri.js';
+import Product from '../models/Product.js';
+import Category from '../models/Category.js';
+import CategorySection from '../models/CategorySection.js';
 import User from '../models/User.js';
 
 dotenv.config();
@@ -11,14 +14,16 @@ dotenv.config();
 const toAppRecord = ({ _id, id, ...rest }) => ({ id: String(id || _id), ...rest });
 
 /**
- * Insert seed services and mistris that are not already present. Never deletes or
- * overwrites anything, so it is safe to run against a database with real data.
+ * Insert seed services, mistris, products, categories, and category sections that are not already present.
  */
 const importData = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/mistri_db');
 
     for (const [Model, records] of [
+      [CategorySection, initialCategorySections],
+      [Category, initialCategories],
+      [Product, initialProducts],
       [Service, initialServices],
       [Mistri, initialMistris],
     ]) {
