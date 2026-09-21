@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
+import { useServerSync } from '../services/serverSync';
+import { computeTotals, couponDiscount } from '../utils/pricing';
 import { auth, googleProvider } from '../config/firebase';
 import {
   signInWithPopup,
@@ -36,399 +38,75 @@ import {
 
 const StoreContext = createContext(null);
 
+// Clean Data Migration
+const DATA_VERSION = 'mistri_clean_v4_empty';
+if (typeof window !== 'undefined') {
+  try {
+    if (localStorage.getItem('mistri_app_version') !== DATA_VERSION) {
+      const keysToPurge = [
+        'mistri_products', 'mistri_categories', 'mistri_category_sections',
+        'mistri_orders', 'mistri_services', 'mistri_mistris', 'mistri_bookings',
+        'mistri_users_list', 'mistri_coupons', 'mistri_quotations', 'mistri_banners',
+        'mistri_faqs', 'mistri_cart', 'mistri_wishlist', 'mistri_saved_addresses',
+        'mistri_notifications', 'mistri_admin_notifications', 'mistri_support_messages',
+        'mistri_applied_coupon'
+      ];
+      keysToPurge.forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem('mistri_app_version', DATA_VERSION);
+    }
+  } catch (e) {
+    console.warn('Failed to purge legacy mock storage', e);
+  }
+}
+
+// Sub-category ghost fix migration (v6): wipe ALL auto-generated fake subcategories from stored categories
+const GHOST_SUB_VERSION = 'mistri_ghost_sub_fix_v6';
+if (typeof window !== 'undefined') {
+  try {
+    if (localStorage.getItem('mistri_ghost_sub_version') !== GHOST_SUB_VERSION) {
+      // Clear all subcategories from every category — none were legitimately created by admin.
+      // Previous code auto-injected ghost subs (e.g. 'Accessories', 'Premium Grade', 'Standard Grade',
+      // 'Fast Dispatch', and even the category's own name) every time a category or parent section
+      // was created. This migration removes them all in one shot.
+      const rawCats = localStorage.getItem('mistri_categories');
+      if (rawCats) {
+        const cats = JSON.parse(rawCats);
+        const cleaned = cats.map((cat) => ({
+          ...cat,
+          subcategories: [],
+          subcategoryImages: {},
+        }));
+        localStorage.setItem('mistri_categories', JSON.stringify(cleaned));
+      }
+      localStorage.setItem('mistri_ghost_sub_version', GHOST_SUB_VERSION);
+    }
+  } catch (e) {
+    console.warn('Failed to run ghost sub migration', e);
+  }
+}
+
+
 // Initial Service Catalogue
-const INITIAL_SERVICES = [
-  {
-    id: 'srv_1',
-    title: 'Complete Plumbing & Leakage Repair',
-    slug: 'plumbing-repair',
-    category: 'Plumbing',
-    description: 'Expert repair for pipes, leaky faucets, blocked drains, bathroom fittings, and water motor installation.',
-    basePrice: 299,
-    durationHours: 1.5,
-    icon: 'Droplets',
-    image: 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&q=80&w=800',
-    features: ['Pipe leakage fixing', 'Drain unblocking', 'Tap & shower replacement', '30-day warranty'],
-    rating: 4.9,
-    reviewCount: 142,
-    isPopular: true,
-  },
-  {
-    id: 'srv_2',
-    title: 'Home Electrical Wiring & Fixtures',
-    slug: 'electrical-wiring',
-    category: 'Electrical',
-    description: 'Short-circuit fixing, ceiling fan installation, switchboard replacement, fuse box & MCB setup.',
-    basePrice: 349,
-    durationHours: 1,
-    icon: 'Zap',
-    image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=800',
-    features: ['Short-circuit resolution', 'Fan & light installation', 'Inverter setup', 'Certified safety checks'],
-    rating: 4.8,
-    reviewCount: 98,
-    isPopular: true,
-  },
-  {
-    id: 'srv_3',
-    title: 'AC Deep Service & Gas Refilling',
-    slug: 'ac-service',
-    category: 'AC Repair',
-    description: 'Jet-pump indoor & outdoor AC cleaning, cooling coil check, gas charging, filter sanitization.',
-    basePrice: 499,
-    durationHours: 2,
-    icon: 'Wind',
-    image: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&q=80&w=800',
-    features: ['Foam-jet deep wash', 'Gas leakage check', 'Thermostat testing', '90-day cooling guarantee'],
-    rating: 4.95,
-    reviewCount: 230,
-    isPopular: true,
-  },
-  {
-    id: 'srv_4',
-    title: 'Custom Carpentry & Furniture Repair',
-    slug: 'carpentry-service',
-    category: 'Carpentry',
-    description: 'Door lock replacement, hinge repair, custom modular wardrobe fixing, table and chair restoration.',
-    basePrice: 399,
-    durationHours: 2.5,
-    icon: 'Hammer',
-    image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&q=80&w=800',
-    features: ['Door hinge & lock fixes', 'Wood polishing', 'Custom shelf mounting', 'Precision craftsmanship'],
-    rating: 4.7,
-    reviewCount: 86,
-    isPopular: false,
-  },
-  {
-    id: 'srv_5',
-    title: 'Full House Waterproofing & Painting',
-    slug: 'house-painting',
-    category: 'Painting',
-    description: 'Wall putty, primer application, texture painting, anti-dampness waterproofing coats.',
-    basePrice: 1299,
-    durationHours: 8,
-    icon: 'Paintbrush',
-    image: 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&q=80&w=800',
-    features: ['Laser wall inspection', 'Dust-free sanding', 'Premium Asian/Nippon paint', 'Color consultation'],
-    rating: 4.9,
-    reviewCount: 75,
-    isPopular: true,
-  },
-  {
-    id: 'srv_6',
-    title: 'Washing Machine & Refrigerator Repair',
-    slug: 'appliance-repair',
-    category: 'Appliance Repair',
-    description: 'Drum motor repair, PCB diagnostic, cooling issue resolution, microwave oven and RO servicing.',
-    basePrice: 399,
-    durationHours: 1.5,
-    icon: 'Wrench',
-    image: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&q=80&w=800',
-    features: ['Genuine spare parts', 'On-spot diagnostic', 'All top brands supported', 'Transparent bill'],
-    rating: 4.85,
-    reviewCount: 164,
-    isPopular: false,
-  },
-];
+const INITIAL_SERVICES = [];
 
 // Initial Technicians (Mistris)
-const INITIAL_MISTRIS = [
-  {
-    id: 'mst_1',
-    fullName: 'Rajesh Kumar Mistri',
-    profession: 'Senior Electrician',
-    specializations: ['Wiring', 'Fuse Repair', 'Inverter Setup', 'Smart Lights'],
-    experienceYears: 9,
-    hourlyRate: 349,
-    city: 'Indore',
-    serviceAreas: ['Vijay Nagar', 'Palasia', 'Bhawarkua', 'Rau'],
-    rating: 4.9,
-    reviewCount: 128,
-    jobsCompleted: 340,
-    isVerified: true,
-    isAvailable: true,
-    bio: 'Certified electrical expert with 9+ years handling residential towers and commercial complex wiring.',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300',
-    phone: '+91 98260 11988',
-  },
-  {
-    id: 'mst_2',
-    fullName: 'Mukesh Sharma Mistri',
-    profession: 'Master Plumber',
-    specializations: ['Piping', 'Leakage Sealing', 'Motor Installation', 'Sanitaryware'],
-    experienceYears: 12,
-    hourlyRate: 299,
-    city: 'Indore',
-    serviceAreas: ['Chhotigwaltoli', 'Rajwada', 'Annapurna', 'Bengali Square'],
-    rating: 4.95,
-    reviewCount: 215,
-    jobsCompleted: 580,
-    isVerified: true,
-    isAvailable: true,
-    bio: 'Specialist in concealed CPVC plumbing, high pressure pumps, and bathroom remodeling.',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300',
-    phone: '+91 98261 22877',
-  },
-  {
-    id: 'mst_3',
-    fullName: 'Anil Vishwakarma',
-    profession: 'Expert Carpenter',
-    specializations: ['Modular Kitchens', 'Wardrobe Sliding', 'Door Fitting', 'Wood Polish'],
-    experienceYears: 8,
-    hourlyRate: 399,
-    city: 'Indore',
-    serviceAreas: ['Super Corridor', 'Nipania', 'Mahalaxmi Nagar', 'Khandwa Road'],
-    rating: 4.8,
-    reviewCount: 94,
-    jobsCompleted: 210,
-    isVerified: true,
-    isAvailable: false,
-    bio: 'Precision woodworker crafting customized wardrobes, modular storage, and acoustic doors.',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=300',
-    phone: '+91 98262 33766',
-  },
-  {
-    id: 'mst_4',
-    fullName: 'Sunil Rathore',
-    profession: 'HVAC & AC Specialist',
-    specializations: ['Jet AC Cleaning', 'Inverter PCB Repair', 'Gas Charging', 'Ducting'],
-    experienceYears: 7,
-    hourlyRate: 499,
-    city: 'Indore',
-    serviceAreas: ['Bypass Road', 'Bicholi Mardana', 'LIG Colony', 'Scheme 78'],
-    rating: 4.9,
-    reviewCount: 172,
-    jobsCompleted: 430,
-    isVerified: true,
-    isAvailable: true,
-    bio: 'Authorised AC technician for Daikin, Voltas, BlueStar & LG VRF and Split systems.',
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=300',
-    phone: '+91 98263 44655',
-  },
-];
+const INITIAL_MISTRIS = [];
 
 // Initial Technician Bookings
-const INITIAL_BOOKINGS = [
-  {
-    id: 'BKG-99201',
-    customerName: 'Er. Rajesh Malviya',
-    customerPhone: '+91 98260 11223',
-    serviceId: 'srv_1',
-    serviceTitle: 'Complete Plumbing & Leakage Repair',
-    mistriId: 'mst_2',
-    mistriName: 'Mukesh Sharma Mistri',
-    date: '2026-09-15',
-    timeSlot: '09:00 AM - 11:00 AM',
-    address: 'Plot 42, Super Corridor Tech Zone, Indore - 452005',
-    problemDescription: 'Main water inlet pipe pressure drop and overhead tank float valve overflow repair.',
-    amount: 598,
-    paymentMethod: 'UPI / Online',
-    paymentStatus: 'Paid',
-    status: 'In Progress',
-    createdAt: '2026-09-14T08:30:00Z',
-  },
-  {
-    id: 'BKG-99202',
-    customerName: 'Amit Verma (Civil Engg)',
-    customerPhone: '+91 97555 43210',
-    serviceId: 'srv_2',
-    serviceTitle: 'Home Electrical Wiring & Fixtures',
-    mistriId: 'mst_1',
-    mistriName: 'Rajesh Kumar Mistri',
-    date: '2026-09-16',
-    timeSlot: '02:00 PM - 04:00 PM',
-    address: 'Site #12, Treasure Fantasy, Rau, Indore',
-    problemDescription: 'Distribution box 63A MCB tripping continuously upon heavy machine startup.',
-    amount: 698,
-    paymentMethod: 'Cash on Service',
-    paymentStatus: 'Pending',
-    status: 'Confirmed',
-    createdAt: '2026-09-13T14:15:00Z',
-  },
-  {
-    id: 'BKG-99203',
-    customerName: 'Pooja Agrawal',
-    customerPhone: '+91 94250 88990',
-    serviceId: 'srv_3',
-    serviceTitle: 'AC Deep Service & Gas Refilling',
-    mistriId: null,
-    mistriName: 'Unassigned',
-    date: '2026-09-17',
-    timeSlot: '11:00 AM - 01:00 PM',
-    address: 'Flat 402, Royal Residency, Vijay Nagar, Indore',
-    problemDescription: '2 Ton Inverter Split AC cooling coil frozen and water dripping inside bedroom.',
-    amount: 499,
-    paymentMethod: 'UPI / Online',
-    paymentStatus: 'Pending',
-    status: 'Pending',
-    createdAt: '2026-09-14T10:00:00Z',
-  },
-];
+const INITIAL_BOOKINGS = [];
 
 // Initial Registered Users & Contractors
-const INITIAL_USERS_LIST = [
-  {
-    id: 'usr_1',
-    name: 'Er. Rajesh Malviya',
-    company: 'Malviya Infra & Buildtech Pvt. Ltd.',
-    email: 'rajesh.malviya@malviyabuilders.com',
-    phone: '+91 98260 11223',
-    role: 'Commercial Contractor / Builder',
-    tier: 'Gold Contractor Tier (5% Extra Rebate)',
-    gstin: '23AABCM9821K1ZM',
-    status: 'Active',
-    totalOrders: 18,
-    totalSpend: 1420500,
-    city: 'Indore',
-  },
-  {
-    id: 'usr_2',
-    name: 'Vikramaditya Solanki',
-    company: 'Solanki Infrastructure & Developers',
-    email: 'vikram.solanki@solankigroup.in',
-    phone: '+91 98261 44556',
-    role: 'Infrastructure Contractor',
-    tier: 'VIP Infrastructure Partner (8% Extra Rebate)',
-    gstin: '23AAECS4490P1ZQ',
-    status: 'Active',
-    totalOrders: 32,
-    totalSpend: 4890000,
-    city: 'Bhopal',
-  },
-  {
-    id: 'usr_3',
-    name: 'Sunita Chauhan',
-    company: 'Chauhan Interiors & Modular Studios',
-    email: 'sunita@chauhaninteriors.com',
-    phone: '+91 98930 77122',
-    role: 'Interior Architect',
-    tier: 'Silver Designer Tier (3% Extra Rebate)',
-    gstin: '23AACFC1120M1ZX',
-    status: 'Active',
-    totalOrders: 9,
-    totalSpend: 620000,
-    city: 'Indore',
-  },
-  {
-    id: 'usr_4',
-    name: 'Admin Supervisor',
-    company: 'MISTRI Platform Admin Headquarters',
-    email: 'admin@gmail.com',
-    phone: '+91 98260 00001',
-    role: 'Admin',
-    tier: 'Root Administrator',
-    gstin: '23AABCM0000A1Z0',
-    status: 'Active',
-    totalOrders: 0,
-    totalSpend: 0,
-    city: 'Indore',
-  },
-];
+const INITIAL_USERS_LIST = [];
 
 // Initial Coupons
-const INITIAL_COUPONS = [
-  {
-    code: 'BUILDMISTRI',
-    discountPercentage: 5,
-    maxDiscount: 10000,
-    minOrderValue: 2000,
-    description: 'Flat 5% instant discount on all structural materials and bulk cement orders.',
-    isActive: true,
-    usageCount: 142,
-    expiryDate: '2026-12-31',
-  },
-  {
-    code: 'MISTRI50',
-    discountPercentage: 8,
-    maxDiscount: 15000,
-    minOrderValue: 25000,
-    description: 'Mega Contractor Rebate: 8% off on TMT Steel Rebars & Heavy Civil Supplies.',
-    isActive: true,
-    usageCount: 89,
-    expiryDate: '2026-11-30',
-  },
-  {
-    code: 'SITE100',
-    discountPercentage: 10,
-    maxDiscount: 25000,
-    minOrderValue: 50000,
-    description: 'Site Launch Offer: 10% instant rebate on full truckload purchases.',
-    isActive: true,
-    usageCount: 63,
-    expiryDate: '2026-12-31',
-  },
-  {
-    code: 'SUPERBUILD',
-    discountPercentage: 12,
-    maxDiscount: 35000,
-    minOrderValue: 100000,
-    description: 'Exclusive Wholesale VIP tier for commercial construction projects.',
-    isActive: true,
-    usageCount: 27,
-    expiryDate: '2027-03-31',
-  },
-];
+const INITIAL_COUPONS = [];
 
 // Initial Quotation Requests
-const INITIAL_QUOTATIONS = [
-  {
-    id: 'QUO-8801',
-    clientName: 'Er. Rajesh Malviya',
-    company: 'Malviya Infra & Buildtech Pvt. Ltd.',
-    phone: '+91 98260 11223',
-    email: 'rajesh.malviya@malviyabuilders.com',
-    siteCity: 'Indore',
-    projectType: 'Commercial Complex (G+7 Floors)',
-    requiredMaterials: '300 Bags UltraTech PPC Cement, 12 Tonnes Tata Tiscon Fe 550D TMT, 2000 Sq.Ft Kajaria Tiles',
-    deliveryDate: '2026-09-22',
-    notes: 'Need official stamped BOQ quote with GST breakdown for client bank disbursement.',
-    estimatedTotal: 985000,
-    status: 'Quotation Sent',
-    adminNotes: 'Formal quotation PDF dispatched via WhatsApp with 6.5% tiered bulk rebate.',
-    createdAt: '2026-09-13T11:20:00Z',
-  },
-  {
-    id: 'QUO-8802',
-    clientName: 'Manish Choudhary',
-    company: 'Skyline Heights Construction',
-    phone: '+91 98270 55443',
-    email: 'manish@skylineindore.com',
-    siteCity: 'Bhopal',
-    projectType: 'Residential Row Houses (14 Units)',
-    requiredMaterials: '500 Bags ACC Gold Cement, 8 Tonne Jindal Panther Steel, Asian Paints Apex Exterior Putty',
-    deliveryDate: '2026-09-25',
-    notes: 'Require crane-assisted unloading truck access on site.',
-    estimatedTotal: 840000,
-    status: 'Under Review',
-    adminNotes: 'Logistics team verifying 12-wheeler truck turning radius near site entrance.',
-    createdAt: '2026-09-14T09:45:00Z',
-  },
-];
+const INITIAL_QUOTATIONS = [];
 
 // Initial Marketing Banners
-const INITIAL_BANNERS = [
-  {
-    id: 'bnr_1',
-    title: 'DIRECT FROM DEPOT TO YOUR SITE',
-    subtitle: 'UltraTech, Tata Tiscon & Kajaria at Wholesale Bulk Rates',
-    badge: '⚡ GUARANTEED 60-MIN SITE DISPATCH',
-    ctaText: 'Order Building Materials',
-    link: 'categories',
-    bgGradient: 'linear-gradient(135deg, #08274C 0%, #0F3A6E 60%, #F15A24 100%)',
-    image: 'https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?auto=format&fit=crop&q=80&w=1200',
-    isActive: true,
-  },
-  {
-    id: 'bnr_2',
-    title: 'CERTIFIED MISTRI & TECHNICIANS',
-    subtitle: 'Verified Electricians, Plumbers, AC Specialists & Carpenters at Flat Rates',
-    badge: '🛡️ 30-DAY WORKMANSHIP WARRANTY',
-    ctaText: 'Book a Mistri Technician',
-    link: 'services',
-    bgGradient: 'linear-gradient(135deg, #04162C 0%, #08274C 50%, #D84A16 100%)',
-    image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=1200',
-    isActive: true,
-  },
-];
+const INITIAL_BANNERS = [];
+
 
 // Initial Site Settings
 const INITIAL_SETTINGS = {
@@ -439,9 +117,17 @@ const INITIAL_SETTINGS = {
   supportEmail: 'care@mistri.com',
   depotAddress: 'Central Depot #14, Super Corridor Logistics Park, Indore, MP - 452005',
   gstRatePercent: 18,
+  isGstInclusive: false,
+  deliveryType: 'free', // 'free' | 'km_based' | 'min_order_free' | 'flat'
+  flatDeliveryFee: 49,
+  minFreeDeliveryOrder: 500,
+  deliveryBaseKm: 5,
+  deliveryBaseFee: 0,
+  deliveryPerKmFee: 15,
+  estimatedDeliveryKm: 5,
+  enableUnloadingFee: false,
   unloadingChargeStandard: 500,
   freeUnloadingThreshold: 50000,
-  minFreeDeliveryOrder: 500,
   tickerMessage: '🚚 EXPRESS SITE DISPATCH IN 60 MINS • OFFICIAL MTC LAB TEST CERTIFICATES INCLUDED WITH EVERY STEEL & CEMENT ORDER • GST 100% ITC COMPLIANT',
   isMaintenanceMode: false,
 };
@@ -575,16 +261,22 @@ export const StoreProvider = ({ children }) => {
   const [banners, setBanners] = useState(() => getStored('banners', INITIAL_BANNERS));
   const [faqs, setFaqs] = useState(() => getStored('faqs', INITIAL_FAQS));
   const [supportMessages, setSupportMessages] = useState(() => getStored('support_messages', []));
-  const [siteSettings, setSiteSettings] = useState(() => getStored('settings', INITIAL_SETTINGS));
+  const [siteSettings, setSiteSettings] = useState(() => {
+    const stored = getStored('settings', null);
+    if (stored && typeof stored === 'object') {
+      return { ...INITIAL_SETTINGS, ...stored };
+    }
+    return INITIAL_SETTINGS;
+  });
   const [cities, setCities] = useState(() => getStored('cities', INITIAL_CITIES));
 
-  // Deliver to Location
-  const [currentCity, setCurrentCity] = useState(cities[0] || 'Indore');
-  const [currentPincode, setCurrentPincode] = useState('452005');
+  // Deliver to Location (Persistent in LocalStorage)
+  const [currentCity, setCurrentCity] = useState(() => getStored('current_city', cities[0] || 'Indore'));
+  const [currentPincode, setCurrentPincode] = useState(() => getStored('current_pincode', '452005'));
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
 
   // Wallet / Cashback Balance
-  const [walletBalance, setWalletBalance] = useState(2450);
+  const [walletBalance, setWalletBalance] = useState(0);
   const [isWalletVisible, setIsWalletVisible] = useState(false);
   const toggleWalletVisibility = () => setIsWalletVisible((prev) => !prev);
 
@@ -648,32 +340,7 @@ export const StoreProvider = ({ children }) => {
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
 
   // Admin Real-time Notifications State
-  const INITIAL_ADMIN_NOTIFICATIONS = [
-    {
-      id: 'anot_1',
-      type: 'new_order',
-      title: 'New Online Order #MST-99201',
-      message: 'Er. Rajesh Malviya placed an order for ₹45,200 (Paid via UPI)',
-      orderId: 'MST-99201',
-      amount: 45200,
-      paymentMethod: 'UPI Instant Transfer',
-      customerName: 'Er. Rajesh Malviya',
-      time: '5 mins ago',
-      unread: true,
-    },
-    {
-      id: 'anot_2',
-      type: 'new_order',
-      title: 'New Cash Order #MST-99202',
-      message: 'Amit Verma placed a COD order for ₹18,400 (Pay on Site)',
-      orderId: 'MST-99202',
-      amount: 18400,
-      paymentMethod: 'Cash on Delivery',
-      customerName: 'Amit Verma',
-      time: '25 mins ago',
-      unread: false,
-    },
-  ];
+  const INITIAL_ADMIN_NOTIFICATIONS = [];
   const [adminNotifications, setAdminNotifications] = useState(() => getStored('admin_notifications', INITIAL_ADMIN_NOTIFICATIONS));
 
   // Web Audio Synthesizer for instant Order Alert Chime
@@ -760,6 +427,49 @@ export const StoreProvider = ({ children }) => {
   useEffect(() => { setStored('support_messages', supportMessages); }, [supportMessages]);
   useEffect(() => { setStored('settings', siteSettings); }, [siteSettings]);
   useEffect(() => { setStored('cities', cities); }, [cities]);
+  useEffect(() => { setStored('current_city', currentCity); }, [currentCity]);
+  useEffect(() => { setStored('current_pincode', currentPincode); }, [currentPincode]);
+
+  // MongoDB sync: load every collection from the API and save changes back to it.
+  // localStorage above stays as an offline cache for the first paint.
+  const hasToken = (key) => {
+    try {
+      return !!localStorage.getItem(key);
+    } catch (e) {
+      return false;
+    }
+  };
+  const { reloadFromServer, markSynced } = useServerSync({
+    collections: {
+      products: [products, setProducts],
+      categories: [categories, setCategories],
+      categorySections: [categorySections, setCategorySections],
+      services: [services, setServices],
+      mistris: [mistris, setMistris],
+      banners: [banners, setBanners],
+      faqs: [faqs, setFaqs],
+      coupons: [coupons, setCoupons],
+      cities: [cities, setCities],
+      orders: [orders, setOrders],
+      bookings: [bookings, setBookings],
+      quotations: [quotations, setQuotations],
+      supportMessages: [supportMessages, setSupportMessages],
+      adminNotifications: [adminNotifications, setAdminNotifications],
+      usersList: [usersList, setUsersList],
+    },
+    settings: [siteSettings, setSiteSettings],
+    account: [{ addresses, wishlist }, { setAddresses, setWishlist }],
+    session: {
+      isAdmin: !!adminUser && hasToken('mistri_admin_token'),
+      isUser: !!user && hasToken('mistri_token'),
+      userKey: user?.id || user?.email || '',
+    },
+    onError: (message) => addToast(message, 'error', 6000),
+    onNewItems: (name) => {
+      // A customer placed something while the admin panel was open.
+      if (name === 'adminNotifications') playOrderNotificationSound();
+    },
+  });
 
   // URL change listener for browser Back/Forward & popstate
   useEffect(() => {
@@ -808,23 +518,39 @@ export const StoreProvider = ({ children }) => {
   };
 
   // Cart Calculations
+  // Uses the same pricing rules as the server (utils/pricing.js), so the total shown at
+  // checkout is the total the order is charged.
   const cartSubtotal = cart.reduce((acc, item) => acc + (item.price || 0) * item.quantity, 0);
   const cartItemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-  const discountAmount = appliedCoupon ? Math.round(cartSubtotal * (appliedCoupon.discountPercentage / 100)) : 0;
-  const unloadingCharge = cartSubtotal > (siteSettings.freeUnloadingThreshold || 50000) ? 0 : (siteSettings.unloadingChargeStandard || 500);
-  const gstRate = (siteSettings.gstRatePercent || 18) / 100;
-  const gstAmount = Math.round((cartSubtotal - discountAmount) * gstRate);
-  const grandTotal = cartSubtotal - discountAmount + unloadingCharge + gstAmount;
+  // Re-check the applied coupon against the current coupon list and cart, so a coupon
+  // that was deactivated or no longer meets its minimum stops discounting.
+  const activeCoupon = appliedCoupon
+    ? coupons.find((c) => c.code?.toUpperCase() === appliedCoupon.code?.toUpperCase()) || null
+    : null;
+  const {
+    discount: discountAmount,
+    deliveryFee,
+    deliveryNote,
+    unloadingCharge,
+    gstAmount,
+    isGstInclusive,
+    grandTotal,
+  } = computeTotals({ subtotal: cartSubtotal, coupon: activeCoupon, settings: siteSettings });
 
   // Cart Operations
   const addToCart = (product, quantity = 1) => {
     setCart((prev) => {
       const existingIndex = prev.findIndex((item) => item.product.id === product.id);
       let newPrice = product.price;
-
       const newQty = existingIndex > -1 ? prev[existingIndex].quantity + quantity : quantity;
-      if (product.id === 'prod_1' && newQty >= 50) newPrice = 405;
-      if (product.id === 'prod_4' && newQty >= 5) newPrice = 63200;
+      if (Array.isArray(product.wholesaleTiers)) {
+        const matchedTier = [...product.wholesaleTiers]
+          .sort((a, b) => (b.minQty || 0) - (a.minQty || 0))
+          .find((t) => newQty >= (t.minQty || 0));
+        if (matchedTier && matchedTier.price) {
+          newPrice = matchedTier.price;
+        }
+      }
 
       if (existingIndex > -1) {
         const updated = [...prev];
@@ -857,8 +583,14 @@ export const StoreProvider = ({ children }) => {
       prev.map((item) => {
         if (item.product.id === productId) {
           let price = item.product.price;
-          if (item.product.id === 'prod_1' && newQty >= 50) price = 405;
-          if (item.product.id === 'prod_4' && newQty >= 5) price = 63200;
+          if (Array.isArray(item.product.wholesaleTiers)) {
+            const matchedTier = [...item.product.wholesaleTiers]
+              .sort((a, b) => (b.minQty || 0) - (a.minQty || 0))
+              .find((t) => newQty >= (t.minQty || 0));
+            if (matchedTier && matchedTier.price) {
+              price = matchedTier.price;
+            }
+          }
           return { ...item, quantity: newQty, price };
         }
         return item;
@@ -875,18 +607,15 @@ export const StoreProvider = ({ children }) => {
     if (!code) return { success: false, message: 'Please enter promo code' };
     const upper = code.trim().toUpperCase();
 
-    const foundCoupon = coupons.find((c) => c.code.toUpperCase() === upper && c.isActive);
+    const foundCoupon = coupons.find((c) => c.code?.toUpperCase() === upper);
 
     if (foundCoupon) {
-      if (cartSubtotal < (foundCoupon.minOrderValue || 0)) {
-        const msg = `Minimum order amount of ₹${foundCoupon.minOrderValue.toLocaleString('en-IN')} required for ${upper}`;
+      // Same rules the server applies when the order is placed.
+      const { amount: calculatedDiscount, reason } = couponDiscount(foundCoupon, cartSubtotal);
+      if (reason) {
+        const msg = `${upper}: ${reason}`;
         addToast(msg, 'warning');
         return { success: false, message: msg };
-      }
-
-      let calculatedDiscount = Math.round(cartSubtotal * (foundCoupon.discountPercentage / 100));
-      if (foundCoupon.maxDiscount && calculatedDiscount > foundCoupon.maxDiscount) {
-        calculatedDiscount = foundCoupon.maxDiscount;
       }
 
       setAppliedCoupon({
@@ -927,110 +656,79 @@ export const StoreProvider = ({ children }) => {
   };
 
   // Order Operations
-  const placeOrder = (orderData = {}) => {
-    const newOrderId = `MST-${Math.floor(100000 + Math.random() * 900000)}`;
-    const isOnline =
-      orderData.paymentMethod?.toLowerCase().includes('online') ||
-      orderData.paymentMethod?.toLowerCase().includes('upi') ||
-      orderData.paymentMethod?.toLowerCase().includes('card') ||
-      orderData.paymentMethod?.toLowerCase().includes('net banking') ||
-      orderData.paymentMethod?.toLowerCase().includes('wallet');
-
-    const paymentStatus = orderData.paymentStatus || (isOnline ? 'Paid' : 'Pending (Pay on Site)');
-    const customerName = user?.name || orderData.siteAddress?.recipientName || 'Er. Rajesh Malviya';
-    const customerPhone = user?.phone || orderData.siteAddress?.phone || '+91 98260 11223';
+  // Place an order. The server prices it from its own product data (the numbers shown at
+  // checkout come from the same rules) and, for online orders, confirms the Razorpay
+  // payment. Only the customer's choices and delivery details are sent. Throws with a
+  // readable message when the order is not accepted.
+  const placeOrder = async (orderData = {}) => {
+    const paymentMethod = orderData.paymentMethod || 'Cash on Delivery (Pay on Site)';
+    const isOnline = /online|upi|card|net ?banking|wallet/i.test(paymentMethod) && !/cash/i.test(paymentMethod);
+    const siteAddress = orderData.siteAddress || addresses[0];
     const orderItems = orderData.items && orderData.items.length > 0 ? orderData.items : [...cart];
-    const orderSubtotal = orderData.subtotal !== undefined ? orderData.subtotal : cartSubtotal;
-    const orderDiscount = orderData.discount !== undefined ? orderData.discount : discountAmount;
-    const orderTotal = orderData.totalAmount !== undefined ? orderData.totalAmount : grandTotal;
+    const now = new Date();
 
-    const newOrder = {
-      id: newOrderId,
-      orderNumber: newOrderId,
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      createdAt: new Date().toISOString(),
-      customerName,
-      customerPhone,
-      customerEmail: user?.email || 'builder@mistri.com',
-      status: 'Confirmed',
-      statusCode: 'confirmed',
-      expectedDelivery: 'Tomorrow, by 12:00 PM',
+    const request = {
+      items: orderItems.map((item) => ({
+        product: {
+          id: item.product?.id ?? item.id,
+          variantSelection: item.product?.variantSelection || undefined,
+        },
+        quantity: item.quantity,
+      })),
+      couponCode: appliedCoupon?.code || null,
+      paymentMethod,
+      customerName: user?.name || siteAddress?.recipientName || '',
+      customerPhone: user?.phone || siteAddress?.phone || '',
       deliverySlot: orderData.deliverySlot || 'Express Morning (08:00 AM - 12:00 PM)',
       vehicleAccess: orderData.siteVehicleAccess || 'Heavy 10-Wheeler Truck Access',
       unloadingNotes: orderData.unloadingNotes || '',
-      items: orderItems,
-      itemCount: orderItems.reduce((acc, item) => acc + (item.quantity || 1), 0),
-      grandTotal: orderTotal,
-      total: orderTotal,
-      summary: {
-        subtotal: orderSubtotal,
-        bulkDiscount: orderDiscount,
-        unloadingCharge: orderData.unloadingCharge !== undefined ? orderData.unloadingCharge : unloadingCharge,
-        gstAmount: orderData.gstAmount !== undefined ? orderData.gstAmount : gstAmount,
-        deliveryCharge: 0,
-        totalAmount: orderTotal,
-      },
-      siteAddress: orderData.siteAddress || addresses[0],
-      shippingAddress: orderData.siteAddress || addresses[0],
-      payment: {
-        method: orderData.paymentMethod || (isOnline ? 'Online Payment (UPI/Card)' : 'Cash on Delivery'),
-        status: paymentStatus,
-        transactionId: orderData.transactionId || `TXN-MST-${Date.now()}`,
-        gateway: orderData.gateway || (isOnline ? 'Razorpay Direct' : 'Cash On Site'),
-      },
-      paymentMethod: orderData.paymentMethod || (isOnline ? 'Online Payment (UPI/Card)' : 'Cash on Delivery'),
-      paymentStatus: paymentStatus,
+      expectedDelivery: 'Tomorrow, by 12:00 PM',
+      siteAddress,
+      shippingAddress: siteAddress,
+      date: now.toISOString().split('T')[0],
+      time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       driverName: 'Ramesh Patel',
       driverPhone: '+91 98260 99881',
       vehicleNumber: 'MP-09-TR-4421',
-      tracking: {
-        currentStep: 2,
-        driverName: 'Ramesh Patel',
-        driverPhone: '+91 98260 99881',
-        vehicleNumber: 'MP-09-TR-4421',
-        liveEtaMinutes: 720,
-        steps: [
-          { title: 'Order Placed', time: 'Just now', done: true, desc: 'Material order received & approved' },
-          { title: 'Order Confirmed', time: 'In Progress', done: true, desc: 'Depot stock allocated' },
-          { title: 'Warehouse Dispatch', time: 'Pending', done: false, desc: 'Will load on crane vehicle' },
-          { title: 'In Transit', time: 'Pending', done: false, desc: 'En route to construction site' },
-          { title: 'Out for Delivery', time: 'Pending', done: false, desc: 'Driver will call 30 mins prior' },
-          { title: 'Delivered & Unloaded', time: 'Pending', done: false, desc: 'Site sign-off required' },
-        ],
-      },
+      ...(isOnline
+        ? {
+            payment: {
+              razorpayOrderId: orderData.razorpayOrderId,
+              razorpayPaymentId: orderData.razorpayPaymentId,
+              razorpaySignature: orderData.razorpaySignature,
+            },
+          }
+        : {}),
     };
 
-    setOrders((prev) => [newOrder, ...prev]);
+    let newOrder;
+    try {
+      newOrder = (await api.createOrder(request)).data;
+    } catch (err) {
+      const message =
+        err?.status === 0
+          ? 'Cannot reach the server - your order was not placed. Please try again.'
+          : err?.message || 'Your order could not be placed. Please try again.';
+      addToast(message, 'error', 7000);
+      throw new Error(message);
+    }
+
+    markSynced('orders', newOrder);
+    setOrders((prev) => [newOrder, ...prev.filter((o) => o.id !== newOrder.id)]);
 
     // Customer notification
     const customerNotification = {
       id: `notif_${Date.now()}`,
       type: 'delivery',
-      title: `Order Placed Successfully (${newOrderId})`,
-      message: `Your material order for ₹${orderTotal.toLocaleString('en-IN')} is confirmed for delivery. Payment: ${newOrder.payment.method}.`,
+      title: `Order Placed Successfully (${newOrder.id})`,
+      message: `Your material order for ₹${Number(newOrder.grandTotal || 0).toLocaleString('en-IN')} is confirmed for delivery. Payment: ${newOrder.payment?.method || paymentMethod}.`,
       time: 'Just now',
       unread: true,
-      orderId: newOrderId,
+      orderId: newOrder.id,
     };
     setNotifications((prev) => [customerNotification, ...prev]);
 
-    // Admin Real-Time Notification & Audio Alert
-    const adminNotification = {
-      id: `anot_${Date.now()}`,
-      type: 'new_order',
-      title: `New ${isOnline ? 'Online' : 'Cash'} Order #${newOrderId}`,
-      message: `${customerName} placed an order for ₹${orderTotal.toLocaleString('en-IN')} (${newOrder.payment.method})`,
-      orderId: newOrderId,
-      amount: orderTotal,
-      paymentMethod: newOrder.payment.method,
-      customerName,
-      time: 'Just now',
-      unread: true,
-      createdAt: new Date().toISOString(),
-    };
-    setAdminNotifications((prev) => [adminNotification, ...prev]);
-    playOrderNotificationSound();
+    // The admin notification is created by the server (see backend notificationHooks).
 
     // Trigger Native Device & Browser Push Notifications (Customer & Admin)
     sendCustomerOrderNotification(newOrder).catch((err) =>
@@ -1045,12 +743,7 @@ export const StoreProvider = ({ children }) => {
     // Track e-commerce purchase in Firebase Analytics
     trackPurchase(newOrder);
 
-    // Sync to backend API asynchronously
-    api.post('/orders', newOrder).catch((err) => {
-      console.log('Order created locally. (Backend sync note:', err.message || err, ')');
-    });
-
-    addToast(`Order #${newOrderId} placed successfully! (${isOnline ? 'Online Paid' : 'Cash on Delivery'})`, 'success');
+    addToast(`Order #${newOrder.id} placed successfully! (${isOnline ? 'Online Paid' : 'Cash on Delivery'})`, 'success');
     return newOrder;
   };
 
@@ -1075,58 +768,41 @@ export const StoreProvider = ({ children }) => {
 
 
   // Auth Operations
+  // Turn the API's account payload into the profile object the UI uses.
+  const profileFromServer = (data, extra = {}) => ({
+    id: String(data._id),
+    name: data.name,
+    email: data.email,
+    phone: data.phone || '',
+    avatar: data.avatar,
+    role: data.role === 'customer' ? 'Customer' : data.role,
+    company: data.company || '',
+    gstin: data.gstin || '',
+    tier: data.tier || 'Standard Builder Tier',
+    status: 'Active',
+    city: currentCity,
+    ...extra,
+  });
+
+  // Shared tail of every successful sign-in.
+  const completeSignIn = (profile, token, callback, welcome) => {
+    localStorage.setItem('mistri_token', token);
+    setUser(profile);
+    setIsLoginModalOpen(false);
+    addToast(welcome, 'success');
+
+    const execCb = callback || authSuccessCallback;
+    if (typeof execCb === 'function') {
+      execCb(profile);
+      setAuthSuccessCallback(null);
+    }
+    return { success: true, user: profile };
+  };
+
   const loginWithGoogle = async (callback = null) => {
+    let result;
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const fbUser = result.user;
-
-      let loggedInUser = {
-        id: fbUser.uid,
-        name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Contractor User'),
-        company: 'Indore Prime Builders',
-        email: fbUser.email || 'builder@mistri.com',
-        phone: fbUser.phoneNumber || '+91 98260 11223',
-        avatar: fbUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-        role: 'Commercial Contractor / Builder',
-        gstin: '23AABCM9821K1ZM',
-        tier: 'Gold Contractor Tier (5% Extra Rebate)',
-        status: 'Active',
-        authProvider: 'firebase_google',
-        city: currentCity,
-      };
-
-      // Try backend authentication bridge
-      try {
-        const res = await api.login(fbUser.email, 'google_oauth_firebase_token');
-        if (res && res.data && res.data.token) {
-          localStorage.setItem('mistri_token', res.data.token);
-        }
-      } catch (backendErr) {
-        console.debug('Backend JWT sync note for Google Auth:', backendErr.message);
-      }
-
-      setUsersList((prev) => {
-        const existingIdx = prev.findIndex((u) => u.email?.toLowerCase() === fbUser.email?.toLowerCase());
-        if (existingIdx > -1) {
-          const updated = [...prev];
-          updated[existingIdx] = { ...updated[existingIdx], ...loggedInUser };
-          return updated;
-        }
-        return [loggedInUser, ...prev];
-      });
-
-      setUser(loggedInUser);
-      setIsLoginModalOpen(false);
-      addToast(`Welcome to MISTRI, ${loggedInUser.name}! (Signed in via Google)`, 'success');
-      trackUserLogin('google');
-
-      const execCb = callback || authSuccessCallback;
-      if (typeof execCb === 'function') {
-        execCb(loggedInUser);
-        setAuthSuccessCallback(null);
-      }
-
-      return { success: true, user: loggedInUser };
+      result = await signInWithPopup(auth, googleProvider);
     } catch (err) {
       console.error('Google Sign-In error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
@@ -1138,154 +814,88 @@ export const StoreProvider = ({ children }) => {
       }
       throw err;
     }
+
+    // The server verifies the Google identity and returns this customer's account.
+    try {
+      const idToken = await result.user.getIdToken();
+      const res = await api.firebaseLogin(idToken);
+      const profile = profileFromServer(res.data, {
+        avatar: res.data.avatar || result.user.photoURL,
+        authProvider: 'firebase_google',
+      });
+      trackUserLogin('google');
+      return completeSignIn(profile, res.data.token, callback, `Welcome to MISTRI, ${profile.name}! (Signed in via Google)`);
+    } catch (err) {
+      signOut(auth).catch(() => {});
+      const message =
+        err?.status === 0
+          ? 'Cannot reach the server. Please check your connection and try again.'
+          : err?.message || 'Google sign-in could not be completed';
+      addToast(message, 'error');
+      throw new Error(message);
+    }
   };
 
   const login = async (emailOrPhone, password, callback = null) => {
-    const trimmed = String(emailOrPhone || '').trim().toLowerCase();
-    const existing = usersList.find(
-      (u) => u.email?.toLowerCase() === trimmed || u.phone?.replace(/\s+/g, '') === trimmed.replace(/\s+/g, '')
-    );
+    const identifier = String(emailOrPhone || '').trim();
 
-    let loggedInUser = existing || {
-      id: `usr_${Date.now()}`,
-      name: emailOrPhone.includes('@') ? emailOrPhone.split('@')[0] : 'Site Manager',
-      company: 'Indore Prime Builders',
-      email: emailOrPhone.includes('@') ? emailOrPhone : 'customer@mistri.com',
-      phone: emailOrPhone.includes('@') ? '+91 98260 11223' : emailOrPhone,
-      role: 'Commercial Contractor / Builder',
-      gstin: '23AABCM9821K1ZM',
-      tier: 'Gold Contractor Tier (5% Extra Rebate)',
-      status: 'Active',
-    };
-
-    // Attempt Firebase Email/Password Auth if email format
-    if (trimmed.includes('@')) {
-      try {
-        const userCredential = await signInWithEmailAndPassword(auth, trimmed, password);
-        if (userCredential?.user) {
-          loggedInUser = {
-            ...loggedInUser,
-            id: userCredential.user.uid,
-            email: userCredential.user.email,
-            name: userCredential.user.displayName || loggedInUser.name,
-            authProvider: 'firebase_email',
-          };
-        }
-      } catch (fbAuthErr) {
-        console.debug('Firebase direct email auth note:', fbAuthErr.code || fbAuthErr.message);
-      }
+    // The server is the source of truth for accounts. Firebase is only asked as well so
+    // its analytics/session stays in step; its answer does not decide the login.
+    if (identifier.includes('@')) {
+      signInWithEmailAndPassword(auth, identifier.toLowerCase(), password).catch(() => {});
     }
 
+    let res;
     try {
-      const res = await api.login(emailOrPhone, password);
-      if (res && res.data) {
-        if (res.data.token) {
-          localStorage.setItem('mistri_token', res.data.token);
-        }
-        loggedInUser = {
-          ...loggedInUser,
-          id: res.data._id || loggedInUser.id,
-          name: res.data.name || loggedInUser.name,
-          email: res.data.email || loggedInUser.email,
-          phone: res.data.phone || loggedInUser.phone,
-          role: res.data.role || loggedInUser.role,
-        };
-      }
-    } catch (apiErr) {
-      console.warn('Backend login notice (using profile):', apiErr.message);
+      res = await api.login(identifier, password);
+    } catch (err) {
+      const message =
+        err?.status === 0
+          ? 'Cannot reach the server. Please check your connection and try again.'
+          : err?.status === 401
+            ? 'Incorrect email/phone or password.'
+            : err?.message || 'Login failed. Please try again.';
+      throw new Error(message);
     }
 
-    if (!existing) {
-      setUsersList((prev) => [loggedInUser, ...prev]);
-    }
-
-    setUser(loggedInUser);
-    setIsLoginModalOpen(false);
-    addToast(`Welcome back, ${loggedInUser.name}!`, 'success');
-    trackUserLogin(trimmed.includes('@') ? 'email' : 'phone');
-
-    // Execute callback if queued
-    const execCb = callback || authSuccessCallback;
-    if (typeof execCb === 'function') {
-      execCb(loggedInUser);
-      setAuthSuccessCallback(null);
-    }
-
-    return { success: true, user: loggedInUser };
+    const profile = profileFromServer(res.data);
+    trackUserLogin(identifier.includes('@') ? 'email' : 'phone');
+    return completeSignIn(profile, res.data.token, callback, `Welcome back, ${profile.name}!`);
   };
 
   const signup = async (formData, callback = null) => {
-    let newUser = {
-      id: `usr_${Date.now()}`,
-      name: formData.name,
-      company: formData.company || 'Indore Prime Builders',
-      email: formData.email,
-      phone: formData.phone,
-      role: formData.role || 'Customer',
-      gstin: formData.gstin || '',
-      tier: 'Standard Builder Tier',
-      status: 'Active',
-      totalOrders: 0,
-      totalSpend: 0,
-      city: currentCity,
-    };
-
-    // Attempt Firebase Registration
-    if (formData.email && formData.password) {
-      try {
-        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-        if (userCredential?.user) {
-          newUser = {
-            ...newUser,
-            id: userCredential.user.uid,
-            authProvider: 'firebase_email',
-          };
-        }
-      } catch (fbRegErr) {
-        console.debug('Firebase signup note:', fbRegErr.code || fbRegErr.message);
-      }
+    if (!formData.password) {
+      throw new Error('Please choose a password.');
     }
 
+    let res;
     try {
-      const res = await api.register({
+      res = await api.register({
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
-        password: formData.password || 'password123',
+        password: formData.password,
         role: 'customer',
+        company: formData.company || '',
+        gstin: formData.gstin || '',
+        city: currentCity,
       });
-
-      if (res && res.data) {
-        if (res.data.token) {
-          localStorage.setItem('mistri_token', res.data.token);
-        }
-        newUser = {
-          ...newUser,
-          id: res.data._id || newUser.id,
-          name: res.data.name || newUser.name,
-          email: res.data.email || newUser.email,
-          phone: res.data.phone || newUser.phone,
-          role: res.data.role || newUser.role,
-        };
-      }
-    } catch (apiErr) {
-      console.warn('Backend registration notice (saved locally):', apiErr.message);
+    } catch (err) {
+      const message =
+        err?.status === 0
+          ? 'Cannot reach the server. Please check your connection and try again.'
+          : err?.message || 'Registration failed. Please try again.';
+      throw new Error(message);
     }
 
-    setUser(newUser);
-    setUsersList((prev) => [newUser, ...prev]);
-    setIsLoginModalOpen(false);
-    addToast(`Account created successfully! Welcome to MISTRI, ${newUser.name}.`, 'success');
+    // Also create the Firebase account for its email features; failure here is not fatal.
+    if (formData.email) {
+      createUserWithEmailAndPassword(auth, formData.email, formData.password).catch(() => {});
+    }
+
+    const profile = profileFromServer(res.data, { company: formData.company || '', gstin: formData.gstin || '' });
     trackUserSignUp('email_or_form');
-
-    // Execute callback if queued
-    const execCb = callback || authSuccessCallback;
-    if (typeof execCb === 'function') {
-      execCb(newUser);
-      setAuthSuccessCallback(null);
-    }
-
-    return { success: true, user: newUser };
+    return completeSignIn(profile, res.data.token, callback, `Account created successfully! Welcome to MISTRI, ${profile.name}.`);
   };
 
   const logout = () => {
@@ -1308,33 +918,37 @@ export const StoreProvider = ({ children }) => {
       return { success: false, message: 'Please enter both email and password' };
     }
 
-    if (cleanEmail === 'admin@gmail.com' && cleanPassword === 'Admin!@#123') {
+    // The server is the only judge of administrator credentials; nothing secret ships
+    // in the browser bundle, and without a token the admin panel could not save.
+    try {
+      const res = await api.login(cleanEmail, cleanPassword);
+      const data = res?.data;
+      if (!data?.token || data.role !== 'admin') {
+        addToast('Access Denied: this account is not an administrator', 'error');
+        return { success: false, message: 'This account is not an administrator' };
+      }
+
+      localStorage.setItem('mistri_admin_token', data.token);
       const authAdmin = {
-        id: 'usr_admin_root',
-        name: 'Root Administrator',
+        id: String(data._id),
+        name: data.name || 'Administrator',
         company: 'MISTRI Platform Admin HQ',
-        email: 'admin@gmail.com',
-        phone: '+91 98260 00001',
+        email: data.email,
+        phone: data.phone || '',
         role: 'Admin',
         tier: 'Root Administrator (Full Access)',
         status: 'Active',
       };
-
-      try {
-        const res = await api.login(cleanEmail, cleanPassword);
-        if (res?.data?.token) {
-          localStorage.setItem('mistri_admin_token', res.data.token);
-        }
-      } catch (err) {
-        console.warn('Backend admin auth fallback:', err.message);
-      }
-
       setAdminUser(authAdmin);
       addToast('Administrator authenticated successfully! Welcome back.', 'success');
       return { success: true, user: authAdmin };
-    } else {
-      addToast('Access Denied: Invalid administrator email or password', 'error');
-      return { success: false, message: 'Invalid administrator email or password' };
+    } catch (err) {
+      const message =
+        err?.status === 0
+          ? 'Cannot reach the server. Please check your connection and try again.'
+          : 'Access Denied: Invalid administrator email or password';
+      addToast(message, 'error');
+      return { success: false, message };
     }
   };
 
@@ -1457,7 +1071,7 @@ export const StoreProvider = ({ children }) => {
       id,
       slug,
       itemCount: '25+ Products',
-      subcategories: newCat.subcategories || [newCat.name, 'Accessories', 'Premium Grade', 'Fast Dispatch'],
+      subcategories: Array.isArray(newCat.subcategories) ? newCat.subcategories : [],
       ...newCat,
       section: sectionName,
     };
@@ -1524,26 +1138,7 @@ export const StoreProvider = ({ children }) => {
     };
     setCategorySections((prev) => [created, ...prev]);
 
-    // Also create parent category in `categories` list
-    const catEntry = {
-      id: `cat_${Date.now()}`,
-      name: title,
-      slug,
-      section: title,
-      sectionId: id,
-      description: created.description,
-      image: created.image,
-      subcategories: newSec.subcategories || ['Standard Grade', 'Premium Grade', 'Accessories'],
-      isActive: true,
-      createdOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      lastUpdated: 'Just now',
-    };
-    setCategories((prev) => {
-      if (prev.some((c) => c.name.toLowerCase() === title.toLowerCase() || c.slug === slug)) {
-        return prev;
-      }
-      return [catEntry, ...prev];
-    });
+
 
     addToast(`Parent Category "${created.title}" created successfully!`, 'success');
     return created;
@@ -2059,6 +1654,10 @@ export const StoreProvider = ({ children }) => {
       isDefault: addr.isDefault || false,
       ...addr,
     };
+    if (newAddrObj.isDefault) {
+      if (newAddrObj.pincode) setCurrentPincode(newAddrObj.pincode);
+      if (newAddrObj.city) setCurrentCity(newAddrObj.city);
+    }
     setAddresses((prev) => {
       const updated = newAddrObj.isDefault
         ? [newAddrObj, ...prev.map((a) => ({ ...a, isDefault: false }))]
@@ -2081,6 +1680,11 @@ export const StoreProvider = ({ children }) => {
 
   const setDefaultAddress = (id) => {
     setAddresses((prev) => {
+      const target = prev.find((a) => a.id === id);
+      if (target) {
+        if (target.pincode) setCurrentPincode(target.pincode);
+        if (target.city) setCurrentCity(target.city);
+      }
       const updated = prev.map((a) => ({
         ...a,
         isDefault: a.id === id,
@@ -2242,40 +1846,18 @@ export const StoreProvider = ({ children }) => {
     });
   };
 
-  const resetToDefaultData = () => {
-    localStorage.removeItem('mistri_products');
-    localStorage.removeItem('mistri_categories');
-    localStorage.removeItem('mistri_category_sections');
-    localStorage.removeItem('mistri_orders');
-    localStorage.removeItem('mistri_services');
-    localStorage.removeItem('mistri_mistris');
-    localStorage.removeItem('mistri_bookings');
-    localStorage.removeItem('mistri_users_list');
-    localStorage.removeItem('mistri_coupons');
-    localStorage.removeItem('mistri_quotations');
-    localStorage.removeItem('mistri_banners');
-    localStorage.removeItem('mistri_faqs');
-    localStorage.removeItem('mistri_support_messages');
-    localStorage.removeItem('mistri_settings');
-    localStorage.removeItem('mistri_cities');
+  // Discard this browser's cached copy and reload everything from the server.
+  // Deliberately deletes nothing: with MongoDB behind the store, clearing the
+  // collections here would delete them for every user.
+  const resetToDefaultData = async () => {
+    await reloadFromServer();
+    addToast('Data reloaded from the server', 'success');
+  };
 
-    setProducts(INITIAL_PRODUCTS);
-    setCategories(INITIAL_CATEGORIES);
-    setCategorySections(INITIAL_CATEGORY_SECTIONS);
-    setOrders(INITIAL_ORDERS);
-    setServices(INITIAL_SERVICES);
-    setMistris(INITIAL_MISTRIS);
-    setBookings(INITIAL_BOOKINGS);
-    setUsersList(INITIAL_USERS_LIST);
-    setCoupons(INITIAL_COUPONS);
-    setQuotations(INITIAL_QUOTATIONS);
-    setBanners(INITIAL_BANNERS);
-    setFaqs(INITIAL_FAQS);
-    setSupportMessages([]);
+  // Restore the platform settings (only) to their built-in defaults.
+  const resetSiteSettings = () => {
     setSiteSettings(INITIAL_SETTINGS);
-    setCities(INITIAL_CITIES);
-
-    addToast('Factory default demo data restored!', 'success');
+    addToast('Settings reset to system defaults', 'info');
   };
 
   return (
@@ -2352,8 +1934,11 @@ export const StoreProvider = ({ children }) => {
         applyCoupon,
         removeCoupon,
         discountAmount,
+        deliveryFee,
+        deliveryNote,
         unloadingCharge,
         gstAmount,
+        isGstInclusive,
         grandTotal,
 
         // Wishlist
@@ -2466,6 +2051,7 @@ export const StoreProvider = ({ children }) => {
         siteSettings,
         updateSiteSettings,
         resetToDefaultData,
+        resetSiteSettings,
 
         topBrands: TOP_BRANDS,
       }}

@@ -279,27 +279,30 @@ export const CategoriesView = () => {
           >
             <Layers size={36} color="var(--primary-orange)" style={{ margin: '0 auto 12px auto' }} />
             <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--primary-navy)', marginBottom: '6px' }}>
-              No categories match "{searchTerm}"
+              {searchTerm ? `No categories match "${searchTerm}"` : 'No categories available yet'}
             </h3>
-            <p style={{ fontSize: '0.84rem', color: '#64748B', marginBottom: '16px' }}>
-              Try searching for "Cement", "Wires", "Fevicol", or "Plywood".
+            <p style={{ fontSize: '0.84rem', color: '#64748B', marginBottom: searchTerm ? '16px' : '0' }}>
+              {searchTerm ? 'Try searching for another keyword.' : 'Categories created by the admin will appear here.'}
             </p>
-            <button
-              type="button"
-              onClick={() => setSearchTerm('')}
-              style={{
-                backgroundColor: 'var(--primary-navy)',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '9999px',
-                padding: '8px 20px',
-                fontSize: '0.82rem',
-                fontWeight: '700',
-                cursor: 'pointer',
-              }}
-            >
-              Clear Search
-            </button>
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                style={{
+                  backgroundColor: 'var(--primary-navy)',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '9999px',
+                  padding: '8px 20px',
+                  fontSize: '0.82rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  marginTop: '12px',
+                }}
+              >
+                Clear Search
+              </button>
+            )}
           </div>
         )}
       </div>

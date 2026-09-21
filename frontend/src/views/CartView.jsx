@@ -22,9 +22,13 @@ export const CartView = () => {
     cartItemCount,
     appliedCoupon,
     discountAmount,
+    deliveryFee,
+    deliveryNote,
     unloadingCharge,
     gstAmount,
+    isGstInclusive,
     grandTotal,
+    siteSettings,
     navigateTo,
   } = useStore();
 
@@ -458,14 +462,36 @@ export const CartView = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-              <span>Delivery</span>
-              <span style={{ fontWeight: '700', color: '#10B981' }}>FREE</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span>Delivery</span>
+                {siteSettings?.deliveryType === 'km_based' && (
+                  <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                    ({siteSettings?.estimatedDeliveryKm || 5} km)
+                  </span>
+                )}
+              </div>
+              {deliveryFee === 0 ? (
+                <span style={{ fontWeight: '700', color: '#10B981' }}>FREE</span>
+              ) : (
+                <span style={{ fontWeight: '700', color: '#0F172A' }}>₹{deliveryFee.toLocaleString('en-IN')}</span>
+              )}
             </div>
+
+            {siteSettings?.enableUnloadingFee && unloadingCharge > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                <span>Site Unloading & Crane Handling</span>
+                <span style={{ fontWeight: '600', color: '#0F172A' }}>₹{unloadingCharge.toLocaleString('en-IN')}</span>
+              </div>
+            )}
 
             {gstAmount > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                <span>Estimated GST (18% ITC Benefit)</span>
-                <span style={{ fontWeight: '600', color: '#0F172A' }}>₹{gstAmount.toLocaleString('en-IN')}</span>
+                <span>
+                  Estimated GST ({siteSettings?.gstRatePercent || 18}% {isGstInclusive ? 'Included' : 'ITC Benefit'})
+                </span>
+                <span style={{ fontWeight: '600', color: '#0F172A' }}>
+                  {isGstInclusive ? `(₹${gstAmount.toLocaleString('en-IN')})` : `₹${gstAmount.toLocaleString('en-IN')}`}
+                </span>
               </div>
             )}
 

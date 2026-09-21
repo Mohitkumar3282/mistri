@@ -111,6 +111,13 @@ export const ProductDetailsView = () => {
 
   const [checkPin, setCheckPin] = useState(currentPincode || '452005');
   const [pinChecked, setPinChecked] = useState(true);
+
+  useEffect(() => {
+    if (currentPincode) {
+      setCheckPin(currentPincode);
+    }
+  }, [currentPincode]);
+
   const [activeTab, setActiveTab] = useState('specs'); // 'specs' | 'features' | 'description' | 'reviews'
 
   const isFavorite = isInWishlist(product.id);
@@ -124,6 +131,12 @@ export const ProductDetailsView = () => {
       mrp: currentMrp,
       discount: currentDiscount,
       selectedVariant: selectedVariantSummary,
+      // Which option was chosen in each group, so the server can price the same variant.
+      variantSelection: Object.fromEntries(
+        Object.entries(selectedVariants)
+          .filter(([, opt]) => opt)
+          .map(([groupId, opt]) => [groupId, opt.name ?? opt.label ?? opt.value ?? opt])
+      ),
     };
     addToCart(itemToAdd, 1);
   };

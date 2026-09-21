@@ -1,9 +1,5 @@
-import express from 'express';
-import { getMistris, getMistriById } from '../controllers/mistriController.js';
+import mistriCrud from '../controllers/mistriController.js';
+import { catalogRouter } from './routeFactory.js';
 
-const router = express.Router();
-
-router.get('/', getMistris);
-router.get('/:id', getMistriById);
-
-export default router;
+// /api/mistris - public read, admin write
+export default catalogRouter(mistriCrud);

@@ -792,13 +792,26 @@ export const OrderDetailsView = () => {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}>
               <span>Site Delivery Freight:</span>
-              <span style={{ color: '#16A34A', fontWeight: '700' }}>FREE</span>
+              {(order.summary?.deliveryCharge || 0) === 0 ? (
+                <span style={{ color: '#16A34A', fontWeight: '700' }}>FREE</span>
+              ) : (
+                <span style={{ color: '#0F172A', fontWeight: '700' }}>₹{order.summary.deliveryCharge.toLocaleString('en-IN')}</span>
+              )}
             </div>
 
+            {order.summary?.unloadingCharge > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}>
+                <span>Site Unloading & Crane Handling:</span>
+                <span style={{ color: '#0F172A', fontWeight: '600' }}>
+                  ₹{order.summary.unloadingCharge.toLocaleString('en-IN')}
+                </span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}>
-              <span>GST Tax (Included):</span>
+              <span>GST Tax ({order.summary?.isGstInclusive ? 'Included' : 'Added'}):</span>
               <span style={{ color: '#0F172A', fontWeight: '600' }}>
-                ₹{(order.summary?.gstAmount || 18).toLocaleString()}
+                ₹{(order.summary?.gstAmount || 0).toLocaleString('en-IN')}
               </span>
             </div>
 

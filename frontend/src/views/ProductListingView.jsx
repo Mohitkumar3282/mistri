@@ -253,20 +253,24 @@ export const ProductListingView = () => {
                 <Filter size={32} />
               </div>
               <h3 style={{ fontSize: '1.25rem', color: 'var(--primary-navy)', marginBottom: '0.5rem' }}>
-                No materials matched your filter criteria
+                {productList.length === 0 ? 'No products available in the store yet' : 'No materials matched your filter criteria'}
               </h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '420px', margin: '0 auto 1.5rem auto' }}>
-                Try adjusting your price filter range or uncheck specific brand filters to view all available stock.
+                {productList.length === 0
+                  ? 'Products added from the Admin Panel will be listed here instantly.'
+                  : 'Try adjusting your price filter range or uncheck specific brand filters to view all available stock.'}
               </p>
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="btn btn-primary"
-                style={{ display: 'inline-flex', gap: '6px' }}
-              >
-                <RotateCcw size={16} />
-                <span>Reset All Filters</span>
-              </button>
+              {productList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="btn btn-primary"
+                  style={{ display: 'inline-flex', gap: '6px' }}
+                >
+                  <RotateCcw size={16} />
+                  <span>Reset All Filters</span>
+                </button>
+              )}
             </div>
           )}
         </div>

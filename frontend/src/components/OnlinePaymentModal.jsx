@@ -19,13 +19,16 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 
-const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_TRZdg2aAOYv4KK';
+const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID || '';
+// Development only: allows completing an order without a real payment.
+const SANDBOX_PAYMENTS = import.meta.env.VITE_ALLOW_SANDBOX_PAYMENTS === 'true';
 
 export const OnlinePaymentModal = ({
   isOpen,
   onClose,
   amount = 535,
   orderItems = [],
+  couponCode = null,
   customer = {},
   summary = {},
   onPaymentSuccess,
@@ -127,156 +130,149 @@ export const OnlinePaymentModal = ({
     }
   };
 
-  // Complete Payment Success Callback
+  // Report a completed payment. The ids come from Razorpay; the server re-checks them
+  // with Razorpay before it accepts the order, so nothing here is trusted on its own.
   const triggerSuccessCallback = (paymentDetails) => {
     setIsProcessing(false);
     setIsSuccess(true);
-    const txnId = paymentDetails.transactionId || `TXN-MST-${Math.floor(10000000 + Math.random() * 90000000)}`;
-    setSuccessTxnId(txnId);
+    setSuccessTxnId(paymentDetails.razorpayPaymentId || '');
 
     setTimeout(() => {
       if (typeof onPaymentSuccess === 'function') {
         onPaymentSuccess({
-          transactionId: txnId,
-          razorpayPaymentId: paymentDetails.razorpayPaymentId || `pay_rzp_${Math.random().toString(36).substring(2, 10)}`,
-          razorpayOrderId: paymentDetails.razorpayOrderId || `order_mst_${Date.now()}`,
-          razorpaySignature: paymentDetails.razorpaySignature || 'sig_verified_mock_sandbox',
+          transactionId: paymentDetails.razorpayPaymentId,
           paymentMethod: getMethodLabel(selectedMethod),
-          paymentStatus: 'Paid',
-          paidAmount: amount,
+          gateway: 'Razorpay',
           paidAt: new Date().toISOString(),
-          gateway: 'Razorpay Enterprise Direct',
           ...paymentDetails,
         });
       }
     }, 1200);
   };
 
-  // Instant Test / Sandbox Approval (Ensures user is never blocked)
-  const completeSandboxPayment = (methodName = null) => {
-    setIsProcessing(true);
-    setProcessingMsg('Authorizing Sandbox Payment Direct...');
-
-    setTimeout(() => {
-      setProcessingMsg('Payment Verified! Generating Invoice...');
-      setTimeout(() => {
-        triggerSuccessCallback({
-          transactionId: `TXN-MST-${Date.now().toString().slice(-8)}`,
-          razorpayPaymentId: `pay_test_${Math.random().toString(36).substring(2, 12)}`,
-          gateway: 'Razorpay Test Sandbox (Verified)',
-          paymentMethod: methodName || getMethodLabel(selectedMethod),
-        });
-      }, 700);
-    }, 800);
+  const showFailure = (reason) => {
+    setIsProcessing(false);
+    setFailureReason(reason);
+    setActiveSubView('failed_recovery');
   };
 
-  // Trigger Razorpay SDK with proper Backend Order creation
-  const initiateRazorpayCheckout = async () => {
+  // Ask the server to price the cart and open a Razorpay order for exactly that amount.
+  const startServerPayment = () =>
+    api.createPaymentOrder({
+      items: orderItems.map((item) => ({
+        product: { id: item.product?.id ?? item.id, variantSelection: item.product?.variantSelection || undefined },
+        quantity: item.quantity,
+      })),
+      couponCode: couponCode || null,
+    });
+
+  // Development only (VITE_ALLOW_SANDBOX_PAYMENTS=true, and the server must allow it too):
+  // completes the order without taking a real payment.
+  const completeSandboxPayment = async (methodName = null) => {
+    if (!SANDBOX_PAYMENTS) {
+      showFailure('Online payment is not available right now. Please try again or choose Cash on Delivery.');
+      return;
+    }
+    setIsProcessing(true);
+    setProcessingMsg('Authorizing Sandbox Payment...');
+    try {
+      const { order } = await startServerPayment();
+      triggerSuccessCallback({
+        razorpayOrderId: order.id,
+        razorpayPaymentId: `pay_sandbox_${Date.now()}`,
+        gateway: 'Razorpay Sandbox (not verified)',
+        paymentMethod: methodName || getMethodLabel(selectedMethod),
+      });
+    } catch (err) {
+      showFailure(err.message || 'Sandbox payment could not be started.');
+    }
+  };
+
+  // Open Razorpay Checkout for a server-created order. `method` pre-selects card /
+  // netbanking / upi inside Razorpay (ignored when called directly from a click).
+  const initiateRazorpayCheckout = async (method = null) => {
+    const preferredMethod = typeof method === 'string' ? method : null;
+    setActiveSubView(null);
     setIsProcessing(true);
     setProcessingMsg('Initializing Razorpay Secure Gateway...');
 
-    let rzpOrderId = null;
-    let rzpKey = RAZORPAY_KEY_ID;
-
+    let serverPayment;
     try {
-      // Step 1: Create Order on Backend
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const orderRes = await fetch(`${apiBase}/payments/create-order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: Number(amount),
-          receipt: `rcpt_${Date.now().toString().slice(-8)}`,
-          notes: {
-            customer: customer?.name || 'Customer',
-            method: selectedMethod,
-          },
-        }),
-      });
-
-      if (orderRes.ok) {
-        const orderData = await orderRes.json();
-        if (orderData?.order?.id) {
-          rzpOrderId = orderData.order.id;
-        }
-        if (orderData?.key) {
-          rzpKey = orderData.key;
-        }
-      }
+      serverPayment = await startServerPayment();
     } catch (err) {
-      console.warn('Backend order creation warning, using local order:', err);
+      showFailure(err.message || 'Could not start the payment. Please try again.');
+      return;
     }
 
-    // Step 2: Open Razorpay Popup
-    if (typeof window !== 'undefined' && window.Razorpay) {
-      try {
-        const options = {
-          key: rzpKey,
-          amount: Math.round(Number(amount) * 100),
-          currency: 'INR',
-          name: 'MISTRI / NOYOONLINE',
-          description: `Order Payment for ${orderItems.length || 1} items`,
-          image: 'https://cdn-icons-png.flaticon.com/512/891/891462.png',
-          ...(rzpOrderId ? { order_id: rzpOrderId } : {}),
-          handler: function (response) {
-            triggerSuccessCallback({
-              transactionId: response.razorpay_payment_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpayOrderId: response.razorpay_order_id,
-              razorpaySignature: response.razorpay_signature,
-            });
-          },
-          prefill: {
-            name: customer?.name || 'Er. Rajesh Malviya',
-            email: customer?.email || 'builder@mistri.com',
-            contact: customer?.phone || '+91 98260 11223',
-          },
-          notes: {
-            address: 'Direct Site Delivery',
-            store: 'Mistri Online Direct',
-          },
-          theme: {
-            color: '#5F259F',
-          },
-          modal: {
-            ondismiss: function () {
-              setIsProcessing(false);
-              setFailureReason('Payment window was dismissed or cancelled.');
-              setActiveSubView('failed_recovery');
-            },
-          },
-        };
-
-        const rzp = new window.Razorpay(options);
-        rzp.on('payment.failed', function (response) {
-          setIsProcessing(false);
-          setFailureReason(response.error?.description || 'Transaction declined or failed on gateway.');
-          setActiveSubView('failed_recovery');
-        });
-        rzp.open();
-      } catch (err) {
-        console.warn('Razorpay window open failed, fallback to sandbox:', err);
-        completeSandboxPayment();
-      }
-    } else {
+    if (serverPayment.sandbox) {
+      // The server has no working gateway and handed back a local test order.
       completeSandboxPayment();
+      return;
+    }
+
+    if (typeof window === 'undefined' || !window.Razorpay) {
+      showFailure('The payment gateway could not be loaded. Please check your connection and try again.');
+      return;
+    }
+
+    try {
+      const options = {
+        key: serverPayment.key || RAZORPAY_KEY_ID,
+        amount: serverPayment.order.amount,
+        currency: serverPayment.order.currency || 'INR',
+        order_id: serverPayment.order.id,
+        name: 'MISTRI / NOYOONLINE',
+        description: `Order Payment for ${orderItems.length || 1} items`,
+        image: 'https://cdn-icons-png.flaticon.com/512/891/891462.png',
+        handler: function (response) {
+          triggerSuccessCallback({
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpayOrderId: response.razorpay_order_id,
+            razorpaySignature: response.razorpay_signature,
+          });
+        },
+        prefill: {
+          name: customer?.name || '',
+          email: customer?.email || '',
+          contact: customer?.phone || '',
+          ...(preferredMethod ? { method: preferredMethod } : {}),
+        },
+        notes: {
+          address: 'Direct site delivery',
+          store: 'Mistri Online Direct',
+        },
+        theme: {
+          color: '#5F259F',
+        },
+        modal: {
+          ondismiss: function () {
+            showFailure('Payment window was dismissed or cancelled.');
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        showFailure(response.error?.description || 'Transaction declined or failed on gateway.');
+      });
+      rzp.open();
+    } catch (err) {
+      showFailure('The payment window could not be opened. Please try again.');
     }
   };
 
+  // Every method is paid through Razorpay Checkout; card details are only ever typed
+  // into Razorpay's own secure window.
   const handlePayClick = () => {
-    if (selectedMethod === 'apps_qr') {
-      setActiveSubView('qr_modal');
-      return;
-    }
-    if (selectedMethod === 'card') {
-      setActiveSubView('card_form');
-      return;
-    }
     if (selectedMethod === 'netbanking') {
       setActiveSubView('bank_selector');
       return;
     }
-    initiateRazorpayCheckout();
+    if (selectedMethod === 'card') {
+      initiateRazorpayCheckout('card');
+      return;
+    }
+    initiateRazorpayCheckout('upi');
   };
 
   const popularBanks = [
@@ -506,7 +502,8 @@ export const OnlinePaymentModal = ({
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {/* Instant Sandbox Success Button */}
+                  {/* Instant Sandbox Success Button (development only) */}
+                  {SANDBOX_PAYMENTS && (
                   <button
                     type="button"
                     onClick={() => completeSandboxPayment()}
@@ -530,6 +527,7 @@ export const OnlinePaymentModal = ({
                     <Zap size={18} />
                     <span>Approve & Complete in Sandbox (Instant)</span>
                   </button>
+                  )}
 
                   {/* Retry Razorpay */}
                   <button
@@ -718,7 +716,7 @@ export const OnlinePaymentModal = ({
 
                 <button
                   type="button"
-                  onClick={() => completeSandboxPayment('Debit/Credit Card')}
+                  onClick={() => initiateRazorpayCheckout('card')}
                   style={{
                     width: '100%',
                     height: '44px',
@@ -826,7 +824,7 @@ export const OnlinePaymentModal = ({
 
                 <button
                   type="button"
-                  onClick={() => completeSandboxPayment(`Net Banking (${selectedBank})`)}
+                  onClick={() => initiateRazorpayCheckout('netbanking')}
                   style={{
                     width: '100%',
                     height: '44px',
@@ -934,7 +932,7 @@ export const OnlinePaymentModal = ({
 
                 <button
                   type="button"
-                  onClick={() => completeSandboxPayment('UPI QR Scan')}
+                  onClick={() => initiateRazorpayCheckout('upi')}
                   style={{
                     width: '100%',
                     height: '44px',

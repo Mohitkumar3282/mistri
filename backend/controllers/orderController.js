@@ -1,134 +1,209 @@
-import { MOCK_ORDERS } from '../../frontend/src/data/mockData.js';
-
-let ordersDatabase = [...MOCK_ORDERS];
+import Order from '../models/Order.js';
+import Coupon from '../models/Coupon.js';
+import PaymentIntent from '../models/PaymentIntent.js';
+import buildCrud from './crudFactory.js';
+import { notifyNewOrder } from './notificationHooks.js';
+import { priceCart } from '../utils/orderPricing.js';
+import { confirmPayment, sandboxAllowed } from '../utils/razorpay.js';
 
 /**
- * @desc Get all material orders
- * @route GET /api/orders
+ * Material orders
+ * @route /api/orders  - customers create/read their own, admins manage all
  */
-export const getOrders = async (req, res) => {
-  try {
-    const { status, search } = req.query;
-    let result = [...ordersDatabase];
+const orderCrud = buildCrud(Order, { scopeToOwner: true, onCreate: notifyNewOrder });
+export default orderCrud;
 
-    if (status && status !== 'all') {
-      result = result.filter(
-        (o) => o.status?.toLowerCase() === status.toLowerCase()
-      );
-    }
+const ONLINE_METHOD = /online|upi|card|net ?banking|wallet|razorpay|phonepe|paytm|google pay|gpay/i;
 
-    if (search) {
-      const lower = search.toLowerCase();
-      result = result.filter(
-        (o) =>
-          o.id?.toLowerCase().includes(lower) ||
-          o.orderNumber?.toLowerCase().includes(lower) ||
-          o.customerName?.toLowerCase().includes(lower) ||
-          o.customerPhone?.includes(lower)
-      );
-    }
+// Presentation details the customer chooses; everything priced or status-related is
+// decided on the server.
+const CUSTOMER_FIELDS = [
+  'customerName',
+  'customerPhone',
+  'deliverySlot',
+  'vehicleAccess',
+  'unloadingNotes',
+  'siteAddress',
+  'shippingAddress',
+  'expectedDelivery',
+  'date',
+  'time',
+  'driverName',
+  'driverPhone',
+  'vehicleNumber',
+];
 
-    res.json({
-      success: true,
-      count: result.length,
-      data: result,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+const fail = (res, status, message) => res.status(status).json({ success: false, message });
+
+const newOrderId = async () => {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const id = `MST-${Math.floor(100000 + Math.random() * 900000)}`;
+    if (!(await Order.exists({ id }))) return id;
   }
+  return `MST-${Date.now()}`;
 };
 
-/**
- * @desc Get single order by ID
- * @route GET /api/orders/:id
- */
-export const getOrderById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const order = ordersDatabase.find(
-      (o) => o.id === id || o.orderNumber === id
-    );
-
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
-    }
-
-    res.json({ success: true, data: order });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+const initialTracking = (body) => ({
+  currentStep: 2,
+  driverName: body?.tracking?.driverName || body?.driverName || '',
+  driverPhone: body?.tracking?.driverPhone || body?.driverPhone || '',
+  vehicleNumber: body?.tracking?.vehicleNumber || body?.vehicleNumber || '',
+  liveEtaMinutes: 720,
+  steps: [
+    { title: 'Order Placed', time: 'Just now', done: true, desc: 'Material order received & approved' },
+    { title: 'Order Confirmed', time: 'In Progress', done: true, desc: 'Depot stock allocated' },
+    { title: 'Warehouse Dispatch', time: 'Pending', done: false, desc: 'Will load on crane vehicle' },
+    { title: 'In Transit', time: 'Pending', done: false, desc: 'En route to construction site' },
+    { title: 'Out for Delivery', time: 'Pending', done: false, desc: 'Driver will call 30 mins prior' },
+    { title: 'Delivered & Unloaded', time: 'Pending', done: false, desc: 'Site sign-off required' },
+  ],
+});
 
 /**
- * @desc Create new material order
+ * @desc  Place an order. Customers send what they want (products, quantities, variants,
+ *        coupon, delivery details); the server prices it from the database. Online
+ *        orders must carry a Razorpay payment that the server confirms for exactly the
+ *        amount it asked the gateway to collect.
  * @route POST /api/orders
+ * @access Private
  */
-export const createOrder = async (req, res) => {
+export const placeOrder = async (req, res) => {
+  // Administrators may record orders directly (e.g. taken over the phone).
+  if (req.user.role === 'admin') return orderCrud.upsert(req, res);
+
+  const body = req.body || {};
+  const payment = body.payment || {};
+  const methodLabel = String(body.paymentMethod || payment.method || 'Cash on Delivery');
+  const isOnline = ONLINE_METHOD.test(methodLabel) && !/cash/i.test(methodLabel);
+  const userId = String(req.user._id);
+
+  let lines;
+  let totals;
+  let couponCode;
+  let paymentStatus;
+  let gateway;
+  let intentId = null;
+  const razorpayOrderId = payment.razorpayOrderId || body.razorpayOrderId || null;
+  const razorpayPaymentId = payment.razorpayPaymentId || body.razorpayPaymentId || null;
+  const razorpaySignature = payment.razorpaySignature || body.razorpaySignature || null;
+
   try {
-    const newOrder = {
-      id: `ORD-${Date.now().toString().slice(-6)}`,
-      orderNumber: `MST-2026-${Date.now().toString().slice(-5)}`,
-      orderDate: new Date().toISOString(),
+    if (isOnline) {
+      if (!razorpayOrderId || !razorpayPaymentId) {
+        return fail(res, 400, 'Online orders need a completed payment');
+      }
+
+      // Claim the payment first so it can never be used for two orders.
+      const intent = await PaymentIntent.findOneAndUpdate(
+        { id: razorpayOrderId, userId, status: 'created' },
+        { $set: { status: 'used' } },
+        { new: true }
+      ).lean();
+      if (!intent) {
+        const existing = await PaymentIntent.findOne({ id: razorpayOrderId }).lean();
+        if (existing?.status === 'used') return fail(res, 409, 'This payment has already been used for an order');
+        return fail(res, 400, 'This payment was not started from your account');
+      }
+      intentId = intent.id;
+
+      const isSandbox = intent.id.startsWith('order_local_') || !razorpaySignature;
+      if (isSandbox) {
+        if (!sandboxAllowed()) {
+          await PaymentIntent.updateOne({ id: intentId }, { $set: { status: 'created' } });
+          return fail(res, 400, 'Payment could not be verified');
+        }
+        paymentStatus = 'Paid (Sandbox)';
+        gateway = 'Razorpay Sandbox (not verified)';
+      } else {
+        const result = await confirmPayment({
+          razorpayOrderId,
+          razorpayPaymentId,
+          razorpaySignature,
+          expectedAmountPaise: intent.amountPaise,
+        });
+        if (!result.ok) {
+          await PaymentIntent.updateOne({ id: intentId }, { $set: { status: 'created' } });
+          return fail(res, 400, `Payment could not be verified: ${result.reason}`);
+        }
+        paymentStatus = 'Paid';
+        gateway = 'Razorpay';
+      }
+
+      // The order is exactly what was priced and paid for.
+      ({ lines, totals, couponCode } = intent);
+    } else {
+      ({ lines, totals, couponCode } = await priceCart({ items: body.items, couponCode: body.couponCode }));
+      paymentStatus = 'Pending (Pay on Site)';
+      gateway = 'Cash On Site';
+    }
+
+    const id = await newOrderId();
+    const now = new Date();
+    const customer = Object.fromEntries(CUSTOMER_FIELDS.filter((f) => body[f] !== undefined).map((f) => [f, body[f]]));
+
+    const order = {
+      ...customer,
+      id,
+      orderNumber: id,
+      userId,
+      customerEmail: req.user.email ? String(req.user.email).toLowerCase() : undefined,
+      createdAt: now.toISOString(),
+      date: customer.date || now.toISOString().split('T')[0],
       status: 'Confirmed',
-      paymentStatus: 'Paid',
-      trackingSteps: [
-        { title: 'Order Placed', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), completed: true, active: false },
-        { title: 'Order Confirmed', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), completed: true, active: true },
-        { title: 'Warehouse Dispatch', time: 'Pending', completed: false, active: false },
-        { title: 'In Transit', time: 'Pending', completed: false, active: false },
-        { title: 'Out for Delivery', time: 'Pending', completed: false, active: false },
-        { title: 'Delivered & Unloaded', time: 'Pending', completed: false, active: false },
-      ],
-      driverName: 'Ramesh Patel',
-      driverPhone: '+91 98260 99881',
-      vehicleNumber: 'MP-09-TR-4421',
-      estimatedArrival: 'Today, 2:30 PM',
-      ...req.body,
+      statusCode: 'confirmed',
+      items: lines,
+      itemCount: lines.reduce((acc, l) => acc + l.quantity, 0),
+      couponCode: couponCode || null,
+      grandTotal: totals.grandTotal,
+      total: totals.grandTotal,
+      summary: {
+        subtotal: totals.subtotal,
+        bulkDiscount: totals.discount,
+        unloadingCharge: totals.unloadingCharge,
+        gstAmount: totals.gstAmount,
+        deliveryCharge: totals.deliveryFee,
+        deliveryNote: totals.deliveryNote,
+        isGstInclusive: totals.isGstInclusive,
+        deliveryType: totals.deliveryType,
+        totalAmount: totals.grandTotal,
+      },
+      paymentMethod: methodLabel,
+      paymentStatus,
+      payment: {
+        method: methodLabel,
+        status: paymentStatus,
+        gateway,
+        transactionId: razorpayPaymentId || `TXN-MST-${now.getTime()}`,
+        ...(isOnline ? { razorpayOrderId, razorpayPaymentId } : {}),
+      },
+      ...(isOnline ? { razorpayPaymentId } : {}),
+      tracking: initialTracking(body),
     };
 
-    ordersDatabase.unshift(newOrder);
-    res.status(201).json({ success: true, data: newOrder });
-  } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-/**
- * @desc Update order status, tracking step, driver info (Admin)
- * @route PUT /api/orders/:id
- */
-export const updateOrder = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const index = ordersDatabase.findIndex((o) => o.id === id || o.orderNumber === id);
-
-    if (index === -1) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
+    let saved;
+    try {
+      saved = (await Order.create(order)).toJSON();
+    } catch (err) {
+      if (intentId) await PaymentIntent.updateOne({ id: intentId }, { $set: { status: 'created' } });
+      if (err?.code === 11000) return fail(res, 409, 'This payment has already been used for an order');
+      throw err;
     }
 
-    ordersDatabase[index] = { ...ordersDatabase[index], ...req.body };
-    res.json({ success: true, data: ordersDatabase[index] });
-  } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-/**
- * @desc Delete order (Admin)
- * @route DELETE /api/orders/:id
- */
-export const deleteOrder = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const initialLen = ordersDatabase.length;
-    ordersDatabase = ordersDatabase.filter((o) => o.id !== id && o.orderNumber !== id);
-
-    if (ordersDatabase.length === initialLen) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
+    if (intentId) await PaymentIntent.updateOne({ id: intentId }, { $set: { orderId: id } });
+    if (couponCode) {
+      // Count the redemption (skipped if an admin stored usageCount as text).
+      await Coupon.updateOne(
+        { code: couponCode, usageCount: { $not: { $type: 'string' } } },
+        { $inc: { usageCount: 1 } }
+      ).catch(() => {});
     }
+    notifyNewOrder(saved).catch((err) => console.warn('Order notification failed:', err.message));
 
-    res.json({ success: true, message: 'Order deleted successfully' });
+    res.status(201).json({ success: true, data: saved });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    if (intentId && !error.status) {
+      await PaymentIntent.updateOne({ id: intentId }, { $set: { status: 'created' } }).catch(() => {});
+    }
+    fail(res, error.status || 500, error.message);
   }
 };

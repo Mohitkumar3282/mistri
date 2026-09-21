@@ -31,10 +31,16 @@ export const CheckoutView = () => {
     applyCoupon,
     removeCoupon,
     discountAmount,
+    deliveryFee,
+    deliveryNote,
+    unloadingCharge,
     gstAmount,
+    isGstInclusive,
     grandTotal,
+    siteSettings,
     addresses,
     placeOrder,
+    addToast,
     navigateTo,
     user,
     currentCity,
@@ -97,12 +103,11 @@ export const CheckoutView = () => {
 
   // Handle Cash Order Placement
   const handleCashOrderSlide = () => {
-    requireAuth(() => {
+    requireAuth(async () => {
       setIsOrderProcessing(true);
-      setTimeout(() => {
-        const newOrder = placeOrder({
+      try {
+        const newOrder = await placeOrder({
           paymentMethod: 'Cash on Delivery (Pay on Site)',
-          paymentStatus: 'Pending (Pay on Site)',
           siteAddress: selectedAddress,
           unloadingNotes: 'Direct site delivery',
         });
@@ -111,7 +116,10 @@ export const CheckoutView = () => {
         setTimeout(() => {
           navigateTo('order-confirmation', { order: newOrder });
         }, 600);
-      }, 700);
+      } catch (err) {
+        // placeOrder already told the customer why; let them try again.
+        setIsOrderProcessing(false);
+      }
     });
   };
 
@@ -123,20 +131,34 @@ export const CheckoutView = () => {
   };
 
   // Callback when Online Payment Gateway authorizes transaction
-  const handleOnlinePaymentSuccess = (paymentDetails) => {
+  // Called once Razorpay reports the payment. The server confirms the payment with
+  // Razorpay before it accepts the order.
+  const handleOnlinePaymentSuccess = async (paymentDetails) => {
     setIsPaymentModalOpen(false);
     setIsOrderProcessing(true);
-    const newOrder = placeOrder({
-      paymentMethod: paymentDetails.paymentMethod || 'Online Payment (UPI/Card)',
-      paymentStatus: 'Paid',
-      transactionId: paymentDetails.transactionId,
-      gateway: paymentDetails.gateway,
-      siteAddress: selectedAddress,
-      unloadingNotes: 'Direct site delivery',
-    });
-    setIsOrderProcessing(false);
-    setIsOrderSuccess(true);
-    navigateTo('order-confirmation', { order: newOrder });
+    try {
+      const newOrder = await placeOrder({
+        paymentMethod: paymentDetails.paymentMethod || 'Online Payment (UPI/Card)',
+        razorpayOrderId: paymentDetails.razorpayOrderId,
+        razorpayPaymentId: paymentDetails.razorpayPaymentId,
+        razorpaySignature: paymentDetails.razorpaySignature,
+        siteAddress: selectedAddress,
+        unloadingNotes: 'Direct site delivery',
+      });
+      setIsOrderProcessing(false);
+      setIsOrderSuccess(true);
+      navigateTo('order-confirmation', { order: newOrder });
+    } catch (err) {
+      setIsOrderProcessing(false);
+      // Money may have left the customer's account, so give them the reference.
+      if (paymentDetails.razorpayPaymentId) {
+        addToast(
+          `If you were charged, contact support with payment ID ${paymentDetails.razorpayPaymentId}.`,
+          'warning',
+          12000
+        );
+      }
+    }
   };
 
   if (cart.length === 0) {
@@ -517,14 +539,36 @@ export const CheckoutView = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-              <span>Delivery</span>
-              <span style={{ fontWeight: '700', color: '#10B981' }}>FREE</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span>Delivery</span>
+                {siteSettings?.deliveryType === 'km_based' && (
+                  <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                    ({siteSettings?.estimatedDeliveryKm || 5} km)
+                  </span>
+                )}
+              </div>
+              {deliveryFee === 0 ? (
+                <span style={{ fontWeight: '700', color: '#10B981' }}>FREE</span>
+              ) : (
+                <span style={{ fontWeight: '700', color: '#0F172A' }}>₹{deliveryFee.toLocaleString('en-IN')}</span>
+              )}
             </div>
+
+            {siteSettings?.enableUnloadingFee && unloadingCharge > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                <span>Site Unloading & Crane Handling</span>
+                <span style={{ fontWeight: '600', color: '#0F172A' }}>₹{unloadingCharge.toLocaleString('en-IN')}</span>
+              </div>
+            )}
 
             {gstAmount > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                <span>Estimated GST (18% ITC Benefit)</span>
-                <span style={{ fontWeight: '600', color: '#0F172A' }}>₹{gstAmount.toLocaleString('en-IN')}</span>
+                <span>
+                  Estimated GST ({siteSettings?.gstRatePercent || 18}% {isGstInclusive ? 'Included' : 'ITC Benefit'})
+                </span>
+                <span style={{ fontWeight: '600', color: '#0F172A' }}>
+                  {isGstInclusive ? `(₹${gstAmount.toLocaleString('en-IN')})` : `₹${gstAmount.toLocaleString('en-IN')}`}
+                </span>
               </div>
             )}
 
@@ -880,6 +924,7 @@ export const CheckoutView = () => {
         amount={grandTotal}
         customer={user}
         orderItems={cart}
+        couponCode={appliedCoupon?.code || null}
         summary={{
           subtotal: cartSubtotal,
           gstAmount: gstAmount,

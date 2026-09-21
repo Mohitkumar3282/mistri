@@ -4,10 +4,10 @@ import { useStore } from '../context/StoreContext';
 import Logo from '../components/Logo';
 
 export const LoginView = () => {
-  const { login, loginWithGoogle, navigateTo } = useStore();
+  const { login, loginWithGoogle, navigateTo, addToast } = useStore();
   const [loginMethod, setLoginMethod] = useState('phone'); // 'phone' | 'email'
-  const [identifier, setIdentifier] = useState('+91 98260 11223');
-  const [password, setPassword] = useState('password123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
 
@@ -18,6 +18,8 @@ export const LoginView = () => {
     try {
       await login(identifier, password);
       navigateTo('home');
+    } catch (err) {
+      addToast(err.message || 'Login failed. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -33,13 +35,6 @@ export const LoginView = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoContractor = () => {
-    setIdentifier('+91 98260 11223');
-    setPassword('password123');
-    login('rajesh.malviya@malviyabuilders.com', 'password123');
-    navigateTo('home');
   };
 
   return (
@@ -65,21 +60,6 @@ export const LoginView = () => {
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
             Access wholesale material rates, e-Way bills & order tracking
           </p>
-        </div>
-
-        {/* Quick Demo Login Preset Button */}
-        <div style={{ marginBottom: '1.5rem', backgroundColor: 'var(--navy-subtle)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--primary-navy)' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--primary-navy)', marginBottom: '6px' }}>
-            ⚡ Instant 1-Click Demo Login:
-          </div>
-          <button
-            type="button"
-            onClick={handleDemoContractor}
-            className="btn btn-navy btn-sm btn-block"
-            style={{ fontSize: '0.8rem', fontWeight: '700' }}
-          >
-            Login as Er. Rajesh Malviya (Gold Builder)
-          </button>
         </div>
 
         {/* Login Form */}
@@ -175,16 +155,6 @@ export const LoginView = () => {
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
           </svg>
           <span>Continue with Google</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleDemoContractor}
-          className="btn btn-secondary btn-block"
-          style={{ display: 'flex', gap: '8px', fontSize: '0.85rem' }}
-        >
-          <Building size={16} />
-          <span>Sign In with GSTIN / Builder Account</span>
         </button>
 
         {/* Signup Redirect */}

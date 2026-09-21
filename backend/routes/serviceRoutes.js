@@ -1,11 +1,5 @@
-import express from 'express';
-import { getServices, getServiceById, createService } from '../controllers/serviceController.js';
-import { protect, authorize } from '../middlewares/authMiddleware.js';
+import serviceCrud from '../controllers/serviceController.js';
+import { catalogRouter } from './routeFactory.js';
 
-const router = express.Router();
-
-router.get('/', getServices);
-router.get('/:id', getServiceById);
-router.post('/', protect, authorize('admin'), createService);
-
-export default router;
+// /api/services - public read, admin write
+export default catalogRouter(serviceCrud);

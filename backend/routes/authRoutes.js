@@ -5,6 +5,9 @@ import {
   getMe,
   updateFcmToken,
   getFcmTokenStatus,
+  getAccountData,
+  updateAccountData,
+  firebaseLogin,
 } from '../controllers/authController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 
@@ -12,7 +15,11 @@ const router = express.Router();
 
 router.post('/register', registerUser);
 router.post('/login', loginUser);
+router.post('/firebase', firebaseLogin);
 router.get('/me', protect, getMe);
+
+// Saved addresses and wishlist for the signed-in account
+router.route('/account').get(protect, getAccountData).put(protect, updateAccountData);
 
 // Middleware to optionally authenticate if Bearer token is provided
 const optionalProtect = (req, res, next) => {

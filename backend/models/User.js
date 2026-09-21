@@ -46,6 +46,23 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+
+    // Id the admin panel generated for accounts it created before they reached the
+    // server (e.g. "usr_1726..."). Lets those records keep resolving after sync.
+    clientId: { type: String, trim: true, index: true, sparse: true },
+
+    // Contractor / business profile shown in the admin Users list
+    company: { type: String, default: '' },
+    gstin: { type: String, default: '' },
+    city: { type: String, default: '' },
+    tier: { type: String, default: 'Standard Builder Tier' },
+    status: { type: String, default: 'Active' },
+    totalOrders: { type: Number, default: 0 },
+    totalSpend: { type: Number, default: 0 },
+
+    // Per-account data that used to live only in one browser's localStorage
+    addresses: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    wishlist: { type: [mongoose.Schema.Types.Mixed], default: [] },
   },
   {
     timestamps: true,

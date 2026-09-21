@@ -1,143 +1,122 @@
-import crypto from 'crypto';
+import PaymentIntent from '../models/PaymentIntent.js';
+import { priceCart } from '../utils/orderPricing.js';
+import { isConfigured, publicKey, sandboxAllowed, createGatewayOrder, confirmPayment } from '../utils/razorpay.js';
 
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_test_TRZdg2aAOYv4KK';
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'Zu7lopLZWWZtA4T0R5Z2ORhU';
+if (!isConfigured()) {
+  console.warn('⚠️ RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are not set - online payments will be rejected.');
+}
 
 /**
  * @desc Get public Razorpay Key
  * @route GET /api/payments/key
  */
 export const getRazorpayKey = async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      key: RAZORPAY_KEY_ID,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+  res.json({ success: true, key: publicKey() });
 };
 
 /**
- * @desc Create Razorpay Order
- * @route POST /api/payments/create-order
+ * @desc  Start an online payment. The cart is priced on the server and Razorpay is asked
+ *        to collect exactly that amount; the browser never chooses the amount.
+ * @route POST /api/payments/create-order  { items, couponCode }
+ * @access Private (signed-in shopper)
  */
 export const createRazorpayOrder = async (req, res) => {
   try {
-    const { amount, receipt, notes } = req.body;
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ success: false, message: 'Invalid order amount' });
+    const { items, couponCode } = req.body || {};
+    const { lines, totals, couponCode: appliedCode } = await priceCart({ items, couponCode });
+    if (totals.grandTotal <= 0) {
+      return res.status(400).json({ success: false, message: 'Nothing to pay for this order' });
     }
 
-    const amountInPaise = Math.round(Number(amount) * 100);
-    const receiptId = receipt || `rcpt_${Date.now().toString().slice(-8)}`;
+    const receipt = `rcpt_${Date.now().toString().slice(-8)}`;
+    let gatewayOrder;
 
-    // Call Razorpay API using Basic Auth
-    const authHeader = 'Basic ' + Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64');
-
-    try {
-      const response = await fetch('https://api.razorpay.com/v1/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: authHeader,
-        },
-        body: JSON.stringify({
-          amount: amountInPaise,
-          currency: 'INR',
-          receipt: receiptId,
-          notes: notes || { store: 'Mistri / NoyoOnline' },
-        }),
-      });
-
-      const orderData = await response.json();
-
-      if (!response.ok) {
-        console.warn('Razorpay API response not OK, creating fallback local order:', orderData);
-        return res.json({
-          success: true,
-          order: {
-            id: `order_local_${Date.now()}`,
-            amount: amountInPaise,
-            currency: 'INR',
-            receipt: receiptId,
-            status: 'created',
-          },
-          key: RAZORPAY_KEY_ID,
+    if (isConfigured()) {
+      try {
+        gatewayOrder = await createGatewayOrder({
+          amountRupees: totals.grandTotal,
+          receipt,
+          notes: { userId: String(req.user._id), store: 'Mistri' },
         });
+      } catch (err) {
+        if (!sandboxAllowed()) {
+          return res.status(502).json({ success: false, message: `Payment gateway error: ${err.message}` });
+        }
       }
-
-      res.json({
-        success: true,
-        order: orderData,
-        key: RAZORPAY_KEY_ID,
-      });
-    } catch (apiErr) {
-      console.warn('Razorpay API fetch failed, fallback order:', apiErr.message);
-      res.json({
-        success: true,
-        order: {
-          id: `order_local_${Date.now()}`,
-          amount: amountInPaise,
-          currency: 'INR',
-          receipt: receiptId,
-          status: 'created',
-        },
-        key: RAZORPAY_KEY_ID,
-      });
+    } else if (!sandboxAllowed()) {
+      return res.status(500).json({ success: false, message: 'Payment gateway is not configured on this server' });
     }
+
+    // Development only: a local order id the sandbox checkout can use.
+    if (!gatewayOrder) {
+      gatewayOrder = {
+        id: `order_local_${Date.now()}`,
+        amount: Math.round(totals.grandTotal * 100),
+        currency: 'INR',
+        receipt,
+        status: 'created',
+      };
+    }
+
+    await PaymentIntent.create({
+      id: gatewayOrder.id,
+      userId: String(req.user._id),
+      amount: totals.grandTotal,
+      amountPaise: Number(gatewayOrder.amount),
+      lines,
+      totals,
+      couponCode: appliedCode,
+    });
+
+    res.json({
+      success: true,
+      order: { id: gatewayOrder.id, amount: gatewayOrder.amount, currency: gatewayOrder.currency },
+      key: publicKey(),
+      pricing: totals,
+      sandbox: gatewayOrder.id.startsWith('order_local_'),
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 
 /**
- * @desc Verify Razorpay Payment Signature
- * @route POST /api/payments/verify
+ * @desc  Check a completed checkout payment against what the server asked to collect.
+ *        Placing the order (POST /api/orders) runs the same check; this endpoint lets a
+ *        client confirm a payment on its own.
+ * @route POST /api/payments/verify  { razorpay_order_id, razorpay_payment_id, razorpay_signature }
+ * @access Private (signed-in shopper)
  */
 export const verifyPayment = async (req, res) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-
-    if (!razorpay_payment_id) {
-      return res.status(400).json({ success: false, message: 'Missing payment ID' });
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body || {};
+    if (!razorpay_order_id || !razorpay_payment_id) {
+      return res.status(400).json({ success: false, verified: false, message: 'Missing payment details' });
     }
 
-    // If local test order or signature not generated, authorize in sandbox mode
-    if (!razorpay_order_id || razorpay_order_id.startsWith('order_local_') || !razorpay_signature) {
-      return res.json({
-        success: true,
-        verified: true,
-        message: 'Payment verified in Sandbox/Direct Mode',
-        paymentId: razorpay_payment_id,
-      });
+    const intent = await PaymentIntent.findOne({ id: razorpay_order_id }).lean();
+    if (!intent || (req.user.role !== 'admin' && intent.userId !== String(req.user._id))) {
+      return res.status(404).json({ success: false, verified: false, message: 'Unknown payment order' });
     }
 
-    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-    const expectedSignature = crypto
-      .createHmac('sha256', RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest('hex');
+    const result = await confirmPayment({
+      razorpayOrderId: razorpay_order_id,
+      razorpayPaymentId: razorpay_payment_id,
+      razorpaySignature: razorpay_signature,
+      expectedAmountPaise: intent.amountPaise,
+    });
 
-    const isAuthentic = expectedSignature === razorpay_signature;
-
-    if (isAuthentic) {
-      res.json({
-        success: true,
-        verified: true,
-        message: 'Payment verified successfully',
-        paymentId: razorpay_payment_id,
-        orderId: razorpay_order_id,
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        verified: false,
-        message: 'Invalid payment signature',
-      });
+    if (!result.ok) {
+      return res.status(400).json({ success: false, verified: false, message: result.reason });
     }
+    res.json({
+      success: true,
+      verified: true,
+      message: 'Payment verified successfully',
+      paymentId: razorpay_payment_id,
+      orderId: razorpay_order_id,
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, verified: false, message: error.message });
   }
 };

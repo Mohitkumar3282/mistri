@@ -7,23 +7,29 @@ import User from '../models/User.js';
 
 dotenv.config();
 
+// Seed records keep their original key as the app-level `id`.
+const toAppRecord = ({ _id, id, ...rest }) => ({ id: String(id || _id), ...rest });
+
+/**
+ * Insert seed services and mistris that are not already present. Never deletes or
+ * overwrites anything, so it is safe to run against a database with real data.
+ */
 const importData = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/mistri_db');
 
-    console.log('🧹 Clearing existing collections...');
-    await Service.deleteMany();
-    await Mistri.deleteMany();
+    for (const [Model, records] of [
+      [Service, initialServices],
+      [Mistri, initialMistris],
+    ]) {
+      let inserted = 0;
+      for (const record of records.map(toAppRecord)) {
+        const result = await Model.updateOne({ id: record.id }, { $setOnInsert: record }, { upsert: true });
+        inserted += result.upsertedCount;
+      }
+      console.log(`🌱 ${Model.modelName}: ${inserted} new of ${records.length} seed records`);
+    }
 
-    console.log('🌱 Seeding services...');
-    await Service.insertMany(
-      initialServices.map((s) => {
-        const { _id, ...rest } = s;
-        return rest;
-      })
-    );
-
-    console.log('✅ Services seeded successfully!');
     process.exit();
   } catch (error) {
     console.error(`❌ Error with data import: ${error.message}`);
@@ -31,7 +37,15 @@ const importData = async () => {
   }
 };
 
+/**
+ * Delete all services, mistris and users. Requires --force because it is irreversible.
+ */
 const destroyData = async () => {
+  if (!process.argv.includes('--force')) {
+    console.error('Refusing to delete data. Re-run with "-d --force" if you really mean it.');
+    process.exit(1);
+  }
+
   try {
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/mistri_db');
 

@@ -1,17 +1,5 @@
-import express from 'express';
-import {
-  createBooking,
-  getMyBookings,
-  getAllBookings,
-  updateBookingStatus,
-} from '../controllers/bookingController.js';
-import { protect, authorize } from '../middlewares/authMiddleware.js';
+import bookingCrud from '../controllers/bookingController.js';
+import { ownedRouter } from './routeFactory.js';
 
-const router = express.Router();
-
-router.post('/', protect, createBooking);
-router.get('/my', protect, getMyBookings);
-router.get('/', protect, authorize('admin'), getAllBookings);
-router.patch('/:id/status', protect, updateBookingStatus);
-
-export default router;
+// /api/bookings - customers create/read their own, admins manage all
+export default ownedRouter(bookingCrud);

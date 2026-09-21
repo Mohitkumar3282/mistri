@@ -1,26 +1,15 @@
 import express from 'express';
-import {
-  getAdminStats,
-  getCoupons,
-  createCoupon,
-  updateCoupon,
-  deleteCoupon,
-  getQuotations,
-  updateQuotation,
-  getSettings,
-  updateSettings,
-} from '../controllers/adminController.js';
+import { getAdminStats, getUsers, notificationCrud } from '../controllers/adminController.js';
+import { protect, authorize } from '../middlewares/authMiddleware.js';
+import { adminRouter } from './routeFactory.js';
 
 const router = express.Router();
 
+// Every admin endpoint requires a signed-in administrator.
+router.use(protect, authorize('admin'));
+
 router.get('/stats', getAdminStats);
-router.get('/coupons', getCoupons);
-router.post('/coupons', createCoupon);
-router.put('/coupons/:code', updateCoupon);
-router.delete('/coupons/:code', deleteCoupon);
-router.get('/quotations', getQuotations);
-router.put('/quotations/:id', updateQuotation);
-router.get('/settings', getSettings);
-router.put('/settings', updateSettings);
+router.get('/users', getUsers);
+router.use('/notifications', adminRouter(notificationCrud));
 
 export default router;

@@ -34,8 +34,8 @@ export const LoginModal = () => {
   const [loading, setLoading] = useState(false);
 
   // Sign In Form State
-  const [signInIdentifier, setSignInIdentifier] = useState('rajesh.malviya@malviyabuilders.com');
-  const [signInPassword, setSignInPassword] = useState('password123');
+  const [signInIdentifier, setSignInIdentifier] = useState('');
+  const [signInPassword, setSignInPassword] = useState('');
 
   // Sign Up Form State
   const [signUpData, setSignUpData] = useState({
@@ -118,19 +118,6 @@ export const LoginModal = () => {
       setErrorMsg(err.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // 1-Click Fast Demo Login Selector
-  const handle1ClickLogin = (userPreset) => {
-    if (userPreset === 'contractor') {
-      login('rajesh.malviya@malviyabuilders.com', 'password123');
-    } else if (userPreset === 'builder') {
-      login('vikram.solanki@solankigroup.in', 'password123');
-    } else if (userPreset === 'designer') {
-      login('sunita@chauhaninteriors.com', 'password123');
-    } else if (userPreset === 'admin') {
-      login('admin@mistri.com', 'password123');
     }
   };
 
@@ -455,82 +442,6 @@ export const LoginModal = () => {
                 <span>Continue with Google</span>
               </button>
 
-              {/* 1-Click Demo Profiles */}
-              <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #E2E8F0' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: '0.5rem', textAlign: 'center' }}>
-                  ⚡ Quick 1-Click Demo Profiles:
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => handle1ClickLogin('contractor')}
-                    style={{
-                      padding: '0.45rem',
-                      backgroundColor: '#EEF4FA',
-                      border: '1px solid #C8DCF0',
-                      borderRadius: '6px',
-                      color: '#08274C',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    👷 Er. Rajesh (Gold Builder)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handle1ClickLogin('builder')}
-                    style={{
-                      padding: '0.45rem',
-                      backgroundColor: '#EEF4FA',
-                      border: '1px solid #C8DCF0',
-                      borderRadius: '6px',
-                      color: '#08274C',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    🏗️ Solanki Infra (VIP)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handle1ClickLogin('designer')}
-                    style={{
-                      padding: '0.45rem',
-                      backgroundColor: '#EEF4FA',
-                      border: '1px solid #C8DCF0',
-                      borderRadius: '6px',
-                      color: '#08274C',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    📐 Sunita (Architect)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handle1ClickLogin('admin')}
-                    style={{
-                      padding: '0.45rem',
-                      backgroundColor: '#FFF1EB',
-                      border: '1px solid #FDC3A9',
-                      borderRadius: '6px',
-                      color: '#F15A24',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    🛡️ Platform Admin
-                  </button>
-                </div>
-              </div>
             </form>
           ) : (
             /* ========================================================= */

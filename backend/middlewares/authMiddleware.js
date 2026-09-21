@@ -12,15 +12,20 @@ export const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'mistri_super_secret_jwt_key_2026');
 
-      // Try fetching from DB, or fallback to mock user object
+      // A stored user is authoritative. Otherwise fall back to the identity carried
+      // by the token itself (covers the built-in admin, which has no DB document).
       try {
         req.user = await User.findById(decoded.id).select('-password');
       } catch (err) {
-        req.user = { _id: decoded.id, name: 'Demo User', role: 'customer' };
+        req.user = null;
       }
 
       if (!req.user) {
-        req.user = { _id: decoded.id, name: 'Demo User', role: 'customer' };
+        req.user = {
+          _id: decoded.id,
+          name: decoded.name || 'Demo User',
+          role: decoded.role || 'customer',
+        };
       }
 
       return next();

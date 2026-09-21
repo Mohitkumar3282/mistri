@@ -1,7 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, X, Check, Search, Building, Navigation } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { CITIES } from '../data/mockData';
+
+const CITY_DEFAULT_PINS = {
+  'Indore': '452001',
+  'Bhopal': '462001',
+  'Ujjain': '456001',
+  'Dewas': '455001',
+  'Jabalpur': '482001',
+  'Gwalior': '474001',
+  'Mumbai': '400001',
+  'Pune': '411001',
+  'Delhi NCR': '110001',
+  'Ahmedabad': '380001',
+  'Jaipur': '302001',
+  'Bengaluru': '560001',
+  'Hyderabad': '500001',
+};
 
 export const LocationModal = () => {
   const {
@@ -17,7 +33,15 @@ export const LocationModal = () => {
     isDetectingLocation,
   } = useStore();
   const [searchCity, setSearchCity] = useState('');
-  const [tempPincode, setTempPincode] = useState(currentPincode);
+  const [tempPincode, setTempPincode] = useState(currentPincode || '452005');
+
+  // Keep tempPincode in sync with currentPincode when modal opens
+  useEffect(() => {
+    if (isLocationModalOpen) {
+      setTempPincode(currentPincode || '');
+      setSearchCity('');
+    }
+  }, [isLocationModalOpen, currentPincode]);
 
   if (!isLocationModalOpen) return null;
 
@@ -26,11 +50,25 @@ export const LocationModal = () => {
 
   const handleSelectCity = (cityName) => {
     setCurrentCity(cityName);
-    if (tempPincode.length === 6) {
-      setCurrentPincode(tempPincode);
+    if (tempPincode && tempPincode.trim().length === 6) {
+      setCurrentPincode(tempPincode.trim());
+    } else if (CITY_DEFAULT_PINS[cityName]) {
+      setCurrentPincode(CITY_DEFAULT_PINS[cityName]);
     }
     setIsLocationModalOpen(false);
     addToast(`Delivery location updated to ${cityName}`, 'success');
+  };
+
+  const handleApplyPincode = (e) => {
+    if (e) e.preventDefault();
+    const cleanPin = (tempPincode || '').replace(/\D/g, '').trim();
+    if (cleanPin.length === 6) {
+      setCurrentPincode(cleanPin);
+      setIsLocationModalOpen(false);
+      addToast(`Delivery pincode ${cleanPin} applied!`, 'success');
+    } else {
+      addToast('Please enter a valid 6-digit site pincode', 'warning');
+    }
   };
 
   const handleGpsClick = async () => {
@@ -110,8 +148,8 @@ export const LocationModal = () => {
               </>
             )}
           </button>
-          {/* Pincode Input */}
-          <div style={{ marginBottom: '1.5rem' }}>
+          {/* Pincode Input Form */}
+          <form onSubmit={handleApplyPincode} style={{ marginBottom: '1.5rem' }}>
             <label className="form-label" style={{ fontSize: '0.85rem' }}>Enter 6-Digit Site Pincode</label>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
@@ -124,19 +162,13 @@ export const LocationModal = () => {
                 style={{ flex: 1, letterSpacing: '2px', fontWeight: '700' }}
               />
               <button
-                type="button"
+                type="submit"
                 className="btn btn-primary btn-sm"
-                onClick={() => {
-                  if (tempPincode.length === 6) {
-                    setCurrentPincode(tempPincode);
-                    addToast(`Pincode ${tempPincode} applied!`, 'success');
-                  }
-                }}
               >
                 Apply
               </button>
             </div>
-          </div>
+          </form>
 
           {/* Quick Major Construction Hub Cities */}
           <div>

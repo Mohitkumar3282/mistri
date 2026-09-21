@@ -15,7 +15,7 @@ import {
 import { useStore } from '../context/StoreContext';
 
 export const MyOrdersView = () => {
-  const { orders, navigateTo, user, openLoginModal } = useStore();
+  const { orders: storeOrders, navigateTo, user, adminUser, openLoginModal } = useStore();
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'delivered' | 'cancelled'
 
   if (!user) {
@@ -52,6 +52,13 @@ export const MyOrdersView = () => {
       </div>
     );
   }
+
+  // With an admin session open in this browser the store holds every customer's
+  // orders, so keep only the ones that belong to the signed-in shopper.
+  const ownsOrder = (o) =>
+    (o.userId && String(o.userId) === String(user.id)) ||
+    (!!o.customerEmail && !!user.email && o.customerEmail.toLowerCase() === user.email.toLowerCase());
+  const orders = adminUser ? storeOrders.filter(ownsOrder) : storeOrders;
 
   const activeOrdersCount = orders.filter(
     (o) => o.statusCode !== 'delivered' && o.statusCode !== 'cancelled'
@@ -306,15 +313,16 @@ export const MyOrdersView = () => {
               const itemSummary =
                 order.items
                   ?.map((i) => i.product?.name || 'Material Item')
-                  .join(' | ') || 'Bagasse Plate 4CP Round | 4 Compartments | Heavy Duty Eco Pack';
+                  .join(' | ') || 'Material Item';
 
               const itemCount = order.items?.reduce((sum, i) => sum + (i.quantity || 1), 0) || 1;
               const paymentMode = order.paymentMode || 'online';
               const formattedPrice = (
                 order.summary?.totalAmount ||
                 order.totalPrice ||
-                305
-              ).toLocaleString();
+                order.grandTotal ||
+                0
+              ).toLocaleString('en-IN');
 
               const timestampText =
                 order.statusCode === 'delivered'

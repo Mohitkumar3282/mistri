@@ -1,196 +1,159 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /**
- * Common request helper
+ * Resolve the bearer token to send.
+ *  - 'admin': the administrator session only
+ *  - 'user':  the shopper session only (so their own orders are stamped as theirs)
+ *  - default: prefer an admin session, otherwise the shopper session
+ */
+function getAuthToken(auth) {
+  try {
+    if (auth === 'admin') return localStorage.getItem('mistri_admin_token');
+    if (auth === 'user') return localStorage.getItem('mistri_token');
+    return localStorage.getItem('mistri_admin_token') || localStorage.getItem('mistri_token');
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Common request helper. Options beyond fetch's own:
+ *  - auth:  which session token to send (see getAuthToken)
+ *  - quiet: do not log failures (for calls the caller handles itself)
+ * Thrown errors carry the HTTP `status` (0 when the server was unreachable).
  */
 async function request(endpoint, options = {}) {
-  const token = localStorage.getItem('mistri_token');
+  const { auth, quiet, ...fetchOptions } = options;
+  const token = getAuthToken(auth);
 
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
+    ...fetchOptions.headers,
   };
 
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    let response;
+    try {
+      response = await fetch(`${API_BASE}${endpoint}`, { ...fetchOptions, headers });
+    } catch (networkErr) {
+      const err = new Error('Server unreachable');
+      err.status = 0;
+      throw err;
+    }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.message || 'Network response error');
+      const err = new Error(data.message || `Request failed (${response.status})`);
+      err.status = response.status;
+      throw err;
     }
 
     return data;
   } catch (err) {
-    console.error(`API Error on ${endpoint}:`, err);
+    if (!quiet) console.error(`API Error on ${endpoint}:`, err);
     throw err;
   }
 }
 
+const withQuery = (path, params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return `${path}${query ? `?${query}` : ''}`;
+};
+
+const json = (method, body, extra = {}) => ({ method, body: JSON.stringify(body), ...extra });
+
+/**
+ * Generic access to a server collection addressed by a string key
+ * (`/products/prod_1`, `/coupons/SAVE10`, ...).
+ */
+const collection = {
+  list: (path, opts = {}) => request(path, opts),
+  create: (path, body, opts = {}) => request(path, json('POST', body, opts)),
+  save: (path, key, body, opts = {}) => request(`${path}/${encodeURIComponent(key)}`, json('PUT', body, opts)),
+  remove: (path, key, opts = {}) => request(`${path}/${encodeURIComponent(key)}`, { method: 'DELETE', ...opts }),
+};
+
 export const api = {
+  collection,
+
   // Authentication
-  login: (email, password) =>
-    request('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
-
-  register: (userData) =>
-    request('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    }),
-
+  // Callers show these errors to the person signing in, so they are not logged here.
+  login: (email, password) => request('/auth/login', json('POST', { email, password }, { quiet: true })),
+  register: (userData) => request('/auth/register', json('POST', userData, { quiet: true })),
+  firebaseLogin: (idToken) => request('/auth/firebase', json('POST', { idToken }, { quiet: true })),
   getMe: () => request('/auth/me'),
 
+  // Saved addresses & wishlist of the signed-in shopper
+  getAccountData: () => request('/auth/account', { auth: 'user', quiet: true }),
+  saveAccountData: (data) => request('/auth/account', json('PUT', data, { auth: 'user', quiet: true })),
+
   // Products (Materials)
-  getProducts: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/products${query ? `?${query}` : ''}`);
-  },
-
+  getProducts: (params = {}) => request(withQuery('/products', params)),
   getProductById: (id) => request(`/products/${id}`),
+  createProduct: (data) => request('/products', json('POST', data)),
+  updateProduct: (id, data) => request(`/products/${id}`, json('PATCH', data)),
+  deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
 
-  createProduct: (productData) =>
-    request('/products', {
-      method: 'POST',
-      body: JSON.stringify(productData),
-    }),
-
-  updateProduct: (id, productData) =>
-    request(`/products/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(productData),
-    }),
-
-  deleteProduct: (id) =>
-    request(`/products/${id}`, {
-      method: 'DELETE',
-    }),
-
-  // Categories
+  // Categories & storefront sections
   getCategories: () => request('/categories'),
   getCategoryById: (id) => request(`/categories/${id}`),
-  createCategory: (data) =>
-    request('/categories', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  updateCategory: (id, data) =>
-    request(`/categories/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-  deleteCategory: (id) =>
-    request(`/categories/${id}`, {
-      method: 'DELETE',
-    }),
+  createCategory: (data) => request('/categories', json('POST', data)),
+  updateCategory: (id, data) => request(`/categories/${id}`, json('PATCH', data)),
+  deleteCategory: (id) => request(`/categories/${id}`, { method: 'DELETE' }),
+  getCategorySections: () => request('/category-sections'),
 
   // Orders
-  getOrders: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/orders${query ? `?${query}` : ''}`);
-  },
+  getOrders: (params = {}) => request(withQuery('/orders', params)),
   getOrderById: (id) => request(`/orders/${id}`),
-  createOrder: (orderData) =>
-    request('/orders', {
-      method: 'POST',
-      body: JSON.stringify(orderData),
-    }),
-  updateOrder: (id, orderData) =>
-    request(`/orders/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(orderData),
-    }),
-  deleteOrder: (id) =>
-    request(`/orders/${id}`, {
-      method: 'DELETE',
-    }),
+  createOrder: (data) => request('/orders', json('POST', data, { auth: 'user', quiet: true })),
+  updateOrder: (id, data) => request(`/orders/${id}`, json('PATCH', data)),
+  deleteOrder: (id) => request(`/orders/${id}`, { method: 'DELETE' }),
 
   // Services
-  getServices: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/services${query ? `?${query}` : ''}`);
-  },
-
+  getServices: (params = {}) => request(withQuery('/services', params)),
   getServiceById: (id) => request(`/services/${id}`),
 
   // Mistris / Technicians
-  getMistris: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/mistris${query ? `?${query}` : ''}`);
-  },
-
+  getMistris: (params = {}) => request(withQuery('/mistris', params)),
   getMistriById: (id) => request(`/mistris/${id}`),
 
   // Bookings
-  createBooking: (bookingData) =>
-    request('/bookings', {
-      method: 'POST',
-      body: JSON.stringify(bookingData),
-    }),
+  createBooking: (data) => request('/bookings', json('POST', data, { auth: 'user' })),
+  getMyBookings: () => request('/bookings/my', { auth: 'user' }),
+  updateBookingStatus: (id, status) => request(`/bookings/${id}`, json('PATCH', { status })),
 
-  getMyBookings: () => request('/bookings/my'),
+  // Coupons
+  getCoupons: () => request('/coupons'),
+  createCoupon: (data) => request('/coupons', json('POST', data)),
+  updateCoupon: (code, data) => request(`/coupons/${encodeURIComponent(code)}`, json('PATCH', data)),
+  deleteCoupon: (code) => request(`/coupons/${encodeURIComponent(code)}`, { method: 'DELETE' }),
 
-  updateBookingStatus: (id, status) =>
-    request(`/bookings/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    }),
+  // Quotations
+  getQuotations: () => request('/quotations'),
+  updateQuotation: (id, data) => request(`/quotations/${id}`, json('PATCH', data)),
 
-  // Admin APIs
+  // Platform settings
+  getSettings: () => request('/settings'),
+  updateSettings: (data) => request('/settings', json('PUT', data)),
+
+  // Admin
   getAdminStats: () => request('/admin/stats'),
-  getCoupons: () => request('/admin/coupons'),
-  createCoupon: (data) =>
-    request('/admin/coupons', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  updateCoupon: (code, data) =>
-    request(`/admin/coupons/${code}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-  deleteCoupon: (code) =>
-    request(`/admin/coupons/${code}`, {
-      method: 'DELETE',
-    }),
-  getQuotations: () => request('/admin/quotations'),
-  updateQuotation: (id, data) =>
-    request(`/admin/quotations/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-  getSettings: () => request('/admin/settings'),
-  updateSettings: (data) =>
-    request('/admin/settings', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+  getAdminUsers: () => request('/admin/users', { auth: 'admin' }),
 
   // Payments
   getPaymentKey: () => request('/payments/key'),
-  createPaymentOrder: (data) =>
-    request('/payments/create-order', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  verifyPayment: (data) =>
-    request('/payments/verify', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+  // Always the shopper's session: the payment must belong to the account placing the order.
+  createPaymentOrder: (data) => request('/payments/create-order', json('POST', data, { auth: 'user', quiet: true })),
+  verifyPayment: (data) => request('/payments/verify', json('POST', data, { auth: 'user' })),
 
   // Media & Cloudinary Uploads
   uploadImage: async (file, folder = 'mistri/general') => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folder', folder);
-    const token = localStorage.getItem('mistri_token');
+    const token = getAuthToken();
     const response = await fetch(`${API_BASE}/upload/image`, {
       method: 'POST',
       headers: {
@@ -205,10 +168,7 @@ export const api = {
     return data;
   },
   uploadBase64Image: (base64String, folder = 'mistri/general') =>
-    request('/upload/base64', {
-      method: 'POST',
-      body: JSON.stringify({ image: base64String, folder }),
-    }),
+    request('/upload/base64', json('POST', { image: base64String, folder })),
   getUploadStatus: () => request('/upload/status'),
 };
 

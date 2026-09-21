@@ -501,127 +501,131 @@ export const HomeView = () => {
       </section>
 
       {/* 2. CATEGORY CATALOG GRID (Exact 4-Column Screenshot 1 Match) */}
-      <section style={{ padding: '1rem 0 1.5rem 0' }}>
-        <div className="container">
-          {/* Quick Commerce 4-Column Responsive Grid */}
-          <div className="qc-category-grid">
-            {categoriesList.map((cat) => (
-              <CategoryCard key={cat.id || cat.slug} category={cat} />
-            ))}
+      {categoriesList.length > 0 && (
+        <section style={{ padding: '1rem 0 1.5rem 0' }}>
+          <div className="container">
+            {/* Quick Commerce 4-Column Responsive Grid */}
+            <div className="qc-category-grid">
+              {categoriesList.map((cat) => (
+                <CategoryCard key={cat.id || cat.slug} category={cat} />
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* 3. PRODUCT SHELF: Bestsellers with 60 Min Express Delivery (Compact Sliding View) */}
-      <section style={{ padding: '0.5rem 0 1rem 0' }}>
-        <div className="container">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '4px', height: '18px', backgroundColor: 'var(--brand-orange)', borderRadius: '2px' }} />
-              <h2 style={{ fontSize: isMobile ? '1.05rem' : '1.25rem', fontWeight: '800', color: 'var(--primary-navy)', lineHeight: 1.2 }}>
-                Bestseller Materials • Express Delivery
-              </h2>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {/* Desktop / Tablet Slider Navigation Arrows */}
-              <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <button
-                  type="button"
-                  onClick={() => scrollBestsellers('left')}
-                  aria-label="Scroll previous"
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '50%',
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid var(--border-subtle)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: 'var(--shadow-xs)',
-                    color: 'var(--primary-navy)',
-                    transition: 'var(--transition)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
-                    e.currentTarget.style.borderColor = 'var(--border-medium)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#FFFFFF';
-                    e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                  }}
-                >
-                  <ChevronLeft size={15} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scrollBestsellers('right')}
-                  aria-label="Scroll next"
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '50%',
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid var(--border-subtle)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: 'var(--shadow-xs)',
-                    color: 'var(--primary-navy)',
-                    transition: 'var(--transition)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
-                    e.currentTarget.style.borderColor = 'var(--border-medium)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#FFFFFF';
-                    e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                  }}
-                >
-                  <ChevronRight size={15} />
-                </button>
+      {shelfProducts.length > 0 && (
+        <section style={{ padding: '0.5rem 0 1rem 0' }}>
+          <div className="container">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '4px', height: '18px', backgroundColor: 'var(--brand-orange)', borderRadius: '2px' }} />
+                <h2 style={{ fontSize: isMobile ? '1.05rem' : '1.25rem', fontWeight: '800', color: 'var(--primary-navy)', lineHeight: 1.2 }}>
+                  Bestseller Materials • Express Delivery
+                </h2>
               </div>
 
-              <button
-                type="button"
-                onClick={() => navigateTo('category-products', { slug: 'all' })}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--qc-green)',
-                  fontWeight: '800',
-                  fontSize: isMobile ? '0.8rem' : '0.85rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                  padding: '4px 2px',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <span>See All</span>
-                <ArrowRight size={14} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {/* Desktop / Tablet Slider Navigation Arrows */}
+                <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => scrollBestsellers('left')}
+                    aria-label="Scroll previous"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      boxShadow: 'var(--shadow-xs)',
+                      color: 'var(--primary-navy)',
+                      transition: 'var(--transition)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
+                      e.currentTarget.style.borderColor = 'var(--border-medium)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#FFFFFF';
+                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                    }}
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollBestsellers('right')}
+                    aria-label="Scroll next"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      boxShadow: 'var(--shadow-xs)',
+                      color: 'var(--primary-navy)',
+                      transition: 'var(--transition)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
+                      e.currentTarget.style.borderColor = 'var(--border-medium)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#FFFFFF';
+                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                    }}
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => navigateTo('category-products', { slug: 'all' })}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--qc-green)',
+                    fontWeight: '800',
+                    fontSize: isMobile ? '0.8rem' : '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                    padding: '4px 2px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span>See All</span>
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Product Sliding View */}
+            <div
+              ref={bestsellerScrollRef}
+              className="qc-horizontal-scroll"
+            >
+              {shelfProducts.map((product) => (
+                <div key={product.id} className="qc-shelf-item">
+                  <ProductCard product={product} />
+                </div>
+              ))}
             </div>
           </div>
-
-          {/* Product Sliding View */}
-          <div
-            ref={bestsellerScrollRef}
-            className="qc-horizontal-scroll"
-          >
-            {shelfProducts.map((product) => (
-              <div key={product.id} className="qc-shelf-item">
-                <ProductCard product={product} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* 4. BANNER 1: MISTRI GUARANTEE (Compact & Mobile-Optimized) */}
       <section style={{ padding: '0.4rem 0 0.85rem 0' }}>
@@ -979,64 +983,66 @@ export const HomeView = () => {
       </section>
 
       {/* 7. CERTIFIED NATIONAL BRANDS (CenturyPly, Havells, UltraTech, Action TESA, Kajaria, etc.) */}
-      <section className="hide-on-mobile" style={{ padding: '1rem 0', backgroundColor: '#FFFFFF', borderTop: '1px solid var(--border-subtle)' }}>
-        <div className="container">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div>
-              <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                Authorized Partner Depots
-              </span>
-              <h3 style={{ fontSize: '1.2rem', color: 'var(--primary-navy)', fontWeight: '800' }}>
-                Certified National Brands
-              </h3>
+      {TOP_BRANDS && TOP_BRANDS.length > 0 && (
+        <section className="hide-on-mobile" style={{ padding: '1rem 0', backgroundColor: '#FFFFFF', borderTop: '1px solid var(--border-subtle)' }}>
+          <div className="container">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Authorized Partner Depots
+                </span>
+                <h3 style={{ fontSize: '1.2rem', color: 'var(--primary-navy)', fontWeight: '800' }}>
+                  Certified National Brands
+                </h3>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: '0.85rem',
+              }}
+            >
+              {TOP_BRANDS.map((brand) => (
+                <div
+                  key={brand.name}
+                  onClick={() => navigateTo('search', { query: brand.name })}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--bg-surface)',
+                    border: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    transition: 'var(--transition)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#FFFFFF';
+                    e.currentTarget.style.borderColor = 'var(--brand-yellow)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
+                    e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                  }}
+                >
+                  <div style={{ width: '32px', height: '32px', borderRadius: '4px', overflow: 'hidden', flexShrink: 0 }}>
+                    <img src={brand.logo} alt={brand.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.82rem', color: 'var(--primary-navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {brand.name}
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{brand.tag}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-              gap: '0.85rem',
-            }}
-          >
-            {TOP_BRANDS.map((brand) => (
-              <div
-                key={brand.name}
-                onClick={() => navigateTo('search', { query: brand.name })}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 'var(--radius-sm)',
-                  backgroundColor: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  transition: 'var(--transition)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#FFFFFF';
-                  e.currentTarget.style.borderColor = 'var(--brand-yellow)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
-                  e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                }}
-              >
-                <div style={{ width: '32px', height: '32px', borderRadius: '4px', overflow: 'hidden', flexShrink: 0 }}>
-                  <img src={brand.logo} alt={brand.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: '700', fontSize: '0.82rem', color: 'var(--primary-navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {brand.name}
-                  </div>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{brand.tag}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 };
