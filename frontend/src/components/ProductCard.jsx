@@ -72,15 +72,6 @@ export const ProductCard = ({ product }) => {
 
         {/* Content Body */}
         <div className="qc-product-body">
-          {/* Free Delivery Teal Badge */}
-          <div className="qc-delivery-badge">
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-              <Truck size={10} strokeWidth={2.5} />
-              <span>Free Delivery</span>
-            </div>
-            <span className="qc-delivery-sub">orders &gt; ₹500</span>
-          </div>
-
           {/* Product Name */}
           <h3
             className="qc-product-title"
@@ -101,14 +92,20 @@ export const ProductCard = ({ product }) => {
             )}
           </div>
 
-          {/* Assured Cashback Strip */}
-          <div className="qc-cashback-strip">
-            <div className="qc-cashback-coin">🪙</div>
-            <div className="qc-cashback-text">
-              <span className="qc-cashback-bold">Assured 2% Cashback</span>
-              <span className="qc-cashback-sub">On orders above ₹50k</span>
+          {/* Product Stock Badge */}
+          {product.inStock !== false ? (
+            <div className="qc-stock-strip in-stock">
+              <span className="qc-stock-dot" />
+              <span className="qc-stock-text">
+                In Stock ({((typeof product.stockCount === 'number' && product.stockCount >= 0) ? product.stockCount : 350).toLocaleString('en-IN')} {product.unit || 'Units'})
+              </span>
             </div>
-          </div>
+          ) : (
+            <div className="qc-stock-strip out-of-stock">
+              <span className="qc-stock-dot out" />
+              <span className="qc-stock-text">Out of Stock</span>
+            </div>
+          )}
         </div>
       </div>
 

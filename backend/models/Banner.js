@@ -8,6 +8,15 @@ const Banner = createAppModel('Banner', {
     subtitle: Mixed,
     image: Mixed,
     link: Mixed,
+    badge: Mixed,
+    position: Mixed, // 'hero' | 'bottom'
+    ctaText: Mixed,
+    target: Mixed,
+    gradient: Mixed,
+    accent: Mixed,
+    showTextOverlay: Mixed,
+    imageFit: Mixed,
+    sortOrder: Mixed,
     isActive: Mixed,
   },
 });

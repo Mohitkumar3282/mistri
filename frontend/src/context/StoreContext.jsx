@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { useServerSync } from '../services/serverSync';
-import { computeTotals, couponDiscount } from '../utils/pricing';
+import { computeTotals, couponDiscount, resolveVariantOptions, unitPrice } from '../utils/pricing';
 import { auth, googleProvider } from '../config/firebase';
 import {
   signInWithPopup,
@@ -105,7 +105,78 @@ const INITIAL_COUPONS = [];
 const INITIAL_QUOTATIONS = [];
 
 // Initial Marketing Banners
-const INITIAL_BANNERS = [];
+const INITIAL_BANNERS = [
+  {
+    id: 'bnr_hero_1',
+    position: 'hero',
+    title: 'Original Plywood & MDF',
+    subtitle: '100% Genuine Certified Quality with Wholesale Factory Pricing Direct to Site.',
+    badge: 'WHOLESALE PRICES',
+    ctaText: 'ORDER NOW',
+    target: 'plywood-mdf-hdhmr',
+    image: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
+    isActive: true,
+  },
+  {
+    id: 'bnr_hero_2',
+    position: 'hero',
+    title: 'TMT Steel & Cement Bulk Deals',
+    subtitle: 'MTC Lab Certificates Included. Direct Dispatch from Central Logistics Park.',
+    badge: 'EXPRESS SITE DISPATCH',
+    ctaText: 'EXPLORE STEEL',
+    target: 'tmt-steel-bars',
+    image: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=1200&q=80',
+    isActive: true,
+  },
+  {
+    id: 'bnr_bottom_1',
+    position: 'bottom',
+    title: 'Site Delivery in 60 Mins',
+    subtitle: 'Cement, TMT steel, sand & bricks direct to your plot',
+    badge: '60-MIN EXPRESS',
+    ctaText: 'Order Now',
+    target: 'products',
+    gradient: 'linear-gradient(135deg, #0B2947 0%, #163E68 60%, #0F172A 100%)',
+    accent: '#F59E0B',
+    isActive: true,
+  },
+  {
+    id: 'bnr_bottom_2',
+    position: 'bottom',
+    title: 'Book Verified Mistri & Masons',
+    subtitle: 'Expert masons, plumbers, electricians & carpenters near you',
+    badge: 'VERIFIED EXPERTS',
+    ctaText: 'Book Mistri',
+    target: 'mistris',
+    gradient: 'linear-gradient(135deg, #064E3B 0%, #065F46 60%, #022C22 100%)',
+    accent: '#34D399',
+    isActive: true,
+  },
+  {
+    id: 'bnr_bottom_3',
+    position: 'bottom',
+    title: '100% Genuine Materials',
+    subtitle: 'Factory certified (MTC) with automated GST input tax credit',
+    badge: 'DEPOT DIRECT',
+    ctaText: 'View Brands',
+    target: 'products',
+    gradient: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 60%, #0F172A 100%)',
+    accent: '#FACC15',
+    isActive: true,
+  },
+  {
+    id: 'bnr_bottom_4',
+    position: 'bottom',
+    title: 'Contractor Bulk Discounts',
+    subtitle: 'Special depot rates for 500+ cement bags & bulk steel orders',
+    badge: 'BULK WHOLESALE',
+    ctaText: 'Get Quote',
+    target: 'contact',
+    gradient: 'linear-gradient(135deg, #78350F 0%, #92400E 60%, #451A03 100%)',
+    accent: '#FBBF24',
+    isActive: true,
+  },
+];
 
 
 // Initial Site Settings
@@ -469,7 +540,90 @@ export const StoreProvider = ({ children }) => {
       // A customer placed something while the admin panel was open.
       if (name === 'adminNotifications') playOrderNotificationSound();
     },
+    onLoaded: (name, items) => {
+      if (name === 'products') reconcileWithCatalog(items);
+    },
+    onAuthError: (err, kind) => endExpiredSession(kind),
   });
+
+  // Keep the cart and wishlist in step with the live catalogue: products the admin
+  // deleted (or marked out of stock) leave the cart, and prices follow the latest ones.
+  const latestCart = useRef(cart);
+  const latestWishlist = useRef(wishlist);
+  latestCart.current = cart;
+  latestWishlist.current = wishlist;
+  const reconcileWithCatalog = (catalog) => {
+    const byId = new Map(catalog.map((p) => [p.id, p]));
+    const removed = [];
+    const nextCart = [];
+    latestCart.current.forEach((item) => {
+      const fresh = byId.get(item.product?.id);
+      const selection = item.product?.variantSelection || {};
+      const { options, error } = fresh ? resolveVariantOptions(fresh, selection) : { options: [], error: 'gone' };
+      if (!fresh || fresh.inStock === false || error) {
+        removed.push(item.product?.name || 'An item');
+        return;
+      }
+      const price = unitPrice(fresh, item.quantity, options);
+      nextCart.push({
+        ...item,
+        price,
+        product: {
+          ...fresh,
+          name: item.product?.name || fresh.name,
+          price,
+          variantSelection: item.product?.variantSelection,
+          selectedVariant: item.product?.selectedVariant,
+        },
+      });
+    });
+    if (JSON.stringify(nextCart) !== JSON.stringify(latestCart.current)) setCart(nextCart);
+    if (removed.length) {
+      addToast(`Removed from your cart (no longer available): ${removed.join(', ')}`, 'warning', 8000);
+    }
+
+    const nextWishlist = latestWishlist.current.filter((p) => byId.has(p.id)).map((p) => byId.get(p.id));
+    if (JSON.stringify(nextWishlist) !== JSON.stringify(latestWishlist.current)) setWishlist(nextWishlist);
+  };
+
+  // A session the server no longer accepts (expired, or issued before an update) is
+  // signed out with an explanation, instead of every save failing with a cryptic error.
+  const lastSessionNotice = useRef(0);
+  const endExpiredSession = (kind) => {
+    const notify = Date.now() - lastSessionNotice.current > 5000;
+    lastSessionNotice.current = Date.now();
+    try {
+      localStorage.removeItem(kind === 'admin' ? 'mistri_admin_token' : 'mistri_token');
+    } catch (e) {}
+    if (kind === 'admin') {
+      setAdminUser(null);
+      if (notify) addToast('Your admin session has expired. Please sign in again - changes made since then were not saved.', 'warning', 10000);
+    } else {
+      setUser(null);
+      if (notify) addToast('Your session has expired. Please sign in again.', 'warning', 8000);
+    }
+  };
+
+  // Check stored sessions with the server when the app opens, so an outdated admin
+  // login is caught before any edits are made with it.
+  useEffect(() => {
+    if (!adminUser || !hasToken('mistri_admin_token')) return;
+    api
+      .getMe('admin')
+      .then((res) => {
+        if (res?.data?.role !== 'admin') endExpiredSession('admin');
+      })
+      .catch((err) => {
+        if (err?.status === 401 || err?.status === 403) endExpiredSession('admin');
+      });
+  }, [adminUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!user || !hasToken('mistri_token')) return;
+    api.getMe('user').catch((err) => {
+      if (err?.status === 401) endExpiredSession('user');
+    });
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // URL change listener for browser Back/Forward & popstate
   useEffect(() => {
@@ -756,13 +910,12 @@ export const StoreProvider = ({ children }) => {
            INITIAL_ORDERS[0];
   };
 
+  // Returns null for a product that does not exist (e.g. deleted by the admin) - never a
+  // different product in its place.
   const getProductById = (id) => {
-    if (!id) return products[0] || INITIAL_PRODUCTS[0];
+    if (!id) return null;
     const target = String(id).toLowerCase();
-    return products.find((p) => p.id?.toLowerCase() === target || p.id?.toLowerCase() === `prod_${target}`) ||
-           INITIAL_PRODUCTS.find((p) => p.id?.toLowerCase() === target) ||
-           products[0] ||
-           INITIAL_PRODUCTS[0];
+    return products.find((p) => p.id?.toLowerCase() === target || p.id?.toLowerCase() === `prod_${target}`) || null;
   };
 
 
@@ -1618,6 +1771,13 @@ export const StoreProvider = ({ children }) => {
     addToast('Banner updated', 'success');
   };
 
+  const toggleBannerStatus = (id) => {
+    setBanners((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, isActive: !b.isActive } : b))
+    );
+    addToast('Banner status updated', 'info');
+  };
+
   const deleteBanner = (id) => {
     setBanners((prev) => prev.filter((b) => b.id !== id));
     addToast('Banner removed', 'info');
@@ -2107,6 +2267,7 @@ export const StoreProvider = ({ children }) => {
         banners,
         addBanner,
         updateBanner,
+        toggleBannerStatus,
         deleteBanner,
 
         faqs,

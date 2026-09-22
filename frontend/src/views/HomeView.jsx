@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Truck,
   ShieldCheck,
@@ -85,25 +85,79 @@ export const HomeView = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Filter Active Admin Banners or fallback to defaults
+  const heroBanners = useMemo(() => {
+    const activeHero = (banners || []).filter(
+      (b) => b.isActive !== false && (b.position === 'hero' || !b.position)
+    );
+    if (activeHero.length > 0) return activeHero;
+    return [
+      {
+        id: 'default_hero_1',
+        title: 'Original Plywood & MDF',
+        subtitle: '100% Genuine Certified Quality with Wholesale Factory Pricing Direct to Site.',
+        badge: 'WHOLESALE PRICES',
+        ctaText: 'ORDER NOW',
+        target: 'plywood-mdf-hdhmr',
+        image: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
+      },
+      {
+        id: 'default_hero_2',
+        title: 'UltraTech Cement & TMT Steel',
+        subtitle: 'Direct Depot Rates • ₹410/Bag with Express 60-Minute Site Delivery.',
+        badge: '60 MINUTE EXPRESS SITE DELIVERY',
+        ctaText: 'ORDER CEMENT',
+        target: 'cement',
+        image: 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400',
+      },
+      {
+        id: 'default_hero_3',
+        title: 'Havells & Finolex FR Wires',
+        subtitle: '100% Pure Bare Copper • 25+ Gauge & Color Options with Bulk Discounts.',
+        badge: 'UP TO 43% OFF WIRES',
+        ctaText: 'GET BULK QUOTE',
+        target: 'contact',
+        image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=400',
+      },
+    ];
+  }, [banners]);
+
+  const bottomBanners = useMemo(() => {
+    const activeBottom = (banners || []).filter(
+      (b) => b.isActive !== false && b.position === 'bottom'
+    );
+    if (activeBottom.length > 0) return activeBottom;
+    return MISTRI_PROMO_SLIDES;
+  }, [banners]);
+
+  // Auto slide Hero Banner every 5 seconds
+  useEffect(() => {
+    if (heroBanners.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % heroBanners.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [heroBanners.length]);
+
   // Compact Mistri Promo Banner Slider State
   const [promoIndex, setPromoIndex] = useState(0);
   const [isPromoPaused, setIsPromoPaused] = useState(false);
   const [promoTouchStart, setPromoTouchStart] = useState(null);
   const [promoTouchEnd, setPromoTouchEnd] = useState(null);
 
-  const totalPromoSlides = MISTRI_PROMO_SLIDES.length;
+  const totalPromoSlides = bottomBanners.length;
 
   const nextPromo = () => {
-    setPromoIndex((prev) => (prev + 1) % totalPromoSlides);
+    setPromoIndex((prev) => (prev + 1) % (totalPromoSlides || 1));
   };
 
   const prevPromo = () => {
-    setPromoIndex((prev) => (prev - 1 + totalPromoSlides) % totalPromoSlides);
+    setPromoIndex((prev) => (prev - 1 + totalPromoSlides) % (totalPromoSlides || 1));
   };
 
   // Auto slide promo banner every 4 seconds
   useEffect(() => {
-    if (isPromoPaused) return;
+    if (isPromoPaused || totalPromoSlides <= 1) return;
     const timer = setInterval(() => {
       nextPromo();
     }, 4000);
@@ -129,15 +183,6 @@ export const HomeView = () => {
     setIsPromoPaused(false);
   };
 
-  // 3-Second Auto Hero Carousel Slider
-  const totalHeroSlides = 2;
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % totalHeroSlides);
-    }, 3200);
-    return () => clearInterval(timer);
-  }, []);
-
   const bestsellerScrollRef = useRef(null);
 
   const scrollBestsellers = (direction) => {
@@ -155,8 +200,8 @@ export const HomeView = () => {
 
   return (
     <div style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh', paddingBottom: '2rem' }}>
-      {/* 1. HERO PROMO BANNER CAROUSEL (Exact Screenshot 1) */}
-      <section style={{ padding: '0.85rem 0 0.5rem 0' }}>
+      {/* 1. HERO PROMO BANNER CAROUSEL */}
+      <section style={{ padding: '0.65rem 0 0.5rem 0' }}>
         <div className="container">
           <div
             style={{
@@ -168,334 +213,166 @@ export const HomeView = () => {
               border: '1px solid var(--border-subtle)',
             }}
           >
-            {/* Slide 1: Plywood & MDF (Exact Match to Screenshot 1) */}
-            {activeSlide === 0 && (
-              <div
-                style={{
-                  background: 'linear-gradient(105deg, #FFFFFF 0%, #F8FAFC 55%, #E2F2E9 100%)',
-                  padding: '1.5rem 1.25rem',
-                  display: 'grid',
-                  gridTemplateColumns: '1.2fr 1fr',
-                  gap: '1rem',
-                  alignItems: 'center',
-                  minHeight: '210px',
-                  position: 'relative',
-                }}
-              >
-                {/* Left Content */}
-                <div style={{ zIndex: 2 }}>
-                  {/* Decorative Dots */}
-                  <div style={{ display: 'flex', gap: '3px', marginBottom: '8px', opacity: 0.35 }}>
-                    {[...Array(12)].map((_, i) => (
-                      <span key={i} style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: '#0B2947' }} />
-                    ))}
-                  </div>
+            {heroBanners.map((slide, idx) => {
+              if (idx !== activeSlide % heroBanners.length) return null;
+              const imageUrl = typeof slide.image === 'object' ? slide.image?.url : slide.image;
+              const hasFullImage = Boolean(imageUrl);
 
-                  {/* Headline */}
-                  <h1
-                    style={{
-                      fontSize: 'clamp(1.4rem, 4vw, 2.25rem)',
-                      fontWeight: '900',
-                      lineHeight: '1.15',
-                      color: 'var(--primary-navy)',
-                      letterSpacing: '-0.03em',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    Original <br />
-                    <span>Plywood</span> <span style={{ color: 'var(--qc-green)' }}>& MDF.</span>
-                  </h1>
+              const handleBannerClick = () => {
+                const target = slide.target;
+                if (!target) {
+                  navigateTo('products');
+                  return;
+                }
+                if (target === 'contact') {
+                  setIsQuotationOpen(true);
+                  return;
+                }
+                if (target === 'services' || target === 'mistris') {
+                  navigateTo('services');
+                  return;
+                }
+                if (target === 'products') {
+                  navigateTo('products');
+                  return;
+                }
+                navigateTo('category-products', { slug: target, categoryName: slide.title || 'Products' });
+              };
 
-                  {/* Wholesale Prices Pill Tag (Exact Screenshot 1) */}
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      backgroundColor: '#EAB308',
-                      color: '#0B2947',
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                      fontWeight: '800',
-                      fontSize: '0.8rem',
-                      marginBottom: '12px',
-                    }}
-                  >
-                    <span>📦</span>
-                    <span>Wholesale Prices.</span>
-                  </div>
+              const showTextOverlay = slide.showTextOverlay !== false && (slide.title || slide.subtitle || slide.badge || slide.ctaText);
+              const objectFitMode = slide.imageFit || 'cover';
 
-                  {/* Action Buttons Row */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      onClick={() => navigateTo('category-products', { slug: 'plywood-mdf-hdhmr', categoryName: 'Plywood, MDF & HDHMR' })}
-                      style={{
-                        backgroundColor: '#064E3B',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        borderRadius: '9999px',
-                        padding: '6px 14px',
-                        fontSize: '0.78rem',
-                        fontWeight: '800',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        cursor: 'pointer',
-                        boxShadow: '0 2px 6px rgba(6, 78, 59, 0.3)',
-                      }}
-                    >
-                      <ShoppingCart size={13} />
-                      <span>ORDER NOW</span>
-                      <ChevronRight size={13} />
-                    </button>
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '0.72rem',
-                        fontWeight: '800',
-                        color: '#064E3B',
-                      }}
-                    >
-                      <Truck size={13} color="#064E3B" strokeWidth={2.5} />
-                      <span>EXPRESS SITE DELIVERY</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Visual Graphic with Product Stack & Warranty Badges (Exact Screenshot 1) */}
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {/* 30 Year Warranty Seal Badge (Top) */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '0px',
-                      left: '10px',
-                      width: '46px',
-                      height: '46px',
-                      borderRadius: '50%',
-                      backgroundColor: '#991B1B',
-                      color: '#FFFFFF',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.52rem',
-                      fontWeight: '900',
-                      lineHeight: '1',
-                      border: '2px dashed #FEF08A',
-                      boxShadow: '0 2px 8px rgba(153, 27, 27, 0.4)',
-                      zIndex: 3,
-                      textAlign: 'center',
-                    }}
-                  >
-                    <span>30 YEAR</span>
-                    <span style={{ fontSize: '0.42rem' }}>WARRANTY</span>
-                  </div>
-
-                  {/* 15 Year Warranty Seal Badge (Bottom) */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: '5px',
-                      left: '0px',
-                      width: '44px',
-                      height: '44px',
-                      borderRadius: '50%',
-                      backgroundColor: '#991B1B',
-                      color: '#FFFFFF',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.52rem',
-                      fontWeight: '900',
-                      lineHeight: '1',
-                      border: '2px dashed #FEF08A',
-                      boxShadow: '0 2px 8px rgba(153, 27, 27, 0.4)',
-                      zIndex: 3,
-                      textAlign: 'center',
-                    }}
-                  >
-                    <span>15 YEAR</span>
-                    <span style={{ fontSize: '0.42rem' }}>WARRANTY</span>
-                  </div>
-
-                  {/* Layered Wood Sheets Visual Mockup */}
-                  <div style={{ position: 'relative', width: '100%', maxWidth: '200px' }}>
-                    {/* CenturyPly Wood Sheet (Background) */}
-                    <div
-                      style={{
-                        width: '130px',
-                        height: '140px',
-                        backgroundColor: '#E0B589',
-                        borderRadius: '6px',
-                        border: '2px solid #8D5B2F',
-                        marginLeft: 'auto',
-                        backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.03) 10px, rgba(0,0,0,0.03) 20px)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        padding: '6px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                      }}
-                    >
-                      <div style={{ fontSize: '0.5rem', fontWeight: '900', color: '#5A3515' }}>IS:710 MARINE BWP</div>
-                      <div style={{ textAlign: 'center', fontWeight: '900', fontSize: '0.62rem', color: '#5A3515' }}>
-                        CENTURYPLY
-                      </div>
-                      <div style={{ fontSize: '0.48rem', color: '#5A3515' }}>CALIBRATED • 19MM</div>
-                    </div>
-
-                    {/* Action TESA HDHMR Block (Foreground) */}
-                    <div
+              return (
+                <div
+                  key={slide.id || idx}
+                  onClick={handleBannerClick}
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    minHeight: isMobile ? '175px' : '240px',
+                    height: isMobile ? '175px' : 'clamp(230px, 24vw, 320px)',
+                    backgroundColor: '#0B2947',
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    borderRadius: 'var(--radius-lg)',
+                    userSelect: 'none',
+                  }}
+                >
+                  {hasFullImage && (
+                    <img
+                      src={imageUrl}
+                      alt={slide.title || 'Banner'}
                       style={{
                         position: 'absolute',
-                        bottom: '-8px',
-                        left: '20px',
-                        width: '140px',
-                        height: '75px',
-                        backgroundColor: '#64748B',
-                        borderRadius: '6px',
-                        border: '2px solid #334155',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: objectFitMode,
+                        objectPosition: 'center',
+                        display: 'block',
+                      }}
+                    />
+                  )}
+
+                  {(!hasFullImage || showTextOverlay) && (
+                    <div
+                      style={{
+                        position: 'relative',
+                        zIndex: 2,
+                        width: '100%',
+                        height: '100%',
+                        background: hasFullImage
+                          ? 'linear-gradient(90deg, rgba(11, 41, 71, 0.92) 0%, rgba(11, 41, 71, 0.68) 55%, rgba(11, 41, 71, 0.15) 100%)'
+                          : (slide.gradient || 'linear-gradient(105deg, #0B2947 0%, #163E68 60%, #0F172A 100%)'),
+                        padding: isMobile ? '1.1rem 1.25rem' : '1.75rem 2.5rem',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center',
-                        alignItems: 'center',
-                        padding: '6px',
-                        boxShadow: '0 8px 16px rgba(0,0,0,0.25)',
                         color: '#FFFFFF',
+                        maxWidth: hasFullImage ? (isMobile ? '100%' : '65%') : '100%',
+                        boxSizing: 'border-box',
                       }}
                     >
-                      <div style={{ fontSize: '0.5rem', fontWeight: '800', letterSpacing: '0.08em', color: '#94A3B8' }}>TESA</div>
-                      <div style={{ fontSize: '0.82rem', fontWeight: '900', color: '#FFFFFF', letterSpacing: '0.02em' }}>HDHMR</div>
-                      <div style={{ fontSize: '0.5rem', color: '#CBD5E1' }}>18MM • HIGH MOISTURE RESISTANT</div>
+                      {slide.badge && (
+                        <span
+                          style={{
+                            backgroundColor: '#EAB308',
+                            color: '#0B2947',
+                            padding: '3px 10px',
+                            borderRadius: '4px',
+                            fontWeight: '800',
+                            fontSize: '0.72rem',
+                            marginBottom: '6px',
+                            width: 'fit-content',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.3px',
+                          }}
+                        >
+                          📦 {slide.badge}
+                        </span>
+                      )}
+                      {slide.title && (
+                        <h2 style={{ fontSize: isMobile ? '1.25rem' : '1.85rem', fontWeight: '900', marginBottom: '6px', lineHeight: 1.2, textShadow: hasFullImage ? '0 2px 4px rgba(0,0,0,0.5)' : 'none' }}>
+                          {slide.title}
+                        </h2>
+                      )}
+                      {(slide.subtitle || slide.desc) && (
+                        <p style={{ fontSize: isMobile ? '0.78rem' : '0.92rem', color: '#E2E8F0', marginBottom: '14px', lineHeight: 1.4, textShadow: hasFullImage ? '0 1px 3px rgba(0,0,0,0.5)' : 'none', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {slide.subtitle || slide.desc}
+                        </p>
+                      )}
+                      <div>
+                        <span
+                          style={{
+                            backgroundColor: '#064E3B',
+                            color: '#FFFFFF',
+                            padding: isMobile ? '5px 14px' : '7px 18px',
+                            borderRadius: '9999px',
+                            fontSize: '0.78rem',
+                            fontWeight: '800',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: '0 3px 10px rgba(6, 78, 59, 0.4)',
+                          }}
+                        >
+                          <ShoppingCart size={14} />
+                          <span>{slide.ctaText || slide.cta || 'ORDER NOW'}</span>
+                          <ChevronRight size={14} />
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-              </div>
-            )}
-
-            {/* Slide 2: UltraTech Cement & Tata Tiscon Steel */}
-            {activeSlide === 1 && (
-              <div
-                style={{
-                  background: 'linear-gradient(105deg, #FFFFFF 0%, #FFFBEB 55%, #FEF08A 100%)',
-                  padding: '1.5rem 1.25rem',
-                  display: 'grid',
-                  gridTemplateColumns: '1.2fr 1fr',
-                  gap: '1rem',
-                  alignItems: 'center',
-                  minHeight: '210px',
-                  position: 'relative',
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: '0.72rem', fontWeight: '800', color: '#B45309', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    ⚡ 60 MINUTE EXPRESS SITE DELIVERY
-                  </div>
-                  <h2 style={{ fontSize: 'clamp(1.4rem, 4vw, 2.2rem)', fontWeight: '900', color: '#0B2947', lineHeight: '1.15', marginBottom: '8px' }}>
-                    UltraTech Cement & <span style={{ color: '#D97706' }}>TMT Steel</span>
-                  </h2>
-                  <div style={{ display: 'inline-flex', backgroundColor: '#0B2947', color: '#FEF08A', padding: '4px 10px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '800', marginBottom: '12px' }}>
-                    Direct Depot Rates • ₹410/Bag
-                  </div>
-                  <div>
-                    <button
-                      onClick={() => navigateTo('category-products', { slug: 'cement', categoryName: 'Cement' })}
-                      className="btn btn-navy btn-sm"
-                      style={{ borderRadius: '9999px', padding: '6px 16px' }}
-                    >
-                      <span>ORDER CEMENT</span>
-                      <ArrowRight size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <img
-                    src="https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400"
-                    alt="Cement"
-                    style={{ maxHeight: '130px', objectFit: 'contain', filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.15))' }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Slide 3: Havells & Finolex Wires Flash Deal */}
-            {activeSlide === 2 && (
-              <div
-                style={{
-                  background: 'linear-gradient(105deg, #1E40AF 0%, #1D4ED8 60%, #3B82F6 100%)',
-                  padding: '1.5rem 1.25rem',
-                  display: 'grid',
-                  gridTemplateColumns: '1.2fr 1fr',
-                  gap: '1rem',
-                  alignItems: 'center',
-                  minHeight: '210px',
-                  color: '#FFFFFF',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'inline-flex', backgroundColor: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: '800', color: '#FEF08A', marginBottom: '6px' }}>
-                    🔥 UP TO 43% OFF WIRES
-                  </div>
-                  <h2 style={{ fontSize: 'clamp(1.4rem, 4vw, 2.2rem)', fontWeight: '900', color: '#FFFFFF', lineHeight: '1.15', marginBottom: '8px' }}>
-                    Havells & Finolex FR Wires
-                  </h2>
-                  <p style={{ fontSize: '0.85rem', color: '#DBEAFE', marginBottom: '12px' }}>
-                    100% Pure Bare Copper • 25+ Gauge & Color Options
-                  </p>
-                  <div>
-                    <button
-                      onClick={() => setIsQuotationOpen(true)}
-                      style={{
-                        backgroundColor: '#FEF08A',
-                        color: '#1E3A8A',
-                        border: 'none',
-                        borderRadius: '9999px',
-                        padding: '6px 16px',
-                        fontWeight: '800',
-                        fontSize: '0.82rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      GET BULK QUOTE
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <img
-                    src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=400"
-                    alt="Havells Wire"
-                    style={{ maxHeight: '130px', objectFit: 'contain', filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.3))' }}
-                  />
-                </div>
-              </div>
-            )}
+              );
+            })}
 
             {/* Carousel Navigation Indicators */}
-            <div style={{ position: 'absolute', bottom: '8px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '6px', zIndex: 5 }}>
-              {[0, 1, 2].map((idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setActiveSlide(idx)}
-                  style={{
-                    width: activeSlide === idx ? '18px' : '6px',
-                    height: '6px',
-                    borderRadius: '9999px',
-                    backgroundColor: activeSlide === idx ? 'var(--primary-navy)' : '#CBD5E1',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    transition: 'all 0.25s ease',
-                  }}
-                />
-              ))}
-            </div>
+            {heroBanners.length > 1 && (
+              <div style={{ position: 'absolute', bottom: '5px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '5px', zIndex: 5 }}>
+                {heroBanners.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveSlide(idx);
+                    }}
+                    style={{
+                      width: activeSlide % heroBanners.length === idx ? '18px' : '6px',
+                      height: '6px',
+                      borderRadius: '3px',
+                      backgroundColor: activeSlide % heroBanners.length === idx ? '#064E3B' : 'rgba(0,0,0,0.25)',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -773,110 +650,161 @@ export const HomeView = () => {
                 transform: `translateX(-${promoIndex * 100}%)`,
               }}
             >
-              {MISTRI_PROMO_SLIDES.map((slide, idx) => {
-                const IconComp = slide.icon;
+              {bottomBanners.map((slide, idx) => {
+                const imageUrl = typeof slide.image === 'object' ? slide.image?.url : slide.image;
+                const hasFullImage = Boolean(imageUrl);
+                const IconComp = slide.icon || Truck;
+                const accentColor = slide.accent || '#F59E0B';
+                const bgGradient = slide.gradient || 'linear-gradient(135deg, #0B2947 0%, #163E68 60%, #0F172A 100%)';
+                const showTextOverlay = slide.showTextOverlay !== false && (slide.title || slide.subtitle || slide.badge || slide.ctaText);
                 return (
                   <div
-                    key={idx}
-                    onClick={() => navigateTo(slide.target)}
+                    key={slide.id || idx}
+                    onClick={() => {
+                      if (slide.target === 'contact') {
+                        setIsQuotationOpen(true);
+                      } else if (slide.target === 'mistris') {
+                        navigateTo('services');
+                      } else if (slide.target) {
+                        navigateTo('category-products', { slug: slide.target });
+                      } else {
+                        navigateTo('products');
+                      }
+                    }}
                     style={{
                       flex: '0 0 100%',
                       minWidth: '100%',
-                      background: slide.gradient,
+                      minHeight: '125px',
+                      position: 'relative',
+                      background: bgGradient,
                       color: '#FFFFFF',
-                      padding: '16px 18px 22px 18px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '14px',
-                      boxSizing: 'border-box',
+                      overflow: 'hidden',
                       cursor: 'pointer',
-                      minHeight: '92px',
+                      borderRadius: 'var(--radius-md)',
+                      boxSizing: 'border-box',
                     }}
                   >
-                    {/* Left: Icon + Text */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
+                    {hasFullImage && (
+                      <img
+                        src={imageUrl}
+                        alt={slide.title || 'Promo Banner'}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: slide.imageFit || 'cover',
+                          objectPosition: 'center',
+                          display: 'block',
+                        }}
+                      />
+                    )}
+
+                    {(!hasFullImage || showTextOverlay) && (
                       <div
                         style={{
-                          width: '46px',
-                          height: '46px',
-                          borderRadius: '12px',
-                          backgroundColor: 'rgba(255, 255, 255, 0.16)',
-                          border: `1.5px solid ${slide.accent}60`,
+                          position: 'relative',
+                          zIndex: 2,
+                          padding: '16px 18px 22px 18px',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          color: slide.accent,
-                          flexShrink: 0,
-                          boxShadow: `0 4px 12px ${slide.accent}25`,
+                          justifyContent: 'space-between',
+                          gap: '14px',
+                          boxSizing: 'border-box',
+                          height: '100%',
+                          background: hasFullImage
+                            ? 'linear-gradient(90deg, rgba(11, 41, 71, 0.94) 0%, rgba(11, 41, 71, 0.72) 65%, rgba(11, 41, 71, 0.25) 100%)'
+                            : 'none',
                         }}
                       >
-                        <IconComp size={24} strokeWidth={2.4} />
-                      </div>
-
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                          <span
+                        {/* Left: Icon / Thumbnail + Text */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1 }}>
+                          <div
                             style={{
-                              fontSize: '1rem',
-                              fontWeight: '900',
-                              color: '#FFFFFF',
-                              letterSpacing: '-0.01em',
-                              lineHeight: '1.2',
+                              width: '46px',
+                              height: '46px',
+                              borderRadius: '12px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.16)',
+                              border: `1.5px solid ${accentColor}60`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: accentColor,
+                              flexShrink: 0,
+                              boxShadow: `0 4px 12px ${accentColor}25`,
                             }}
                           >
-                            {slide.title}
-                          </span>
+                            <IconComp size={24} strokeWidth={2.4} />
+                          </div>
+
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                              <span
+                                style={{
+                                  fontSize: '1rem',
+                                  fontWeight: '900',
+                                  color: '#FFFFFF',
+                                  letterSpacing: '-0.01em',
+                                  lineHeight: '1.2',
+                                }}
+                              >
+                                {slide.title}
+                              </span>
+                              {slide.badge && (
+                                <span
+                                  style={{
+                                    fontSize: '0.65rem',
+                                    fontWeight: '900',
+                                    backgroundColor: `${accentColor}25`,
+                                    color: accentColor,
+                                    border: `1px solid ${accentColor}60`,
+                                    padding: '2px 7px',
+                                    borderRadius: '5px',
+                                    letterSpacing: '0.04em',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {slide.badge}
+                                </span>
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: '0.8rem',
+                                color: 'rgba(255, 255, 255, 0.88)',
+                                lineHeight: '1.35',
+                              }}
+                            >
+                              {slide.subtitle || slide.desc}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right: Compact Action Button */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                           <span
                             style={{
-                              fontSize: '0.65rem',
-                              fontWeight: '900',
-                              backgroundColor: `${slide.accent}25`,
-                              color: slide.accent,
-                              border: `1px solid ${slide.accent}60`,
-                              padding: '2px 7px',
-                              borderRadius: '5px',
-                              letterSpacing: '0.04em',
+                              fontSize: '0.82rem',
+                              fontWeight: '800',
+                              backgroundColor: accentColor,
+                              color: '#0B2947',
+                              padding: '8px 14px',
+                              borderRadius: '8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              boxShadow: '0 3px 8px rgba(0,0,0,0.25)',
                               whiteSpace: 'nowrap',
+                              transition: 'var(--transition)',
                             }}
                           >
-                            {slide.badge}
+                            <span>{slide.ctaText || slide.cta || 'Explore'}</span>
+                            <ChevronRight size={15} strokeWidth={3} />
                           </span>
                         </div>
-                        <div
-                          style={{
-                            fontSize: '0.8rem',
-                            color: 'rgba(255, 255, 255, 0.88)',
-                            lineHeight: '1.35',
-                          }}
-                        >
-                          {slide.desc}
-                        </div>
                       </div>
-                    </div>
-
-                    {/* Right: Compact Action Button */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                      <span
-                        style={{
-                          fontSize: '0.82rem',
-                          fontWeight: '800',
-                          backgroundColor: slide.accent,
-                          color: '#0B2947',
-                          padding: '8px 14px',
-                          borderRadius: '8px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          boxShadow: '0 3px 8px rgba(0,0,0,0.25)',
-                          whiteSpace: 'nowrap',
-                          transition: 'var(--transition)',
-                        }}
-                      >
-                        <span>{slide.cta}</span>
-                        <ChevronRight size={15} strokeWidth={3} />
-                      </span>
-                    </div>
+                    )}
                   </div>
                 );
               })}

@@ -42,7 +42,9 @@ export const ProductDetailsView = () => {
 
   const productList = products && products.length > 0 ? products : PRODUCTS;
   const productId = viewParams?.id || viewParams?.productId || viewParams?.product?.id;
-  const product = viewParams?.product || (productId ? getProductById(productId) : null) || productList[0];
+  // Always show the live catalogue entry, so edits appear and a deleted product is not
+  // shown from the copy passed in when the customer tapped it.
+  const product = productId ? getProductById(productId) : null;
 
   // Active Gallery Image Index
   const [activeImgIdx, setActiveImgIdx] = useState(0);
@@ -119,6 +121,22 @@ export const ProductDetailsView = () => {
   }, [currentPincode]);
 
   const [activeTab, setActiveTab] = useState('specs'); // 'specs' | 'features' | 'description' | 'reviews'
+
+  if (!product) {
+    return (
+      <div className="page-container" style={{ textAlign: 'center', padding: '4rem 16px' }}>
+        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.5rem' }}>
+          This product is no longer available
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+          It may have been removed from the catalogue.
+        </p>
+        <button type="button" className="btn btn-primary" onClick={() => navigateTo('categories')}>
+          Browse categories
+        </button>
+      </div>
+    );
+  }
 
   const isFavorite = isInWishlist(product.id);
   const galleryImages = product.gallery && product.gallery.length > 0 ? product.gallery : [product.image];
@@ -345,17 +363,8 @@ export const ProductDetailsView = () => {
             )}
           </div>
 
-          {/* RIGHT: PRODUCT INFO, SELECTORS, CASHBACK & DETAILS */}
+          {/* RIGHT: PRODUCT INFO, SELECTORS, STOCK & DETAILS */}
           <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', padding: '1.25rem', boxShadow: '0 2px 10px rgba(8, 39, 76, 0.04)' }}>
-            {/* Free Delivery Pill Badge */}
-            <div className="qc-delivery-pill-wrapper">
-              <div className="qc-delivery-pill">
-                <Truck size={12} strokeWidth={2.5} />
-                <span>Free Delivery</span>
-              </div>
-              <span className="qc-delivery-subtext">on orders above ₹500</span>
-            </div>
-
             {/* Product Title */}
             <h1 style={{ fontSize: 'clamp(1.25rem, 4vw, 1.55rem)', fontWeight: '800', color: 'var(--primary-navy)', lineHeight: '1.3', marginBottom: '0.65rem' }}>
               {product.name}
@@ -378,14 +387,33 @@ export const ProductDetailsView = () => {
               )}
             </div>
 
-            {/* Assured 2% Cashback Card (Exact Screenshot Match) */}
-            <div className="qc-cashback-box">
-              <div className="qc-cashback-icon-circle">
-                🪙
-              </div>
-              <div>
-                <div className="qc-cashback-title">Assured 2% Cashback</div>
-                <div className="qc-cashback-subtitle">On purchases above ₹50,000</div>
+            {/* Product Stock Availability Card */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                backgroundColor: product.inStock !== false ? '#ECFDF5' : '#FEF2F2',
+                border: product.inStock !== false ? '1px solid #A7F3D0' : '1px solid #FECACA',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                marginBottom: '1rem',
+              }}
+            >
+              <div
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  backgroundColor: product.inStock !== false ? '#10B981' : '#EF4444',
+                  boxShadow: product.inStock !== false ? '0 0 8px rgba(16, 185, 129, 0.6)' : 'none',
+                  flexShrink: 0,
+                }}
+              />
+              <div style={{ fontSize: '0.88rem', fontWeight: '800', color: product.inStock !== false ? '#065F46' : '#991B1B' }}>
+                {product.inStock !== false
+                  ? `In Stock (${((typeof product.stockCount === 'number' && product.stockCount >= 0) ? product.stockCount : 350).toLocaleString('en-IN')} ${product.unit || 'Units'} Available at Central Hub)`
+                  : 'Out of Stock'}
               </div>
             </div>
 

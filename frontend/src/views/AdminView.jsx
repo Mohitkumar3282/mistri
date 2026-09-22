@@ -71,6 +71,7 @@ import {
 import { useStore } from '../context/StoreContext';
 import Logo from '../components/Logo';
 import { uploadCloudFile } from '../services/storageService';
+import { uploadBannerToCloud } from '../services/cloudinaryService';
 
 export default function AdminView() {
   const {
@@ -135,6 +136,7 @@ export default function AdminView() {
     banners,
     addBanner,
     updateBanner,
+    toggleBannerStatus,
     deleteBanner,
     faqs,
     addFaq,
@@ -241,6 +243,106 @@ export default function AdminView() {
   // Modal Dialogs state
   const [activeModal, setActiveModal] = useState(null); // 'add-category' | 'add-parent-category' | 'add-sub-category' | 'edit-sub-category' | 'edit-parent-category' | 'create-product' | 'edit-product'
   const [modalFormData, setModalFormData] = useState({});
+
+  // Banner Management State
+  const [bannerPosFilter, setBannerPosFilter] = useState('all'); // 'all' | 'hero' | 'bottom'
+  const [bannerSearchQuery, setBannerSearchQuery] = useState('');
+  const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
+  const [editingBanner, setEditingBanner] = useState(null);
+  const [isBannerUploading, setIsBannerUploading] = useState(false);
+  const [bannerFormData, setBannerFormData] = useState({
+    title: '',
+    subtitle: '',
+    position: 'hero',
+    badge: '',
+    ctaText: 'ORDER NOW',
+    target: '',
+    image: '',
+    gradient: 'linear-gradient(135deg, #0B2947 0%, #163E68 60%, #0F172A 100%)',
+    accent: '#F59E0B',
+    isActive: true,
+  });
+
+  function handleOpenAddBannerModal() {
+    setEditingBanner(null);
+    setBannerFormData({
+      title: '',
+      subtitle: '',
+      position: bannerPosFilter !== 'all' ? bannerPosFilter : 'hero',
+      badge: '',
+      ctaText: 'ORDER NOW',
+      target: 'products',
+      image: '',
+      showTextOverlay: true,
+      imageFit: 'cover',
+      gradient: 'linear-gradient(135deg, #0B2947 0%, #163E68 60%, #0F172A 100%)',
+      accent: '#F59E0B',
+      isActive: true,
+    });
+    setIsBannerModalOpen(true);
+  }
+
+  function handleOpenEditBannerModal(banner) {
+    setEditingBanner(banner);
+    setBannerFormData({
+      title: banner.title || '',
+      subtitle: banner.subtitle || banner.desc || '',
+      position: banner.position || 'hero',
+      badge: banner.badge || '',
+      ctaText: banner.ctaText || banner.cta || 'ORDER NOW',
+      target: banner.target || banner.link || 'products',
+      image: banner.image || '',
+      showTextOverlay: banner.showTextOverlay !== false,
+      imageFit: banner.imageFit || 'cover',
+      gradient: banner.gradient || 'linear-gradient(135deg, #0B2947 0%, #163E68 60%, #0F172A 100%)',
+      accent: banner.accent || '#F59E0B',
+      isActive: banner.isActive !== false,
+    });
+    setIsBannerModalOpen(true);
+  }
+
+  function handleSaveBanner(e) {
+    e.preventDefault();
+    if (!bannerFormData.title.trim()) {
+      addToast('Please enter a banner title', 'error');
+      return;
+    }
+    if (editingBanner) {
+      updateBanner(editingBanner.id, bannerFormData);
+    } else {
+      addBanner(bannerFormData);
+    }
+    setIsBannerModalOpen(false);
+  }
+
+  async function handleBannerFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsBannerUploading(true);
+    try {
+      addToast('Uploading image...', 'info');
+      const res = await uploadBannerToCloud(file);
+      const imageUrl = typeof res === 'string' ? res : (res?.url || res?.data?.url || '');
+      if (imageUrl) {
+        setBannerFormData((prev) => ({ ...prev, image: imageUrl }));
+        addToast('Image uploaded successfully!', 'success');
+      } else {
+        throw new Error('Could not get image URL');
+      }
+    } catch (err) {
+      console.warn('Cloud upload fallback to local FileReader:', err);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (reader.result) {
+          setBannerFormData((prev) => ({ ...prev, image: reader.result }));
+          addToast('Image attached', 'success');
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsBannerUploading(false);
+    }
+  }
 
   // Profile Menu Dropdown
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -951,6 +1053,8 @@ export default function AdminView() {
       minOrderQty: 1,
       gstRate: 18,
       image: '',
+      gallery: [],
+      variants: [],
       status: 'PUBLISHED',
       isFeatured: true,
     });
@@ -976,6 +1080,8 @@ export default function AdminView() {
       minOrderQty: prod.minOrderQty || 1,
       gstRate: prod.gstRate || 18,
       image: prod.image || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400',
+      gallery: Array.isArray(prod.gallery) ? prod.gallery : [],
+      variants: Array.isArray(prod.variants) ? prod.variants : [],
       status: prod.status || (prod.inStock ? 'PUBLISHED' : 'OUT_OF_STOCK'),
       isFeatured: prod.isFeatured !== undefined ? prod.isFeatured : true,
     });
@@ -994,7 +1100,11 @@ export default function AdminView() {
     const slug = productFormData.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const price = Number(productFormData.price) >= 0 && productFormData.price !== '' ? Number(productFormData.price) : 300;
     const mrp = Number(productFormData.mrp) > 0 ? Number(productFormData.mrp) : Math.round(price * 1.25);
-    const stockCount = productFormData.stockCount !== '' && productFormData.stockCount !== undefined && !isNaN(productFormData.stockCount) ? Number(productFormData.stockCount) : 500;
+    // If admin defined variants, use first variant's values for top-level price/stock
+    const firstVariant = Array.isArray(productFormData.variants) && productFormData.variants.length > 0 ? productFormData.variants[0] : null;
+    const stockCount = firstVariant
+      ? (Number(firstVariant.stockCount) >= 0 ? Number(firstVariant.stockCount) : 500)
+      : (productFormData.stockCount !== '' && productFormData.stockCount !== undefined && !isNaN(productFormData.stockCount) ? Number(productFormData.stockCount) : 500);
     const inStock = productFormData.status !== 'OUT_OF_STOCK' && stockCount > 0;
     const category = productFormData.category || (categories && categories[0]?.name) || 'Cement';
     const foundCat = categories.find((c) => c.name?.toLowerCase() === category.toLowerCase() || c.slug === productFormData.categorySlug);
@@ -1013,8 +1123,10 @@ export default function AdminView() {
       categorySlug,
       section: foundCat?.section || foundCat?.sectionName || productFormData.section || 'Civil & Interiors',
       brand: productFormData.brand || 'UltraTech',
-      unit: productFormData.unit || 'Standard Unit',
+      unit: firstVariant ? (firstVariant.unit || productFormData.unit || 'Standard Unit') : (productFormData.unit || 'Standard Unit'),
       image,
+      gallery: Array.isArray(productFormData.gallery) ? productFormData.gallery : [],
+      variants: Array.isArray(productFormData.variants) ? productFormData.variants : [],
       isFeatured: productFormData.isFeatured !== undefined ? productFormData.isFeatured : true,
       isPopular: true,
     };
@@ -4190,151 +4302,436 @@ export default function AdminView() {
                 {/* 3. Variants & Pricing Tab */}
                 {productModalTab === 'variants' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
-                        UNIT OF MEASUREMENT / PACKAGING *
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 50kg Bag, Metric Ton, 90m Coil, 1 Litre, Pcs, Box, Sq.Ft"
-                        value={productFormData.unit || ''}
-                        onChange={(e) => setProductFormData({ ...productFormData, unit: e.target.value })}
+
+                    {/* Header row */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A' }}>Product Variants</div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>
+                          {(productFormData.variants || []).length === 0
+                            ? 'No variants yet — add at least one variant with price & stock'
+                            : `${(productFormData.variants || []).length} variant(s) defined`}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newVariant = { label: '', unit: productFormData.unit || '', price: productFormData.price || '', mrp: productFormData.mrp || '', stockCount: productFormData.stockCount || 500, minOrderQty: 1 };
+                          setProductFormData({ ...productFormData, variants: [...(productFormData.variants || []), newVariant] });
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '0.5rem 1rem',
+                          backgroundColor: '#0F172A',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          letterSpacing: '0.03em',
+                          whiteSpace: 'nowrap',
+                          boxShadow: '0 2px 6px rgba(15,23,42,0.2)',
+                        }}
+                      >
+                        <Plus size={14} /> Add Variant
+                      </button>
+                    </div>
+
+                    {/* Empty state */}
+                    {(productFormData.variants || []).length === 0 && (
+                      <div style={{
+                        border: '1.5px dashed #CBD5E1',
+                        borderRadius: '12px',
+                        padding: '2rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '8px',
+                        color: '#94A3B8',
+                        backgroundColor: '#F8FAFC',
+                        textAlign: 'center',
+                      }}>
+                        <Layers size={28} style={{ opacity: 0.4 }} />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>No variants added yet</span>
+                        <span style={{ fontSize: '0.72rem' }}>Click <strong>+ Add Variant</strong> to define sizes, packs, or units with individual pricing</span>
+                      </div>
+                    )}
+
+                    {/* Variant cards */}
+                    {(productFormData.variants || []).map((variant, vIdx) => {
+                      const margin = Math.max(0, (Number(variant.mrp) || 0) - (Number(variant.price) || 0));
+                      const discPct = variant.mrp && Number(variant.mrp) > 0 ? Math.round((margin / Number(variant.mrp)) * 100) : 0;
+                      const updateVariant = (field, val) => {
+                        const updated = (productFormData.variants || []).map((v, i) => i === vIdx ? { ...v, [field]: val } : v);
+                        setProductFormData({ ...productFormData, variants: updated });
+                      };
+                      const removeVariant = () => {
+                        const updated = (productFormData.variants || []).filter((_, i) => i !== vIdx);
+                        setProductFormData({ ...productFormData, variants: updated });
+                      };
+                      return (
+                        <div
+                          key={vIdx}
+                          style={{
+                            border: '1.5px solid #E2E8F0',
+                            borderRadius: '12px',
+                            padding: '1rem',
+                            backgroundColor: '#FFFFFF',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.85rem',
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                            position: 'relative',
+                          }}
+                        >
+                          {/* Card header */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Variant {vIdx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={removeVariant}
+                              title="Remove variant"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 8px',
+                                backgroundColor: '#FEF2F2',
+                                color: '#EF4444',
+                                border: '1px solid #FECACA',
+                                borderRadius: '6px',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Trash2 size={11} /> Remove
+                            </button>
+                          </div>
+
+                          {/* Variant label */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '5px' }}>
+                              VARIANT LABEL
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 50kg Bag, 1 Ton Bundle, Small Pack"
+                              value={variant.label || ''}
+                              onChange={(e) => updateVariant('label', e.target.value)}
+                              style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', fontSize: '0.85rem', fontWeight: 600, color: '#0F172A', boxSizing: 'border-box' }}
+                            />
+                          </div>
+
+                          {/* Unit */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '5px' }}>
+                              UNIT / PACKAGING
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 50kg Bag, Pcs, Sq.Ft, Litre"
+                              value={variant.unit || ''}
+                              onChange={(e) => updateVariant('unit', e.target.value)}
+                              style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', fontSize: '0.85rem', fontWeight: 600, color: '#0F172A', boxSizing: 'border-box' }}
+                            />
+                          </div>
+
+                          {/* Price & MRP */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '5px' }}>PRICE (₹) *</label>
+                              <input
+                                type="number"
+                                placeholder="e.g. 375"
+                                value={variant.price || ''}
+                                onChange={(e) => updateVariant('price', e.target.value)}
+                                style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', fontSize: '0.9rem', fontWeight: 800, color: '#10B981', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '5px' }}>MRP (₹)</label>
+                              <input
+                                type="number"
+                                placeholder="e.g. 420"
+                                value={variant.mrp || ''}
+                                onChange={(e) => updateVariant('mrp', e.target.value)}
+                                style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', fontSize: '0.9rem', fontWeight: 700, color: '#64748B', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Stock & MOQ */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '5px' }}>STOCK (UNITS)</label>
+                              <input
+                                type="number"
+                                placeholder="e.g. 500"
+                                value={variant.stockCount !== undefined ? variant.stockCount : ''}
+                                onChange={(e) => updateVariant('stockCount', e.target.value)}
+                                style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', fontSize: '0.9rem', fontWeight: 700, color: '#3B82F6', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '5px' }}>MOQ</label>
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="e.g. 1"
+                                value={variant.minOrderQty || 1}
+                                onChange={(e) => updateVariant('minOrderQty', Number(e.target.value))}
+                                style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #E2E8F0', backgroundColor: '#F8FAFC', fontSize: '0.9rem', fontWeight: 700, boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Margin badge */}
+                          {variant.price && Number(variant.price) > 0 && (
+                            <div style={{ padding: '0.5rem 0.75rem', borderRadius: '8px', backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', color: '#059669', fontWeight: 700, fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>₹{margin} margin</span>
+                              <span style={{ fontSize: '0.75rem', color: '#047857' }}>{discPct}% off MRP</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Add another variant shortcut at bottom */}
+                    {(productFormData.variants || []).length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newVariant = { label: '', unit: '', price: '', mrp: '', stockCount: 500, minOrderQty: 1 };
+                          setProductFormData({ ...productFormData, variants: [...(productFormData.variants || []), newVariant] });
+                        }}
                         style={{
                           width: '100%',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '8px',
-                          border: '1px solid #E2E8F0',
+                          padding: '0.65rem',
+                          border: '1.5px dashed #CBD5E1',
+                          borderRadius: '10px',
                           backgroundColor: '#F8FAFC',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          color: '#0F172A',
+                          color: '#475569',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'background 0.15s',
                         }}
-                      />
-                    </div>
+                      >
+                        <Plus size={14} /> Add Another Variant
+                      </button>
+                    )}
 
-                    <div className="admin-modal-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
-                          CUSTOMER SELLING PRICE (₹) *
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="e.g. 375"
-                          value={productFormData.price || ''}
-                          onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '8px',
-                            border: '1px solid #E2E8F0',
-                            backgroundColor: '#F8FAFC',
-                            fontSize: '0.9rem',
-                            fontWeight: 800,
-                            color: '#10B981',
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
-                          BASE MRP (₹)
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="e.g. 420"
-                          value={productFormData.mrp || ''}
-                          onChange={(e) => setProductFormData({ ...productFormData, mrp: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '8px',
-                            border: '1px solid #E2E8F0',
-                            backgroundColor: '#F8FAFC',
-                            fontSize: '0.9rem',
-                            fontWeight: 700,
-                            color: '#64748B',
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="admin-modal-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
-                          HUB STOCK (AVAILABLE UNITS)
-                        </label>
-                        <input
-                          type="number"
-                          placeholder="e.g. 500"
-                          value={productFormData.stockCount || ''}
-                          onChange={(e) => setProductFormData({ ...productFormData, stockCount: e.target.value })}
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '8px',
-                            border: '1px solid #E2E8F0',
-                            backgroundColor: '#F8FAFC',
-                            fontSize: '0.9rem',
-                            fontWeight: 700,
-                            color: theme.primaryBlue,
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
-                          MINIMUM ORDER QUANTITY (MOQ)
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="e.g. 1"
-                          value={productFormData.minOrderQty || 1}
-                          onChange={(e) => setProductFormData({ ...productFormData, minOrderQty: Number(e.target.value) })}
-                          style={{
-                            width: '100%',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '8px',
-                            border: '1px solid #E2E8F0',
-                            backgroundColor: '#F8FAFC',
-                            fontSize: '0.9rem',
-                            fontWeight: 700,
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
-                        ESTIMATED HUB MARGIN
-                      </div>
-                      <div style={{
-                        padding: '0.65rem 0.85rem',
-                        borderRadius: '8px',
-                        backgroundColor: '#ECFDF5',
-                        border: '1px solid #A7F3D0',
-                        color: '#059669',
-                        fontWeight: 800,
-                        fontSize: '0.85rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                      }}>
-                        <span>₹{Math.max(0, (Number(productFormData.mrp) || 0) - (Number(productFormData.price) || 0))}</span>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#047857' }}>
-                          {productFormData.mrp ? Math.round(((Math.max(0, Number(productFormData.mrp) - Number(productFormData.price))) / Number(productFormData.mrp)) * 100) : 0}% discount off MRP
-                        </span>
-                      </div>
-                    </div>
                   </div>
                 )}
 
                 {/* 4. Photos Tab */}
                 {productModalTab === 'photos' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+                    {/* Primary Image */}
                     <ImageUploadField
-                      label="Primary Product / Material Photo *"
+                      label="Primary Product Photo *"
                       value={productFormData.image || ''}
                       onChange={(img) => setProductFormData({ ...productFormData, image: img })}
                     />
+
+                    {/* Gallery Images */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div>
+                          <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', display: 'block' }}>Additional Gallery Photos</label>
+                          <span style={{ fontSize: '0.7rem', color: '#64748B' }}>Add multiple product images shown in a gallery ({(productFormData.gallery || []).length} added)</span>
+                        </div>
+                        <label
+                          htmlFor="gallery-upload-input"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '0.45rem 0.9rem',
+                            backgroundColor: '#0F172A',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            letterSpacing: '0.03em',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <UploadCloud size={14} /> Add Photos
+                        </label>
+                        <input
+                          id="gallery-upload-input"
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (!files.length) return;
+                            const newGallery = [...(productFormData.gallery || [])];
+                            for (const file of files) {
+                              if (file.size > 10 * 1024 * 1024) {
+                                addToast(`"${file.name}" exceeds 10MB limit, skipped.`, 'warning');
+                                continue;
+                              }
+                              try {
+                                const result = await uploadCloudFile(file, `mistri/products/${Date.now()}_${file.name}`);
+                                if (result && result.downloadURL) {
+                                  newGallery.push(result.downloadURL);
+                                } else {
+                                  // fallback to base64 preview
+                                  await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => { newGallery.push(ev.target.result); resolve(); };
+                                    reader.readAsDataURL(file);
+                                  });
+                                }
+                              } catch {
+                                await new Promise((resolve) => {
+                                  const reader = new FileReader();
+                                  reader.onload = (ev) => { newGallery.push(ev.target.result); resolve(); };
+                                  reader.readAsDataURL(file);
+                                });
+                              }
+                            }
+                            setProductFormData({ ...productFormData, gallery: newGallery });
+                            addToast(`${files.length} photo(s) added to gallery`, 'success');
+                            e.target.value = '';
+                          }}
+                        />
+                      </div>
+
+                      {/* Gallery Grid */}
+                      {(productFormData.gallery || []).length === 0 ? (
+                        <div style={{
+                          border: '1.5px dashed #CBD5E1',
+                          borderRadius: '12px',
+                          padding: '2rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          color: '#94A3B8',
+                          backgroundColor: '#F8FAFC',
+                        }}>
+                          <ImageIcon size={28} style={{ opacity: 0.4 }} />
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>No additional photos yet</span>
+                          <span style={{ fontSize: '0.72rem' }}>Click "Add Photos" to upload multiple images</span>
+                        </div>
+                      ) : (
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                          gap: '10px',
+                        }}>
+                          {(productFormData.gallery || []).map((imgUrl, gIdx) => (
+                            <div
+                              key={gIdx}
+                              style={{
+                                position: 'relative',
+                                borderRadius: '10px',
+                                overflow: 'hidden',
+                                border: '1.5px solid #E2E8F0',
+                                backgroundColor: '#0F172A',
+                                aspectRatio: '1 / 1',
+                              }}
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Gallery ${gIdx + 1}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                              />
+                              {/* Set as Primary button */}
+                              <button
+                                type="button"
+                                title="Set as primary photo"
+                                onClick={() => {
+                                  const oldPrimary = productFormData.image;
+                                  const newGallery = (productFormData.gallery || []).filter((_, i) => i !== gIdx);
+                                  if (oldPrimary) newGallery.unshift(oldPrimary);
+                                  setProductFormData({ ...productFormData, image: imgUrl, gallery: newGallery });
+                                  addToast('Set as primary photo', 'success');
+                                }}
+                                style={{
+                                  position: 'absolute',
+                                  bottom: '4px',
+                                  left: '4px',
+                                  backgroundColor: 'rgba(15,23,42,0.75)',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '5px',
+                                  fontSize: '0.6rem',
+                                  fontWeight: 700,
+                                  padding: '2px 5px',
+                                  cursor: 'pointer',
+                                  backdropFilter: 'blur(2px)',
+                                  letterSpacing: '0.02em',
+                                }}
+                              >
+                                ★ Main
+                              </button>
+                              {/* Remove button */}
+                              <button
+                                type="button"
+                                title="Remove photo"
+                                onClick={() => {
+                                  const newGallery = (productFormData.gallery || []).filter((_, i) => i !== gIdx);
+                                  setProductFormData({ ...productFormData, gallery: newGallery });
+                                }}
+                                style={{
+                                  position: 'absolute',
+                                  top: '4px',
+                                  right: '4px',
+                                  backgroundColor: 'rgba(239,68,68,0.85)',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '50%',
+                                  width: '22px',
+                                  height: '22px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 900,
+                                  lineHeight: 1,
+                                  backdropFilter: 'blur(2px)',
+                                }}
+                              >
+                                ×
+                              </button>
+                              {/* Index badge */}
+                              <div style={{
+                                position: 'absolute',
+                                top: '4px',
+                                left: '4px',
+                                backgroundColor: 'rgba(15,23,42,0.6)',
+                                color: '#CBD5E1',
+                                fontSize: '0.6rem',
+                                fontWeight: 700,
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                              }}>
+                                {gIdx + 1}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                   </div>
                 )}
               </div>
@@ -6820,48 +7217,32 @@ export default function AdminView() {
                         </div>
                       </td>
 
-                      {/* 7. STOCK (HA, HR, SA, SC Pills) */}
+                      {/* 7. STOCK (Clean Stock Number) */}
                       <td style={{ padding: '0.85rem 1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', maxWidth: '160px' }}>
-                          <span style={{
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            backgroundColor: '#EFF6FF',
-                            color: '#1D4ED8',
-                            fontSize: '0.68rem',
-                            fontWeight: 800,
-                          }}>
-                            HA <strong>{p.haStock}</strong>
-                          </span>
-                          <span style={{
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            backgroundColor: '#FEF2F2',
-                            color: '#DC2626',
-                            fontSize: '0.68rem',
-                            fontWeight: 800,
-                          }}>
-                            HR <strong>{p.hrStock}</strong>
-                          </span>
-                          <span style={{
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            backgroundColor: '#FAF5FF',
-                            color: '#7E22CE',
-                            fontSize: '0.68rem',
-                            fontWeight: 800,
-                          }}>
-                            SA <strong>{p.saStock}</strong>
-                          </span>
-                          <span style={{
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            backgroundColor: '#FFFBEB',
-                            color: '#B45309',
-                            fontSize: '0.68rem',
-                            fontWeight: 800,
-                          }}>
-                            SC <strong>{p.scStock}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              backgroundColor: p.isOutOfStock ? '#FEF2F2' : (p.isLowStock ? '#FFFBEB' : '#ECFDF5'),
+                              color: p.isOutOfStock ? '#DC2626' : (p.isLowStock ? '#D97706' : '#059669'),
+                              fontSize: '0.82rem',
+                              fontWeight: 800,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: '6px',
+                                height: '6px',
+                                borderRadius: '50%',
+                                backgroundColor: p.isOutOfStock ? '#EF4444' : (p.isLowStock ? '#F59E0B' : '#10B981'),
+                              }}
+                            />
+                            <span>{typeof p.stock === 'number' ? p.stock.toLocaleString('en-IN') : (p.stockCount || 0)}</span>
+                            <span style={{ fontSize: '0.72rem', opacity: 0.85 }}>{p.unit || 'Units'}</span>
                           </span>
                         </div>
                       </td>
@@ -7733,21 +8114,709 @@ export default function AdminView() {
   }
 
   function renderBannersView() {
+    const filteredBanners = banners.filter((b) => {
+      const matchPos =
+        bannerPosFilter === 'all'
+          ? true
+          : bannerPosFilter === 'hero'
+          ? b.position === 'hero' || !b.position
+          : b.position === 'bottom';
+      const q = bannerSearchQuery.toLowerCase();
+      const matchSearch =
+        !q ||
+        (b.title && b.title.toLowerCase().includes(q)) ||
+        (b.subtitle && b.subtitle.toLowerCase().includes(q)) ||
+        (b.badge && b.badge.toLowerCase().includes(q));
+      return matchPos && matchSearch;
+    });
+
+    const heroCount = banners.filter((b) => b.position === 'hero' || !b.position).length;
+    const bottomCount = banners.filter((b) => b.position === 'bottom').length;
+
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: theme.textDark }}>Hero Banners & Content</h1>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
-          {banners.map((b) => (
-            <div key={b.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: `1px solid ${theme.cardBorder}`, overflow: 'hidden' }}>
-              <img src={b.image} alt={b.title} style={{ width: '100%', height: '140px', objectFit: 'cover' }} />
-              <div style={{ padding: '1rem' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 800, color: theme.primaryBlue }}>{b.badge}</div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: theme.textDark, margin: '4px 0' }}>{b.title}</div>
-                <div style={{ fontSize: '0.78rem', color: theme.textMuted }}>{b.subtitle}</div>
-              </div>
-            </div>
-          ))}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        {/* Header Title & Actions */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+          <div>
+            <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: theme.textDark, marginBottom: '4px' }}>
+              Hero & Bottom Banner Management
+            </h1>
+            <p style={{ fontSize: '0.85rem', color: theme.textMuted }}>
+              Create, edit, upload images, and control active status for top hero carousel and bottom promo banners.
+            </p>
+          </div>
+          <button
+            onClick={handleOpenAddBannerModal}
+            style={{
+              backgroundColor: theme.primaryBlue,
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '10px',
+              padding: '0.65rem 1.25rem',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(11, 41, 71, 0.2)',
+            }}
+          >
+            <Plus size={18} />
+            <span>Add New Banner</span>
+          </button>
         </div>
+
+        {/* Position Filter Tabs & Search Bar */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', backgroundColor: '#FFFFFF', padding: '0.75rem 1rem', borderRadius: '12px', border: `1px solid ${theme.cardBorder}` }}>
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {[
+              { id: 'all', label: `All Banners (${banners.length})` },
+              { id: 'hero', label: `Hero Carousel (Top) (${heroCount})` },
+              { id: 'bottom', label: `Bottom Promo Banners (${bottomCount})` },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setBannerPosFilter(tab.id)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backgroundColor: bannerPosFilter === tab.id ? theme.primaryBlue : '#F1F5F9',
+                  color: bannerPosFilter === tab.id ? '#FFFFFF' : theme.textDark,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Search Box */}
+          <div style={{ position: 'relative', minWidth: '240px' }}>
+            <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text"
+              placeholder="Search banners..."
+              value={bannerSearchQuery}
+              onChange={(e) => setBannerSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                paddingLeft: '36px',
+                paddingRight: '12px',
+                paddingTop: '6px',
+                paddingBottom: '6px',
+                borderRadius: '8px',
+                border: `1px solid ${theme.cardBorder}`,
+                fontSize: '0.82rem',
+                outline: 'none',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Banners Grid */}
+        {filteredBanners.length === 0 ? (
+          <div style={{ backgroundColor: '#FFFFFF', padding: '3rem 1.5rem', textAlign: 'center', borderRadius: '12px', border: `1px solid ${theme.cardBorder}` }}>
+            <ImageIcon size={48} color="#CBD5E1" style={{ marginBottom: '0.75rem' }} />
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: theme.textDark }}>No Banners Found</h3>
+            <p style={{ fontSize: '0.85rem', color: theme.textMuted, marginTop: '4px' }}>
+              Click "Add New Banner" to create your first homepage banner.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+            {filteredBanners.map((b) => {
+              const isHero = b.position === 'hero' || !b.position;
+              return (
+                <div
+                  key={b.id}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '16px',
+                    border: `1px solid ${theme.cardBorder}`,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  }}
+                >
+                  {/* Banner Image / Graphic Preview */}
+                  <div style={{ position: 'relative', height: '150px', backgroundColor: '#0B2947', overflow: 'hidden' }}>
+                    {b.image ? (
+                      <img
+                        src={typeof b.image === 'object' ? b.image?.url : b.image}
+                        alt={b.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          background: b.gradient || 'linear-gradient(135deg, #0B2947 0%, #163E68 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justify: 'center',
+                          padding: '1rem',
+                          color: '#FFFFFF',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <div style={{ fontWeight: 800, fontSize: '1rem' }}>{b.title}</div>
+                      </div>
+                    )}
+
+                    {/* Position Badge Overlay */}
+                    <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', gap: '6px' }}>
+                      <span
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          backgroundColor: isHero ? '#0B2947' : '#059669',
+                          color: '#FFFFFF',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {isHero ? '⭐ Hero Banner (Top)' : '📢 Bottom Banner (Promo)'}
+                      </span>
+                    </div>
+
+                    {/* Active Status Badge Overlay */}
+                    <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+                      <span
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          backgroundColor: b.isActive !== false ? '#10B981' : '#64748B',
+                          color: '#FFFFFF',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                        }}
+                      >
+                        {b.isActive !== false ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Banner Info Details */}
+                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', gap: '1rem' }}>
+                    <div>
+                      {b.badge && (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: theme.primaryBlue, backgroundColor: '#EFF6FF', padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase' }}>
+                          {b.badge}
+                        </span>
+                      )}
+                      <h3 style={{ fontSize: '1rem', fontWeight: 800, color: theme.textDark, marginTop: b.badge ? '6px' : 0, marginBottom: '4px' }}>
+                        {b.title}
+                      </h3>
+                      <p style={{ fontSize: '0.8rem', color: theme.textMuted, lineHeight: '1.4' }}>
+                        {b.subtitle || b.desc}
+                      </p>
+                      {(b.ctaText || b.cta) && (
+                        <div style={{ marginTop: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#059669' }}>
+                          Button: "{b.ctaText || b.cta}" {b.target ? `→ Target: ${b.target}` : ''}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Actions Footer */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${theme.cardBorder}`, paddingTop: '0.85rem' }}>
+                      <button
+                        onClick={() => toggleBannerStatus(b.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'none',
+                          border: `1px solid ${b.isActive !== false ? '#F1F5F9' : '#E2E8F0'}`,
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          color: b.isActive !== false ? '#059669' : '#64748B',
+                        }}
+                      >
+                        {b.isActive !== false ? <Eye size={14} /> : <EyeOff size={14} />}
+                        <span>{b.isActive !== false ? 'Hide' : 'Show'}</span>
+                      </button>
+
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          onClick={() => handleOpenEditBannerModal(b)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: `1px solid ${theme.cardBorder}`,
+                            backgroundColor: '#F8FAFC',
+                            color: theme.primaryBlue,
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <Edit2 size={13} />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to delete this banner?')) {
+                              deleteBanner(b.id);
+                            }
+                          }}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid #FEE2E2',
+                            backgroundColor: '#FEF2F2',
+                            color: '#EF4444',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Add / Edit Banner Modal */}
+        {isBannerModalOpen && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 99999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '540px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)',
+                border: `1px solid ${theme.cardBorder}`,
+                margin: 'auto',
+              }}
+            >
+              {/* Modal Header */}
+              <div style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${theme.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: theme.textDark }}>
+                  {editingBanner ? 'Edit Banner' : 'Create New Banner'}
+                </h2>
+                <button
+                  onClick={() => setIsBannerModalOpen(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Modal Form */}
+              <form onSubmit={handleSaveBanner} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+                {/* Position Selection */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: theme.textDark, marginBottom: '6px' }}>
+                    Banner Position on Storefront *
+                  </label>
+                  <select
+                    value={bannerFormData.position}
+                    onChange={(e) => setBannerFormData((prev) => ({ ...prev, position: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: `1px solid ${theme.cardBorder}`,
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <option value="hero">Top Hero Carousel Banner</option>
+                    <option value="bottom">Bottom Promo Banner (Above Footer)</option>
+                  </select>
+                </div>
+
+                {/* Banner Title */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: theme.textDark, marginBottom: '6px' }}>
+                    Banner Headline / Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Original Plywood & MDF"
+                    value={bannerFormData.title}
+                    onChange={(e) => setBannerFormData((prev) => ({ ...prev, title: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: `1px solid ${theme.cardBorder}`,
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+
+                {/* Banner Subtitle */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: theme.textDark, marginBottom: '6px' }}>
+                    Subtitle / Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Short description highlighting offer or feature"
+                    value={bannerFormData.subtitle}
+                    onChange={(e) => setBannerFormData((prev) => ({ ...prev, subtitle: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: `1px solid ${theme.cardBorder}`,
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+
+                {/* Badge & CTA Button text */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: theme.textDark, marginBottom: '6px' }}>
+                      Badge Text (Tag)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. WHOLESALE PRICES"
+                      value={bannerFormData.badge}
+                      onChange={(e) => setBannerFormData((prev) => ({ ...prev, badge: e.target.value }))}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '8px',
+                        border: `1px solid ${theme.cardBorder}`,
+                        fontSize: '0.85rem',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: theme.textDark, marginBottom: '6px' }}>
+                      Button CTA Text
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. ORDER NOW"
+                      value={bannerFormData.ctaText}
+                      onChange={(e) => setBannerFormData((prev) => ({ ...prev, ctaText: e.target.value }))}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '8px',
+                        border: `1px solid ${theme.cardBorder}`,
+                        fontSize: '0.85rem',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Target Link / Redirect Product Destination */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: theme.textDark, marginBottom: '6px' }}>
+                    Redirect Destination on Click *
+                  </label>
+                  <select
+                    value={bannerFormData.target}
+                    onChange={(e) => setBannerFormData((prev) => ({ ...prev, target: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: `1px solid ${theme.cardBorder}`,
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      marginBottom: '8px',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  >
+                    <option value="products">All Products Catalog</option>
+                    <option value="plywood-mdf-hdhmr">Plywood, MDF & HDHMR</option>
+                    <option value="cement">Cement (UltraTech, Ambuja, ACC)</option>
+                    <option value="tmt-steel-bars">TMT Steel Bars & Rebars</option>
+                    <option value="tiles-granite">Ceramic & Vitrified Tiles</option>
+                    <option value="electrical-wires">Electrical Wires & Switches</option>
+                    <option value="paints-putty">Paints, Emulsions & Wall Putty</option>
+                    <option value="plumbing-cpvc">Plumbing Pipes & CPVC Fittings</option>
+                    <option value="mistris">Book Technician / Mistri Services</option>
+                    <option value="contact">Get Bulk Wholesale Quote</option>
+                  </select>
+
+                  <input
+                    type="text"
+                    placeholder="Or enter custom category slug / product link"
+                    value={bannerFormData.target}
+                    onChange={(e) => setBannerFormData((prev) => ({ ...prev, target: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.85rem',
+                      borderRadius: '8px',
+                      border: `1px solid ${theme.cardBorder}`,
+                      fontSize: '0.82rem',
+                    }}
+                  />
+                </div>
+
+                {/* Direct Image Upload Box */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: theme.textDark, marginBottom: '6px' }}>
+                    Banner Image *
+                  </label>
+                  {bannerFormData.image ? (
+                    <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', border: `2px solid ${theme.cardBorder}`, backgroundColor: '#F8FAFC' }}>
+                      <img
+                        src={typeof bannerFormData.image === 'object' ? bannerFormData.image?.url : bannerFormData.image}
+                        alt="Banner Preview"
+                        style={{ width: '100%', height: '160px', objectFit: 'cover', display: 'block' }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          display: 'flex',
+                          gap: '6px',
+                          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                          backdropFilter: 'blur(4px)',
+                          padding: '4px 8px',
+                          borderRadius: '8px',
+                        }}
+                      >
+                        <label
+                          style={{
+                            color: '#FFFFFF',
+                            fontSize: '0.75rem',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <UploadCloud size={14} />
+                          <span>Change</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleBannerFileUpload}
+                            style={{ display: 'none' }}
+                            disabled={isBannerUploading}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setBannerFormData((prev) => ({ ...prev, image: '' }))}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#F87171',
+                            fontSize: '0.75rem',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <Trash2 size={14} />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '1.75rem 1rem',
+                        borderRadius: '12px',
+                        border: `2px dashed ${theme.cardBorder}`,
+                        backgroundColor: '#F8FAFC',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '50%',
+                          backgroundColor: '#EFF6FF',
+                          color: theme.primaryBlue,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justify: 'center',
+                          marginBottom: '8px',
+                        }}
+                      >
+                        <UploadCloud size={22} />
+                      </div>
+                      <span style={{ fontSize: '0.88rem', fontWeight: '800', color: theme.textDark }}>
+                        {isBannerUploading ? 'Uploading Image...' : 'Click to Upload Banner Image'}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: '4px' }}>
+                        Supports PNG, JPG, WEBP (Direct File Upload)
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleBannerFileUpload}
+                        style={{ display: 'none' }}
+                        disabled={isBannerUploading}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Banner Display & Fitting Adjustments */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', backgroundColor: '#F8FAFC', padding: '1rem', borderRadius: '10px', border: `1px solid ${theme.cardBorder}` }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: theme.textDark, marginBottom: '6px' }}>
+                      Text Display Mode
+                    </label>
+                    <select
+                      value={bannerFormData.showTextOverlay !== false ? 'overlay' : 'image_only'}
+                      onChange={(e) => setBannerFormData((prev) => ({ ...prev, showTextOverlay: e.target.value === 'overlay' }))}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: `1px solid ${theme.cardBorder}`,
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        backgroundColor: '#FFFFFF',
+                      }}
+                    >
+                      <option value="overlay">Overlay Title, Subtitle & Button on Image</option>
+                      <option value="image_only">Pure Image Only (Hide text overlay)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: theme.textDark, marginBottom: '6px' }}>
+                      Image Fitting Mode
+                    </label>
+                    <select
+                      value={bannerFormData.imageFit || 'cover'}
+                      onChange={(e) => setBannerFormData((prev) => ({ ...prev, imageFit: e.target.value }))}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: `1px solid ${theme.cardBorder}`,
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        backgroundColor: '#FFFFFF',
+                      }}
+                    >
+                      <option value="cover">Cover (Fill & scale banner container)</option>
+                      <option value="contain">Contain (Fit full image inside container)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Dimensions Guidance Tip */}
+                <div style={{ fontSize: '0.75rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span>💡 <strong>Tip:</strong> Recommended banner resolution for Hero Carousel is <strong>1200 × 400px (3:1)</strong> and Bottom Promo is <strong>1200 × 250px (5:1)</strong>.</span>
+                </div>
+
+                {/* Active Checkbox */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <input
+                    type="checkbox"
+                    id="bannerActiveCheckbox"
+                    checked={bannerFormData.isActive}
+                    onChange={(e) => setBannerFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="bannerActiveCheckbox" style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.textDark, cursor: 'pointer' }}>
+                    Publish Banner (Active on Storefront)
+                  </label>
+                </div>
+
+                {/* Submit / Cancel Buttons */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '1rem', borderTop: `1px solid ${theme.cardBorder}`, paddingTop: '1rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsBannerModalOpen(false)}
+                    style={{
+                      padding: '0.65rem 1.25rem',
+                      borderRadius: '8px',
+                      border: `1px solid ${theme.cardBorder}`,
+                      backgroundColor: '#FFFFFF',
+                      color: theme.textDark,
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      padding: '0.65rem 1.5rem',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: theme.primaryBlue,
+                      color: '#FFFFFF',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(11, 41, 71, 0.2)',
+                    }}
+                  >
+                    {editingBanner ? 'Save Changes' : 'Publish Banner'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

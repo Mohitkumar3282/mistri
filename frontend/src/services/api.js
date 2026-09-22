@@ -83,7 +83,7 @@ export const api = {
   login: (email, password) => request('/auth/login', json('POST', { email, password }, { quiet: true })),
   register: (userData) => request('/auth/register', json('POST', userData, { quiet: true })),
   firebaseLogin: (idToken) => request('/auth/firebase', json('POST', { idToken }, { quiet: true })),
-  getMe: () => request('/auth/me'),
+  getMe: (auth) => request('/auth/me', { auth, quiet: true }),
 
   // Saved addresses & wishlist of the signed-in shopper
   getAccountData: () => request('/auth/account', { auth: 'user', quiet: true }),

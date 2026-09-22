@@ -45,6 +45,10 @@ export const SYNC_COLLECTIONS = [
 
 const PUSH_DELAY_MS = 400;
 const POLL_INTERVAL_MS = 30000;
+// How often every visitor re-reads the public catalogue (products, categories, ...), so
+// what an admin adds or deletes reaches open storefronts without a reload.
+const CATALOG_REFRESH_MS = 60000;
+const FOCUS_REFRESH_MIN_GAP_MS = 15000;
 
 // Key-order independent serialisation, so the same record always compares equal.
 const stableStringify = (value) => {
@@ -83,9 +87,11 @@ const canRead = (cfg, session) =>
  * @param {object}   params.session      { isAdmin, isUser, userKey }
  * @param {Function} params.onError      (message) => void, shown to the person using the app
  * @param {Function} params.onNewItems   (name, items) => void, for records that appeared on the server
+ * @param {Function} params.onLoaded     (name, items) => void, after a collection was loaded from the server
+ * @param {Function} params.onAuthError  (err, session: 'admin' | 'user') => void, when the server rejects a sign-in
  * @returns {{ reloadFromServer: () => Promise<void>, markSynced: (name: string, item: object) => void }}
  */
-export const useServerSync = ({ collections, settings, account, session, onError, onNewItems }) => {
+export const useServerSync = ({ collections, settings, account, session, onError, onNewItems, onLoaded, onAuthError }) => {
   const snapshots = useRef({}); // name -> Map(key -> serialised record) of the server copy
   const hydrated = useRef({}); // name -> true once loaded, pushes wait for this
   const timers = useRef({});
@@ -97,19 +103,24 @@ export const useServerSync = ({ collections, settings, account, session, onError
   const settingsSnapshot = useRef(null);
   const accountSnapshot = useRef(null);
   const sessionRef = useRef(session);
-  const callbacks = useRef({ onError, onNewItems });
+  const callbacks = useRef({ onError, onNewItems, onLoaded, onAuthError });
 
   sessionRef.current = session;
-  callbacks.current = { onError, onNewItems };
+  callbacks.current = { onError, onNewItems, onLoaded, onAuthError };
   SYNC_COLLECTIONS.forEach((cfg) => {
     latest.current[cfg.name] = collections[cfg.name]?.[0];
   });
   latest.current.__settings = settings[0];
   latest.current.__account = account[0];
 
-  const reportError = useCallback((what, err) => {
+  const reportError = useCallback((what, err, sessionKind = 'admin') => {
     // Unreachable server: stay quiet, the cached data is still usable.
     if (err?.status === 0) return;
+    // A rejected or expired sign-in is a session problem, not a data problem.
+    if ((err?.status === 401 || err?.status === 403) && callbacks.current.onAuthError) {
+      callbacks.current.onAuthError(err, sessionKind);
+      return;
+    }
     callbacks.current.onError?.(`Could not save ${what} to the server: ${err?.message || 'unknown error'}`);
   }, []);
 
@@ -158,6 +169,7 @@ export const useServerSync = ({ collections, settings, account, session, onError
     snapshots.current[cfg.name] = toSnapshot(cfg, serverItems);
     hydrated.current[cfg.name] = true;
     setState(serverItems);
+    callbacks.current.onLoaded?.(cfg.name, serverItems);
 
     if (!initial && previous && callbacks.current.onNewItems) {
       const getKey = keyFn(cfg);
@@ -296,7 +308,7 @@ export const useServerSync = ({ collections, settings, account, session, onError
     snapshots.current[cfg.name] = snapshot;
     busy.current[cfg.name] = false;
     pending.current[cfg.name] = false;
-    if (failure) reportError(cfg.name, failure);
+    if (failure) reportError(cfg.name, failure, sess.isAdmin ? 'admin' : 'user');
   };
 
   const schedulePush = (cfg) => {
@@ -337,7 +349,7 @@ export const useServerSync = ({ collections, settings, account, session, onError
         await api.saveAccountData(latest.current.__account);
         accountSnapshot.current = stableStringify(latest.current.__account);
       } catch (err) {
-        reportError('your saved addresses', err);
+        reportError('your saved addresses', err, 'user');
       }
     }, PUSH_DELAY_MS);
   }, [accountValue.addresses, accountValue.wishlist]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -365,6 +377,29 @@ export const useServerSync = ({ collections, settings, account, session, onError
     }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [session.isAdmin, loadCollection]);
+
+  // Everyone: re-read the public catalogue periodically and when the tab regains focus,
+  // so products an admin adds or deletes show up (or disappear) without a reload.
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    const refresh = () => {
+      lastRefresh = Date.now();
+      SYNC_COLLECTIONS.filter((cfg) => cfg.read === 'public' && !busy.current[cfg.name] && !pending.current[cfg.name]).forEach((cfg) => loadCollection(cfg));
+      // Admins edit settings themselves; everyone else picks up changed fees and GST.
+      if (!sessionRef.current.isAdmin) loadSettings();
+    };
+    const onFocus = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastRefresh > FOCUS_REFRESH_MIN_GAP_MS) refresh();
+    };
+    const timer = setInterval(refresh, CATALOG_REFRESH_MS);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [loadCollection, loadSettings]);
 
   // Record that an item was already saved by a direct API call, so it is not sent again.
   const markSynced = useCallback((name, item) => {
