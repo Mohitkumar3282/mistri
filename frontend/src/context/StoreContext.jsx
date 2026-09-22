@@ -1312,11 +1312,29 @@ export const StoreProvider = ({ children }) => {
         });
       } catch (e) {}
     }
+    // Keep the copy stored inside its storefront section in step.
+    setCategorySections((prev) =>
+      prev.map((sec) =>
+        Array.isArray(sec.categories) && sec.categories.some((c) => c?.id === id)
+          ? { ...sec, categories: sec.categories.map((c) => (c?.id === id ? { ...c, ...updatedFields } : c)) }
+          : sec
+      )
+    );
     addToast('Category updated successfully', 'success');
   };
 
   const deleteCategory = (id) => {
+    const target = categories.find((c) => c.id === id || c.slug === id);
+    const isTarget = (c) => !!c && (c.id === id || c.slug === id || (target && c.id === target.id));
     setCategories((prev) => prev.filter((c) => c.id !== id && c.slug !== id));
+    // Also remove the copy stored inside its storefront section, so it cannot show up there.
+    setCategorySections((prev) =>
+      prev.map((sec) =>
+        Array.isArray(sec.categories) && sec.categories.some(isTarget)
+          ? { ...sec, categories: sec.categories.filter((c) => !isTarget(c)) }
+          : sec
+      )
+    );
     try {
       api.deleteCategory(id).catch((err) => console.warn('Backend category delete warning:', err));
     } catch (e) {}

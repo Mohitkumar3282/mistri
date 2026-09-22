@@ -4,7 +4,7 @@ import { useStore } from '../context/StoreContext';
 import { CATEGORY_SECTIONS } from '../data/mockData';
 
 export const CategoriesView = () => {
-  const { navigateTo, categorySections } = useStore();
+  const { navigateTo, categorySections, categories } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
@@ -36,7 +36,33 @@ export const CategoriesView = () => {
     }
   };
 
-  const sectionsToUse = categorySections && categorySections.length > 0 ? categorySections : CATEGORY_SECTIONS;
+  // Build every section from the LIVE category list. Section records also hold copies of
+  // their categories, but those copies are not updated when a category is edited or
+  // deleted, so showing them kept deleted categories visible. A category is listed under
+  // the section named in its `section` field; if no such section exists it still appears
+  // under its own section heading, so nothing the admin added is hidden.
+  const sectionRecords = categorySections && categorySections.length > 0 ? categorySections : CATEGORY_SECTIONS;
+  const liveCategories = (categories || []).filter((cat) => cat && cat.isActive !== false);
+  const sectionKey = (value) => String(value || '').trim().toLowerCase();
+  const sectionsToUse = [];
+  const byKey = new Map();
+  sectionRecords.forEach((section) => {
+    if (section.isActive === false) return;
+    const entry = { ...section, categories: [] };
+    sectionsToUse.push(entry);
+    byKey.set(sectionKey(section.title || section.name), entry);
+    if (section.id) byKey.set(`id:${section.id}`, entry);
+  });
+  liveCategories.forEach((cat) => {
+    const name = cat.section || cat.sectionName || 'Other Materials';
+    let entry = (cat.sectionId && byKey.get(`id:${cat.sectionId}`)) || byKey.get(sectionKey(name));
+    if (!entry) {
+      entry = { id: `sec_auto_${sectionKey(name)}`, title: name, slug: sectionKey(name).replace(/[^a-z0-9]+/g, '-'), categories: [] };
+      sectionsToUse.push(entry);
+      byKey.set(sectionKey(name), entry);
+    }
+    entry.categories.push(cat);
+  });
 
   // Filter sections and categories based on search input
   const filteredSections = sectionsToUse.map((section) => {
