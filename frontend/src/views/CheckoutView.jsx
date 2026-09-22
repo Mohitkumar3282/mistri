@@ -34,6 +34,7 @@ export const CheckoutView = () => {
     deliveryFee,
     deliveryNote,
     unloadingCharge,
+    isUnloadingSelected,
     gstAmount,
     isGstInclusive,
     grandTotal,
@@ -554,10 +555,12 @@ export const CheckoutView = () => {
               )}
             </div>
 
-            {siteSettings?.enableUnloadingFee && unloadingCharge > 0 && (
+            {siteSettings?.enableUnloadingFee && isUnloadingSelected && (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                <span>Site Unloading & Crane Handling</span>
-                <span style={{ fontWeight: '600', color: '#0F172A' }}>₹{unloadingCharge.toLocaleString('en-IN')}</span>
+                <span>Site Unloading & Helper</span>
+                <span style={{ fontWeight: '700', color: unloadingCharge === 0 ? '#10B981' : '#0F172A' }}>
+                  {unloadingCharge === 0 ? 'FREE' : `₹${unloadingCharge.toLocaleString('en-IN')}`}
+                </span>
               </div>
             )}
 

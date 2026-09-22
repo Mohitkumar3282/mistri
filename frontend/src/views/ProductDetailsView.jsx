@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   FileText,
   Clock,
-  MapPin,
   ShoppingCart,
   Plus,
   Minus,
@@ -22,6 +21,7 @@ import {
 import { useStore } from '../context/StoreContext';
 import { PRODUCTS } from '../data/mockData';
 import ProductCard from '../components/ProductCard';
+import { getProductOptions } from '../utils/pricing';
 
 export const ProductDetailsView = () => {
   const {
@@ -33,8 +33,6 @@ export const ProductDetailsView = () => {
     cartItemCount,
     toggleWishlist,
     isInWishlist,
-    currentPincode,
-    currentCity,
     addToast,
     getProductById,
     products,
@@ -61,8 +59,9 @@ export const ProductDetailsView = () => {
         initial[group.id] = defOpt;
       });
       setSelectedVariants(initial);
-    } else if (product?.optionsList && product.optionsList.length > 0) {
-      setSelectedVariants({ default: product.optionsList[0] });
+    } else if (getProductOptions(product).length > 0) {
+      // Variants as saved by the admin panel (or an older options list).
+      setSelectedVariants({ default: getProductOptions(product)[0] });
     }
   }, [product]);
 
@@ -110,15 +109,6 @@ export const ProductDetailsView = () => {
     (item) => item.product?.id === product?.id || item.id === product?.id
   );
   const qtyInCart = cartItem ? cartItem.quantity : 0;
-
-  const [checkPin, setCheckPin] = useState(currentPincode || '452005');
-  const [pinChecked, setPinChecked] = useState(true);
-
-  useEffect(() => {
-    if (currentPincode) {
-      setCheckPin(currentPincode);
-    }
-  }, [currentPincode]);
 
   const [activeTab, setActiveTab] = useState('specs'); // 'specs' | 'features' | 'description' | 'reviews'
 
@@ -411,9 +401,7 @@ export const ProductDetailsView = () => {
                 }}
               />
               <div style={{ fontSize: '0.88rem', fontWeight: '800', color: product.inStock !== false ? '#065F46' : '#991B1B' }}>
-                {product.inStock !== false
-                  ? `In Stock (${((typeof product.stockCount === 'number' && product.stockCount >= 0) ? product.stockCount : 350).toLocaleString('en-IN')} ${product.unit || 'Units'} Available at Central Hub)`
-                  : 'Out of Stock'}
+                {product.inStock !== false ? 'In Stock' : 'Out of Stock'}
               </div>
             </div>
 
@@ -451,14 +439,14 @@ export const ProductDetailsView = () => {
                   );
                 })}
               </div>
-            ) : product.optionsList && product.optionsList.length > 0 ? (
+            ) : getProductOptions(product).length > 0 ? (
               <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
                 <div className="qc-variant-group">
                   <div className="qc-variant-label">
                     <span>Select Option / Pack</span>
                   </div>
                   <div className="qc-variant-pills-row">
-                    {product.optionsList.map((opt) => {
+                    {getProductOptions(product).map((opt) => {
                       const isSelected = selectedVariants.default?.name === opt.name;
                       return (
                         <button
@@ -476,41 +464,7 @@ export const ProductDetailsView = () => {
               </div>
             ) : null}
 
-            {/* Delivery Pincode Checker */}
-            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem', marginTop: '0.75rem' }}>
-              <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '6px' }}>
-                Delivery Location:
-              </label>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-                  <MapPin size={16} color="var(--primary-orange)" style={{ position: 'absolute', left: '10px', top: '12px' }} />
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={checkPin}
-                    onChange={(e) => setCheckPin(e.target.value.replace(/\D/g, ''))}
-                    className="form-control"
-                    style={{ paddingLeft: '32px', height: '38px', fontSize: '0.88rem', fontWeight: '600' }}
-                    placeholder="Enter Pincode"
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setPinChecked(true)}
-                  style={{ height: '38px', padding: '0 14px', fontSize: '0.825rem', fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0 }}
-                >
-                  Verify
-                </button>
-              </div>
 
-              {pinChecked && (
-                <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#038A53', fontWeight: '600' }}>
-                  <Check size={15} />
-                  <span>Express Site Delivery available to {currentCity} ({checkPin}) by Tomorrow 12 PM</span>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
@@ -657,9 +611,7 @@ export const ProductDetailsView = () => {
           <div className="qc-bottom-price-row">
             <span className="qc-bottom-price-val">₹ {currentPrice.toLocaleString()}</span>
             {currentMrp && <span className="qc-bottom-mrp-val">₹ {currentMrp.toLocaleString()}</span>}
-            {currentDiscount && <span className="qc-bottom-discount-badge">{currentDiscount}</span>}
           </div>
-          <div className="qc-bottom-gst-sub">Including GST</div>
         </div>
 
         <div>

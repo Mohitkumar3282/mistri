@@ -17,8 +17,8 @@ export const DEFAULT_PRICING_SETTINGS = {
   deliveryBaseFee: 0,
   deliveryPerKmFee: 15,
   estimatedDeliveryKm: 5,
-  enableUnloadingFee: false,
-  unloadingChargeStandard: 500,
+  enableUnloadingFee: true,
+  unloadingChargeStandard: 199,
   freeUnloadingThreshold: 50000,
 };
 
@@ -28,6 +28,36 @@ const num = (value, fallback) => {
   if (value === null || value === undefined || value === '') return fallback;
   const n = Number(value);
   return Number.isNaN(n) ? fallback : n;
+};
+
+/**
+ * The selectable options (variants / packs) of a product, in one shape:
+ * { name, price, mrp, unit, ... }. The admin panel saves them as `variants`
+ * ({ label, unit, price, mrp, stockCount, minOrderQty }); older data uses `optionsList`.
+ * Names are trimmed and made unique, because a customer's choice is matched by name.
+ */
+export const getProductOptions = (product) => {
+  const source =
+    Array.isArray(product?.variants) && product.variants.length > 0
+      ? product.variants
+      : Array.isArray(product?.optionsList)
+        ? product.optionsList
+        : [];
+  const seen = new Map();
+  return source
+    .filter((opt) => opt && typeof opt === 'object')
+    .map((opt, i) => {
+      let name = String(opt.name ?? opt.label ?? '').trim() || String(opt.unit ?? '').trim() || `Option ${i + 1}`;
+      const count = seen.get(name) || 0;
+      seen.set(name, count + 1);
+      if (count > 0) name = `${name} (${count + 1})`;
+      return {
+        ...opt,
+        name,
+        price: num(opt.price, undefined),
+        mrp: num(opt.mrp, undefined),
+      };
+    });
 };
 
 const optionLabel = (opt) => (opt && typeof opt === 'object' ? opt.name ?? opt.label ?? opt.value : opt);
@@ -52,12 +82,13 @@ export const resolveVariantOptions = (product, selection = {}) => {
       if (!opt) return { options, error: `Unknown option "${wanted}" for ${product.name}` };
       options.push(opt);
     }
-  } else if (Array.isArray(product?.optionsList) && product.optionsList.length > 0) {
+  } else if (getProductOptions(product).length > 0) {
+    const list = getProductOptions(product);
     const wanted = selection?.default;
     const opt =
       wanted !== undefined && wanted !== null
-        ? product.optionsList.find((o) => String(optionLabel(o)) === String(wanted))
-        : product.optionsList[0];
+        ? list.find((o) => o.name === String(wanted).trim())
+        : list[0];
     if (!opt) return { options, error: `Unknown option "${wanted}" for ${product.name}` };
     options.push(opt);
   }
@@ -108,7 +139,7 @@ export const couponDiscount = (coupon, subtotal, now = new Date()) => {
  * @returns {{ subtotal, discount, subtotalAfterDiscount, deliveryFee, deliveryNote,
  *             unloadingCharge, gstAmount, isGstInclusive, deliveryType, grandTotal }}
  */
-export const computeTotals = ({ subtotal, coupon = null, settings = {} }) => {
+export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeUnloading = true }) => {
   const s = { ...DEFAULT_PRICING_SETTINGS, ...(settings || {}) };
   const discount = couponDiscount(coupon, subtotal).amount;
   const subtotalAfterDiscount = Math.max(0, subtotal - discount);
@@ -144,10 +175,10 @@ export const computeTotals = ({ subtotal, coupon = null, settings = {} }) => {
   }
 
   const unloadingCharge =
-    subtotal > 0 && Boolean(s.enableUnloadingFee)
+    subtotal > 0 && Boolean(s.enableUnloadingFee) && Boolean(includeUnloading)
       ? subtotal >= num(s.freeUnloadingThreshold, 50000)
         ? 0
-        : num(s.unloadingChargeStandard, 500)
+        : num(s.unloadingChargeStandard, 199)
       : 0;
 
   const gstRate = num(s.gstRatePercent, 18) / 100;

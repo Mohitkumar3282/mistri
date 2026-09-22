@@ -10,9 +10,6 @@ export const MobileHeader = () => {
     currentCity,
     currentPincode,
     setIsLocationModalOpen,
-    walletBalance,
-    isWalletVisible,
-    toggleWalletVisibility,
   } = useStore();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -107,52 +104,8 @@ export const MobileHeader = () => {
           </div>
         </div>
 
-        {/* Right: Wallet Balance Pill & Dark Cart Icon */}
+        {/* Right: Dark Cart Icon */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          {/* Wallet Balance Pill (Exact Screenshot 1) */}
-          <div
-            onClick={toggleWalletVisibility}
-            style={{
-              backgroundColor: '#1E293B',
-              borderRadius: '9999px',
-              padding: '3px 9px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              cursor: 'pointer',
-              border: '1px solid #334155',
-              height: '28px',
-            }}
-            title="Cashback & Wallet Balance"
-          >
-            <div
-              style={{
-                width: '16px',
-                height: '16px',
-                borderRadius: '50%',
-                backgroundColor: '#F59E0B',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.6rem',
-                color: '#000',
-                fontWeight: '800',
-              }}
-            >
-              ₹
-            </div>
-            <span
-              style={{
-                fontSize: '0.72rem',
-                fontWeight: '800',
-                color: '#FFFFFF',
-                letterSpacing: '0.03em',
-                fontFamily: 'monospace',
-              }}
-            >
-              {isWalletVisible ? `₹${walletBalance.toLocaleString()}` : '₹XXXX'}
-            </span>
-          </div>
 
 
           {/* Dark Cart Circle Button with Bright Green Notification Badge (Exact Screenshot 1) */}

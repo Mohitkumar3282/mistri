@@ -196,8 +196,8 @@ const INITIAL_SETTINGS = {
   deliveryBaseFee: 0,
   deliveryPerKmFee: 15,
   estimatedDeliveryKm: 5,
-  enableUnloadingFee: false,
-  unloadingChargeStandard: 500,
+  enableUnloadingFee: true,
+  unloadingChargeStandard: 199,
   freeUnloadingThreshold: 50000,
   tickerMessage: '🚚 EXPRESS SITE DISPATCH IN 60 MINS • OFFICIAL MTC LAB TEST CERTIFICATES INCLUDED WITH EVERY STEEL & CEMENT ORDER • GST 100% ITC COMPLIANT',
   isMaintenanceMode: false,
@@ -399,6 +399,7 @@ export const StoreProvider = ({ children }) => {
   const [cart, setCart] = useState(() => getStored('cart', []));
 
   const [appliedCoupon, setAppliedCoupon] = useState(() => getStored('applied_coupon', null));
+  const [isUnloadingSelected, setIsUnloadingSelected] = useState(true);
 
   // Wishlist State
   const [wishlist, setWishlist] = useState(() => getStored('wishlist', []));
@@ -689,7 +690,7 @@ export const StoreProvider = ({ children }) => {
     gstAmount,
     isGstInclusive,
     grandTotal,
-  } = computeTotals({ subtotal: cartSubtotal, coupon: activeCoupon, settings: siteSettings });
+  } = computeTotals({ subtotal: cartSubtotal, coupon: activeCoupon, settings: siteSettings, includeUnloading: isUnloadingSelected });
 
   // Cart Operations
   const addToCart = (product, quantity = 1) => {
@@ -2167,6 +2168,8 @@ export const StoreProvider = ({ children }) => {
         deliveryFee,
         deliveryNote,
         unloadingCharge,
+        isUnloadingSelected,
+        setIsUnloadingSelected,
         gstAmount,
         isGstInclusive,
         grandTotal,

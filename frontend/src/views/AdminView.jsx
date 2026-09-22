@@ -1098,10 +1098,17 @@ export default function AdminView() {
 
     const name = productFormData.name.trim();
     const slug = productFormData.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const price = Number(productFormData.price) >= 0 && productFormData.price !== '' ? Number(productFormData.price) : 300;
-    const mrp = Number(productFormData.mrp) > 0 ? Number(productFormData.mrp) : Math.round(price * 1.25);
-    // If admin defined variants, use first variant's values for top-level price/stock
+    // If admin defined variants, the first variant is what customers see by default, so
+    // it also sets the product's listed price, MRP, stock and unit.
     const firstVariant = Array.isArray(productFormData.variants) && productFormData.variants.length > 0 ? productFormData.variants[0] : null;
+    const priceSource = firstVariant && firstVariant.price !== '' && firstVariant.price !== undefined ? firstVariant.price : productFormData.price;
+    const mrpSource = firstVariant && Number(firstVariant.mrp) > 0 ? firstVariant.mrp : productFormData.mrp;
+    if (priceSource === '' || priceSource === undefined || priceSource === null || !(Number(priceSource) >= 0)) {
+      addToast(firstVariant ? 'Please enter a price for the first variant' : 'Please enter a price for the product', 'warning');
+      return;
+    }
+    const price = Number(priceSource);
+    const mrp = Number(mrpSource) > 0 ? Number(mrpSource) : Math.round(price * 1.25);
     const stockCount = firstVariant
       ? (Number(firstVariant.stockCount) >= 0 ? Number(firstVariant.stockCount) : 500)
       : (productFormData.stockCount !== '' && productFormData.stockCount !== undefined && !isNaN(productFormData.stockCount) ? Number(productFormData.stockCount) : 500);
@@ -9602,16 +9609,37 @@ export default function AdminView() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
-                  Standard Crane / Labor Unloading Charge (₹)
+                  Standard Unloading Service Charge (₹)
                 </label>
                 <input
                   type="number"
                   min="0"
-                  value={siteSettings.unloadingChargeStandard ?? 500}
+                  value={siteSettings.unloadingChargeStandard ?? 199}
                   onChange={(e) => updateSiteSettings({ unloadingChargeStandard: Math.max(0, Number(e.target.value)) })}
                   style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 700 }}
                 />
-                <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Added to checkout bill when orders are below free threshold.</span>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                  {[99, 149, 199, 249, 299, 499].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => updateSiteSettings({ unloadingChargeStandard: amt })}
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: '0.72rem',
+                        fontWeight: '700',
+                        borderRadius: '4px',
+                        border: siteSettings.unloadingChargeStandard === amt ? '1px solid #2563EB' : '1px solid #CBD5E1',
+                        backgroundColor: siteSettings.unloadingChargeStandard === amt ? '#EFF6FF' : '#FFFFFF',
+                        color: siteSettings.unloadingChargeStandard === amt ? '#2563EB' : '#475569',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ₹{amt}
+                    </button>
+                  ))}
+                </div>
+                <span style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px', display: 'block' }}>Reflected dynamically in user cart & checkout bill.</span>
               </div>
 
               <div>

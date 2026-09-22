@@ -24,7 +24,7 @@ import {
 import { useStore } from '../context/StoreContext';
 
 export const ProfileView = () => {
-  const { user, logout, navigateTo, addToast, addresses, orders, openLoginModal } = useStore();
+  const { user, adminUser, logout, navigateTo, addToast, addresses, orders, openLoginModal } = useStore();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -59,13 +59,19 @@ export const ProfileView = () => {
     navigateTo('home');
   };
 
+  const isAdmin = user?.role?.toLowerCase() === 'admin' || !!adminUser;
+
   const menuItems = [
-    {
-      id: 'admin',
-      title: '⚡ Admin Control Hub (Store & Logistics)',
-      icon: Sliders,
-      onClick: () => navigateTo('admin'),
-    },
+    ...(isAdmin
+      ? [
+          {
+            id: 'admin',
+            title: '⚡ Admin Control Hub (Store & Logistics)',
+            icon: Sliders,
+            onClick: () => navigateTo('admin'),
+          },
+        ]
+      : []),
     {
       id: 'orders',
       title: 'Order History',

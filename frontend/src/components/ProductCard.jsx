@@ -1,6 +1,7 @@
 import React from 'react';
 import { Truck, Plus, Minus } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import { getProductOptions } from '../utils/pricing';
 
 /**
  * Quick Commerce Product Card (Compact & Mobile Responsive)
@@ -25,8 +26,22 @@ export const ProductCard = ({ product }) => {
 
   const handleAddClick = (e) => {
     e.stopPropagation();
-    if (product.hasOptions && product.optionsList && product.optionsList.length > 0) {
+    const options = getProductOptions(product);
+    if (options.length > 1) {
+      // Several variants: let the customer choose one.
       openOptionsModal(product);
+    } else if (options.length === 1) {
+      const [opt] = options;
+      addToCart(
+        {
+          ...product,
+          name: `${product.name} - ${opt.name}`,
+          price: opt.price ?? product.price,
+          mrp: opt.mrp ?? product.mrp,
+          variantSelection: { default: opt.name },
+        },
+        1
+      );
     } else {
       addToCart(product, 1);
     }
@@ -96,9 +111,7 @@ export const ProductCard = ({ product }) => {
           {product.inStock !== false ? (
             <div className="qc-stock-strip in-stock">
               <span className="qc-stock-dot" />
-              <span className="qc-stock-text">
-                In Stock ({((typeof product.stockCount === 'number' && product.stockCount >= 0) ? product.stockCount : 350).toLocaleString('en-IN')} {product.unit || 'Units'})
-              </span>
+              <span className="qc-stock-text">In Stock</span>
             </div>
           ) : (
             <div className="qc-stock-strip out-of-stock">

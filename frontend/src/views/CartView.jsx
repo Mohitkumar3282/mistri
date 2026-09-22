@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   Receipt,
   Sparkles,
+  Truck,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
@@ -25,6 +26,8 @@ export const CartView = () => {
     deliveryFee,
     deliveryNote,
     unloadingCharge,
+    isUnloadingSelected,
+    setIsUnloadingSelected,
     gstAmount,
     isGstInclusive,
     grandTotal,
@@ -429,6 +432,88 @@ export const CartView = () => {
           </div>
         </div>
 
+        {/* Unloading Service Selection Card (Reference Match) */}
+        {siteSettings?.enableUnloadingFee && (
+          <div
+            style={{
+              backgroundColor: '#F0FDF4',
+              borderRadius: '14px',
+              border: '1px solid #DCFCE7',
+              padding: '16px',
+              marginBottom: '16px',
+            }}
+          >
+            <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#166534', marginBottom: '4px' }}>
+              Need help with unloading?
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#15803D', lineHeight: '1.4', marginBottom: '12px' }}>
+              Includes unloading & keeping at designated place on ground level. Doesn't include shifting to upper floors.
+            </div>
+
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                border: '1px solid #E2E8F0',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '10px',
+                    backgroundColor: '#FEF3C7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Truck size={22} color="#D97706" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#0F172A' }}>
+                    Unloading Service
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: '500' }}>
+                    1 Helper
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsUnloadingSelected(!isUnloadingSelected)}
+                  style={{
+                    padding: '6px 20px',
+                    borderRadius: '8px',
+                    border: isUnloadingSelected ? '1.5px solid #16A34A' : '1.5px solid #CBD5E1',
+                    backgroundColor: isUnloadingSelected ? '#F0FDF4' : '#FFFFFF',
+                    color: isUnloadingSelected ? '#16A34A' : '#475569',
+                    fontSize: '0.88rem',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {isUnloadingSelected ? 'Added ✓' : 'Add'}
+                </button>
+                <div style={{ fontSize: '0.88rem', fontWeight: '800', color: '#0F172A' }}>
+                  {cartSubtotal >= (siteSettings?.freeUnloadingThreshold || 50000)
+                    ? 'FREE'
+                    : `₹${(siteSettings?.unloadingChargeStandard ?? 199).toLocaleString('en-IN')}`}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 3. Bill details Card (Exact Reference Image Match) */}
         <div
           style={{
@@ -477,10 +562,12 @@ export const CartView = () => {
               )}
             </div>
 
-            {siteSettings?.enableUnloadingFee && unloadingCharge > 0 && (
+            {siteSettings?.enableUnloadingFee && isUnloadingSelected && (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                <span>Site Unloading & Crane Handling</span>
-                <span style={{ fontWeight: '600', color: '#0F172A' }}>₹{unloadingCharge.toLocaleString('en-IN')}</span>
+                <span>Site Unloading & Helper</span>
+                <span style={{ fontWeight: '700', color: unloadingCharge === 0 ? '#10B981' : '#0F172A' }}>
+                  {unloadingCharge === 0 ? 'FREE' : `₹${unloadingCharge.toLocaleString('en-IN')}`}
+                </span>
               </div>
             )}
 

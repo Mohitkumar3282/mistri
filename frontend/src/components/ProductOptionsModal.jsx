@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, ShoppingCart, Plus, Minus, ShieldCheck, Zap } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import { getProductOptions } from '../utils/pricing';
 
 export const ProductOptionsModal = () => {
   const { isOptionsModalOpen, optionsModalProduct, closeOptionsModal, addToCart } = useStore();
   const [selectedOption, setSelectedOption] = useState(null);
   const [quantity, setQuantity] = useState(1);
+  // Variants as saved by the admin panel (or an older options list), in one shape.
+  const options = getProductOptions(optionsModalProduct);
 
   useEffect(() => {
-    if (optionsModalProduct && optionsModalProduct.optionsList && optionsModalProduct.optionsList.length > 0) {
-      setSelectedOption(optionsModalProduct.optionsList[0]);
+    if (options.length > 0) {
+      setSelectedOption(options[0]);
       setQuantity(1);
     }
   }, [optionsModalProduct]);
@@ -93,11 +96,11 @@ export const ProductOptionsModal = () => {
         {/* Options Content */}
         <div style={{ padding: '1.25rem 1.5rem', maxHeight: '55vh', overflowY: 'auto' }}>
           <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
-            Available Specifications ({optionsModalProduct.optionsList ? optionsModalProduct.optionsList.length : 1})
+            Available Specifications ({options.length || 1})
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-            {optionsModalProduct.optionsList && optionsModalProduct.optionsList.map((opt, idx) => {
+            {options.map((opt, idx) => {
               const isSelected = selectedOption && selectedOption.name === opt.name;
               return (
                 <div
