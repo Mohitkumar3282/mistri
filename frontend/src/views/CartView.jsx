@@ -12,6 +12,9 @@ import {
   Truck,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import BillDetailsCard from '../components/BillDetailsCard';
+import CancellationPolicyCard from '../components/CancellationPolicyCard';
+import UnloadingServiceCard from '../components/UnloadingServiceCard';
 
 export const CartView = () => {
   const {
@@ -432,184 +435,21 @@ export const CartView = () => {
           </div>
         </div>
 
-        {/* Unloading Service Selection Card (Reference Match) */}
-        {siteSettings?.enableUnloadingFee && (
-          <div
-            style={{
-              backgroundColor: '#F0FDF4',
-              borderRadius: '14px',
-              border: '1px solid #DCFCE7',
-              padding: '16px',
-              marginBottom: '16px',
-            }}
-          >
-            <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#166534', marginBottom: '4px' }}>
-              Need help with unloading?
-            </div>
-            <div style={{ fontSize: '0.78rem', color: '#15803D', lineHeight: '1.4', marginBottom: '12px' }}>
-              Includes unloading & keeping at designated place on ground level. Doesn't include shifting to upper floors.
-            </div>
+        {/* Unloading Service Selection Card (Exact Reference Match) */}
+        <UnloadingServiceCard />
 
-            <div
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '12px',
-                padding: '12px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                border: '1px solid #E2E8F0',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '10px',
-                    backgroundColor: '#FEF3C7',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Truck size={22} color="#D97706" />
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#0F172A' }}>
-                    Unloading Service
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: '500' }}>
-                    1 Helper
-                  </div>
-                </div>
-              </div>
+        {/* 3. Bill details Card (Exact Reference Design Match) */}
+        <BillDetailsCard
+          subtotal={cartSubtotal}
+          discount={discountAmount}
+          walletDiscount={0}
+          deliveryFee={deliveryFee}
+          handlingFee={isUnloadingSelected ? unloadingCharge : 0}
+          total={grandTotal}
+        />
 
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsUnloadingSelected(!isUnloadingSelected)}
-                  style={{
-                    padding: '6px 20px',
-                    borderRadius: '8px',
-                    border: isUnloadingSelected ? '1.5px solid #16A34A' : '1.5px solid #CBD5E1',
-                    backgroundColor: isUnloadingSelected ? '#F0FDF4' : '#FFFFFF',
-                    color: isUnloadingSelected ? '#16A34A' : '#475569',
-                    fontSize: '0.88rem',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {isUnloadingSelected ? 'Added ✓' : 'Add'}
-                </button>
-                <div style={{ fontSize: '0.88rem', fontWeight: '800', color: '#0F172A' }}>
-                  {cartSubtotal >= (siteSettings?.freeUnloadingThreshold || 50000)
-                    ? 'FREE'
-                    : `₹${(siteSettings?.unloadingChargeStandard ?? 199).toLocaleString('en-IN')}`}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 3. Bill details Card (Exact Reference Image Match) */}
-        <div
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '14px',
-            border: '1px solid #E2E8F0',
-            padding: '16px',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: '0.95rem',
-              fontWeight: '800',
-              color: '#0F172A',
-              marginBottom: '14px',
-            }}
-          >
-            <Receipt size={18} color="#E11D48" />
-            <span>Bill details</span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-              <span>Item total</span>
-              <span style={{ fontWeight: '600', color: '#0F172A' }}>₹{cartSubtotal.toLocaleString('en-IN')}</span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>Delivery</span>
-                {siteSettings?.deliveryType === 'km_based' && (
-                  <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                    ({siteSettings?.estimatedDeliveryKm || 5} km)
-                  </span>
-                )}
-              </div>
-              {deliveryFee === 0 ? (
-                <span style={{ fontWeight: '700', color: '#10B981' }}>FREE</span>
-              ) : (
-                <span style={{ fontWeight: '700', color: '#0F172A' }}>₹{deliveryFee.toLocaleString('en-IN')}</span>
-              )}
-            </div>
-
-            {siteSettings?.enableUnloadingFee && isUnloadingSelected && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                <span>Site Unloading & Helper</span>
-                <span style={{ fontWeight: '700', color: unloadingCharge === 0 ? '#10B981' : '#0F172A' }}>
-                  {unloadingCharge === 0 ? 'FREE' : `₹${unloadingCharge.toLocaleString('en-IN')}`}
-                </span>
-              </div>
-            )}
-
-            {gstAmount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                <span>
-                  Estimated GST ({siteSettings?.gstRatePercent || 18}% {isGstInclusive ? 'Included' : 'ITC Benefit'})
-                </span>
-                <span style={{ fontWeight: '600', color: '#0F172A' }}>
-                  {isGstInclusive ? `(₹${gstAmount.toLocaleString('en-IN')})` : `₹${gstAmount.toLocaleString('en-IN')}`}
-                </span>
-              </div>
-            )}
-
-            {discountAmount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#E11D48' }}>
-                <span>Contractor Coupon / Rebate</span>
-                <span style={{ fontWeight: '700' }}>-₹{discountAmount.toLocaleString('en-IN')}</span>
-              </div>
-            )}
-
-            {/* Divider */}
-            <div style={{ borderTop: '1px solid #F1F5F9', margin: '4px 0' }} />
-
-            {/* Grand Total */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingTop: '2px',
-              }}
-            >
-              <span style={{ fontSize: '1rem', fontWeight: '800', color: '#0F172A' }}>
-                Grand total
-              </span>
-              <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0F172A' }}>
-                ₹{grandTotal.toLocaleString('en-IN')}
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* 4. Cancellation Policy Card (Exact Reference Design Match) */}
+        <CancellationPolicyCard />
       </div>
 
       {/* 4. Sticky Bottom Action Bar: Continue to checkout Button (Sleek Mobile-Responsive) */}

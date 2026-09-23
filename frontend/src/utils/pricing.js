@@ -101,9 +101,20 @@ export const resolveVariantOptions = (product, selection = {}) => {
  */
 export const unitPrice = (product, quantity, options = []) => {
   let price = num(product?.price, 0);
+  let hasExplicit = false;
   options.forEach((opt) => {
-    if (opt && opt.price) price = num(opt.price, price);
+    if (opt && opt.price !== undefined && opt.price !== null && opt.price !== '' && Number(opt.price) > 0) {
+      price = num(opt.price, price);
+      hasExplicit = true;
+    }
   });
+  if (!hasExplicit) {
+    let delta = 0;
+    options.forEach((opt) => {
+      if (opt && opt.priceDelta) delta += num(opt.priceDelta, 0);
+    });
+    price += delta;
+  }
   if (Array.isArray(product?.wholesaleTiers)) {
     const tier = [...product.wholesaleTiers]
       .sort((a, b) => num(b?.minQty, 0) - num(a?.minQty, 0))
@@ -175,7 +186,7 @@ export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeU
   }
 
   const unloadingCharge =
-    subtotal > 0 && Boolean(s.enableUnloadingFee) && Boolean(includeUnloading)
+    subtotal > 0 && Boolean(includeUnloading)
       ? subtotal >= num(s.freeUnloadingThreshold, 50000)
         ? 0
         : num(s.unloadingChargeStandard, 199)

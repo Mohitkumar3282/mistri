@@ -29,8 +29,8 @@ export const QuotationModal = () => {
     siteSettings,
   } = useStore();
 
-  const [clientName, setClientName] = useState(user?.name || 'Mohit Kumar');
-  const [phoneNumber, setPhoneNumber] = useState(user?.phone || '+91 9630938487');
+  const [clientName, setClientName] = useState(user?.name || '');
+  const [phoneNumber, setPhoneNumber] = useState(user?.phone || '');
   const [siteLocation, setSiteLocation] = useState(
     `${currentCity || 'Indore'} (${currentPincode || '452005'})`
   );
@@ -99,7 +99,7 @@ export const QuotationModal = () => {
       addQuotation({
         clientName: clientName || user?.name || 'Valued Customer',
         company: user?.company || 'Site Contractor',
-        phone: phoneNumber || '+91 9630938487',
+        phone: phoneNumber || user?.phone || 'Customer Phone',
         siteCity: siteLocation || currentCity || 'Indore',
         requiredMaterials: cleanRequirements,
         notes: `Urgency: ${urgency}. Categories: ${selectedCategories.join(', ')}`,
@@ -109,7 +109,7 @@ export const QuotationModal = () => {
     const message = `🏗️ *MISTRI - MATERIAL QUOTATION REQUEST*
 ----------------------------------------
 👤 *Customer:* ${clientName || 'Valued Customer'}
-📞 *Contact / WhatsApp:* ${phoneNumber || '+91 9630938487'}
+📞 *Contact / WhatsApp:* ${phoneNumber || user?.phone || 'Not provided'}
 📍 *Site Location:* ${siteLocation || 'Indore'}
 🏷️ *Trades / Categories:* ${selectedCategories.join(', ')}
 ⏱️ *Timeline:* ${urgency}
@@ -120,7 +120,9 @@ ${cleanRequirements}
 Please send the best discounted wholesale quotation with site delivery freight charges. Thank you!`;
 
     const encodedMessage = encodeURIComponent(message);
-    const targetWhatsAppNumber = (siteSettings?.whatsappNumber || '919826011223').replace(/[^0-9]/g, '');
+    const rawAdminPhone = siteSettings?.whatsappNumber || siteSettings?.supportPhone || '+91 96309 38487';
+    const digitsOnly = rawAdminPhone.replace(/[^0-9]/g, '');
+    const targetWhatsAppNumber = digitsOnly.length === 10 ? `91${digitsOnly}` : digitsOnly;
 
     const whatsappUrl = `https://api.whatsapp.com/send?phone=${targetWhatsAppNumber}&text=${encodedMessage}`;
 
@@ -491,7 +493,7 @@ Please send the best discounted wholesale quotation with site delivery freight c
               fontWeight: '500',
             }}
           >
-            Direct sales line: <strong>+91 9630938487</strong> • MISTRI Certified Wholesale Desk
+            Direct sales line: <strong>{siteSettings?.whatsappNumber || siteSettings?.supportPhone || '+91 96309 38487'}</strong> • MISTRI Certified Wholesale Desk
           </div>
         </form>
       </div>

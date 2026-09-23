@@ -106,19 +106,6 @@ export const ProductCard = ({ product }) => {
               </span>
             )}
           </div>
-
-          {/* Product Stock Badge */}
-          {product.inStock !== false ? (
-            <div className="qc-stock-strip in-stock">
-              <span className="qc-stock-dot" />
-              <span className="qc-stock-text">In Stock</span>
-            </div>
-          ) : (
-            <div className="qc-stock-strip out-of-stock">
-              <span className="qc-stock-dot out" />
-              <span className="qc-stock-text">Out of Stock</span>
-            </div>
-          )}
         </div>
       </div>
 

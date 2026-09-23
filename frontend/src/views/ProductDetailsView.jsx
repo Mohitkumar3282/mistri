@@ -5,6 +5,9 @@ import {
   Share2,
   Truck,
   ShieldCheck,
+  Package,
+  PackageX,
+  RotateCcw,
   Award,
   CheckCircle2,
   FileText,
@@ -14,6 +17,8 @@ import {
   Minus,
   Check,
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Search,
   Zap,
   Gift,
@@ -36,10 +41,11 @@ export const ProductDetailsView = () => {
     addToast,
     getProductById,
     products,
+    isProductsLoaded,
   } = useStore();
 
   const productList = products && products.length > 0 ? products : PRODUCTS;
-  const productId = viewParams?.id || viewParams?.productId || viewParams?.product?.id;
+  const productId = viewParams?.id || viewParams?.productId || viewParams?.product?.id || viewParams?.product?._id;
   // Always show the live catalogue entry, so edits appear and a deleted product is not
   // shown from the copy passed in when the customer tapped it.
   const product = productId ? getProductById(productId) : null;
@@ -49,19 +55,23 @@ export const ProductDetailsView = () => {
 
   // Variant Groups Management
   const [selectedVariants, setSelectedVariants] = useState({});
+  const [isProductInfoOpen, setIsProductInfoOpen] = useState(true);
 
   useEffect(() => {
     if (product?.variantGroups && product.variantGroups.length > 0) {
       const initial = {};
       product.variantGroups.forEach((group) => {
+        const gid = group.id || group.name;
         // Pick default option (popular if marked, else first)
-        const defOpt = group.options.find((o) => o.isPopular) || group.options[0];
-        initial[group.id] = defOpt;
+        const defOpt = (group.options || []).find((o) => o?.isPopular) || (group.options || [])[0];
+        if (defOpt) initial[gid] = defOpt;
       });
       setSelectedVariants(initial);
     } else if (getProductOptions(product).length > 0) {
       // Variants as saved by the admin panel (or an older options list).
       setSelectedVariants({ default: getProductOptions(product)[0] });
+    } else {
+      setSelectedVariants({});
     }
   }, [product]);
 
@@ -75,18 +85,42 @@ export const ProductDetailsView = () => {
 
   // Derived Pricing from Variant Selections
   const currentPrice = useMemo(() => {
-    let price = product?.price || 0;
-    Object.values(selectedVariants).forEach((opt) => {
-      if (opt && opt.price) price = opt.price;
-    });
+    let price = Number(product?.price) || 0;
+    const explicitPrices = Object.values(selectedVariants)
+      .map((opt) => (typeof opt === 'object' ? opt?.price : null))
+      .filter((p) => p !== undefined && p !== null && p !== '' && Number(p) > 0);
+
+    if (explicitPrices.length > 0) {
+      price = Number(explicitPrices[explicitPrices.length - 1]);
+    } else {
+      let delta = 0;
+      Object.values(selectedVariants).forEach((opt) => {
+        if (opt && typeof opt === 'object' && opt.priceDelta) {
+          delta += Number(opt.priceDelta) || 0;
+        }
+      });
+      price += delta;
+    }
     return price;
   }, [product, selectedVariants]);
 
   const currentMrp = useMemo(() => {
-    let mrp = product?.mrp || null;
-    Object.values(selectedVariants).forEach((opt) => {
-      if (opt && opt.mrp) mrp = opt.mrp;
-    });
+    let mrp = product?.mrp ? Number(product.mrp) : null;
+    const explicitMrps = Object.values(selectedVariants)
+      .map((opt) => (typeof opt === 'object' ? opt?.mrp : null))
+      .filter((m) => m !== undefined && m !== null && m !== '' && Number(m) > 0);
+
+    if (explicitMrps.length > 0) {
+      mrp = Number(explicitMrps[explicitMrps.length - 1]);
+    } else if (mrp) {
+      let delta = 0;
+      Object.values(selectedVariants).forEach((opt) => {
+        if (opt && typeof opt === 'object' && opt.priceDelta) {
+          delta += Number(opt.priceDelta) || 0;
+        }
+      });
+      mrp += delta;
+    }
     return mrp;
   }, [product, selectedVariants]);
 
@@ -101,8 +135,12 @@ export const ProductDetailsView = () => {
   const selectedVariantSummary = useMemo(() => {
     const parts = Object.values(selectedVariants)
       .filter(Boolean)
-      .map((opt) => opt.name || opt.label || opt.value || opt);
-    return parts.join(' • ');
+      .map((opt) => {
+        if (typeof opt === 'object') return opt.name || opt.label || opt.value;
+        return opt;
+      })
+      .filter(Boolean);
+    return parts.join(', ');
   }, [selectedVariants]);
 
   const cartItem = cart.find(
@@ -113,6 +151,46 @@ export const ProductDetailsView = () => {
   const [activeTab, setActiveTab] = useState('specs'); // 'specs' | 'features' | 'description' | 'reviews'
 
   if (!product) {
+    if (!isProductsLoaded || !products || products.length === 0) {
+      return (
+        <div
+          className="page-container"
+          style={{
+            textAlign: 'center',
+            padding: '5rem 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '60vh',
+          }}
+        >
+          <div
+            style={{
+              width: '42px',
+              height: '42px',
+              border: '3.5px solid #E2E8F0',
+              borderTopColor: '#0B2947',
+              borderRadius: '50%',
+              animation: 'spinProductDetails 0.8s linear infinite',
+              marginBottom: '1.25rem',
+            }}
+          />
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+            Loading Product Details...
+          </h3>
+          <p style={{ color: 'var(--text-secondary, #64748B)', fontSize: '0.875rem' }}>
+            Please wait while we retrieve the latest specifications & pricing.
+          </p>
+          <style>{`
+            @keyframes spinProductDetails {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      );
+    }
+
     return (
       <div className="page-container" style={{ textAlign: 'center', padding: '4rem 16px' }}>
         <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', marginBottom: '0.5rem' }}>
@@ -143,7 +221,10 @@ export const ProductDetailsView = () => {
       variantSelection: Object.fromEntries(
         Object.entries(selectedVariants)
           .filter(([, opt]) => opt)
-          .map(([groupId, opt]) => [groupId, opt.name ?? opt.label ?? opt.value ?? opt])
+          .map(([groupId, opt]) => [
+            groupId,
+            typeof opt === 'object' ? (opt.name ?? opt.label ?? opt.value ?? opt) : opt,
+          ])
       ),
     };
     addToCart(itemToAdd, 1);
@@ -355,6 +436,17 @@ export const ProductDetailsView = () => {
 
           {/* RIGHT: PRODUCT INFO, SELECTORS, STOCK & DETAILS */}
           <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', padding: '1.25rem', boxShadow: '0 2px 10px rgba(8, 39, 76, 0.04)' }}>
+            
+            {/* Free Delivery Banner Pill */}
+            <div className="qc-free-delivery-pill">
+              <span className="qc-free-delivery-tag">
+                <Truck size={13} strokeWidth={2.5} /> Free Delivery
+              </span>
+              <span className="qc-free-delivery-text">
+                on orders above ₹{product.minFreeDelivery || 500}
+              </span>
+            </div>
+
             {/* Product Title */}
             <h1 style={{ fontSize: 'clamp(1.25rem, 4vw, 1.55rem)', fontWeight: '800', color: 'var(--primary-navy)', lineHeight: '1.3', marginBottom: '0.65rem' }}>
               {product.name}
@@ -377,60 +469,53 @@ export const ProductDetailsView = () => {
               )}
             </div>
 
-            {/* Product Stock Availability Card */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                backgroundColor: product.inStock !== false ? '#ECFDF5' : '#FEF2F2',
-                border: product.inStock !== false ? '1px solid #A7F3D0' : '1px solid #FECACA',
-                borderRadius: '8px',
-                padding: '10px 14px',
-                marginBottom: '1rem',
-              }}
-            >
-              <div
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  backgroundColor: product.inStock !== false ? '#10B981' : '#EF4444',
-                  boxShadow: product.inStock !== false ? '0 0 8px rgba(16, 185, 129, 0.6)' : 'none',
-                  flexShrink: 0,
-                }}
-              />
-              <div style={{ fontSize: '0.88rem', fontWeight: '800', color: product.inStock !== false ? '#065F46' : '#991B1B' }}>
-                {product.inStock !== false ? 'In Stock' : 'Out of Stock'}
+            {/* Assured 2% Cashback Banner Strip */}
+            <div className="qc-cashback-box">
+              <div className="qc-cashback-icon-circle">
+                <Gift size={16} />
+              </div>
+              <div>
+                <div className="qc-cashback-title">
+                  {product.cashbackTitle || 'Assured 2% Cashback'}
+                </div>
+                <div className="qc-cashback-subtitle">
+                  {product.cashbackSubtitle || 'On purchases above ₹50,000'}
+                </div>
               </div>
             </div>
 
-            {/* INTERACTIVE VARIANT SELECTOR GROUPS (Thickness, Size, Pack Size, Finish, etc.) */}
+            {/* INTERACTIVE MULTI-ATTRIBUTE VARIANT SELECTOR GROUPS (Coil Size, Thickness, Colour, etc.) */}
             {product.variantGroups && product.variantGroups.length > 0 ? (
               <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
                 {product.variantGroups.map((group) => {
-                  const selectedOpt = selectedVariants[group.id];
+                  const gid = group.id || group.name;
+                  const selectedOpt = selectedVariants[gid];
+                  const selectedVal = selectedOpt
+                    ? (typeof selectedOpt === 'object' ? (selectedOpt.label || selectedOpt.name || selectedOpt.value) : selectedOpt)
+                    : null;
+                  
                   return (
-                    <div key={group.id} className="qc-variant-group">
+                    <div key={gid} className="qc-variant-group">
                       <div className="qc-variant-label">
                         <span>{group.name}</span>
-                        {selectedOpt && (
+                        {selectedVal && (
                           <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--primary-orange)' }}>
-                            {selectedOpt.label}
+                            {selectedVal}
                           </span>
                         )}
                       </div>
                       <div className="qc-variant-pills-row">
-                        {group.options.map((opt) => {
-                          const isSelected = selectedOpt?.label === opt.label;
+                        {(group.options || []).map((opt) => {
+                          const optLabel = typeof opt === 'object' ? (opt.label || opt.name || opt.value) : opt;
+                          const isSelected = selectedVal === optLabel;
                           return (
                             <button
-                              key={opt.label}
+                              key={optLabel}
                               type="button"
-                              onClick={() => handleSelectOption(group.id, opt)}
+                              onClick={() => handleSelectOption(gid, opt)}
                               className={`qc-variant-pill-btn ${isSelected ? 'selected' : ''}`}
                             >
-                              <span>{opt.label}</span>
+                              <span>{optLabel}</span>
                             </button>
                           );
                         })}
@@ -464,115 +549,168 @@ export const ProductDetailsView = () => {
               </div>
             ) : null}
 
+            {/* TRUST & POLICY BADGES (3-COLUMN GRID) */}
+            <div className="qc-trust-badges-grid">
+              <div className="qc-trust-badge-card">
+                <div className="qc-trust-badge-icon-wrap" style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}>
+                  <ShieldCheck size={20} />
+                </div>
+                <div className="qc-trust-badge-title">{product.trustBadge1Title || '100%'}</div>
+                <div className="qc-trust-badge-sub">{product.trustBadge1Sub || 'Genuine'}</div>
+              </div>
+
+              <div className="qc-trust-badge-card">
+                <div className="qc-trust-badge-icon-wrap" style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+                  <PackageX size={20} />
+                </div>
+                <div className="qc-trust-badge-title">{product.returnPolicyTitle || (product.isReturnable ? '7 Days' : 'Non')}</div>
+                <div className="qc-trust-badge-sub">{product.returnPolicySub || (product.isReturnable ? 'Returnable' : 'Returnable')}</div>
+              </div>
+
+              <div className="qc-trust-badge-card">
+                <div className="qc-trust-badge-icon-wrap" style={{ backgroundColor: '#E0E7FF', color: '#4F46E5' }}>
+                  <RotateCcw size={20} />
+                </div>
+                <div className="qc-trust-badge-title">{product.replacementPolicyTitle || '7 Day'}</div>
+                <div className="qc-trust-badge-sub">{product.replacementPolicySub || 'Replacement'}</div>
+              </div>
+            </div>
 
           </div>
         </div>
 
-        {/* DEEP PRODUCT INFORMATION TABS */}
-        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginTop: '1.5rem', boxShadow: '0 2px 10px rgba(8, 39, 76, 0.04)' }}>
-          <div className="tab-scroll-container" style={{ borderBottom: '2px solid var(--border-subtle)', marginBottom: '1.25rem', paddingBottom: '2px' }}>
-            {[
-              { id: 'specs', label: 'Specifications' },
-              { id: 'features', label: 'Key Features' },
-              { id: 'description', label: 'Description' },
-              { id: 'reviews', label: `Reviews (${product.reviewsCount || 390})` },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: '0.65rem 0.65rem',
-                  fontSize: '0.9rem',
-                  fontWeight: activeTab === tab.id ? '800' : '600',
-                  color: activeTab === tab.id ? 'var(--primary-orange)' : 'var(--text-secondary)',
-                  borderBottom: activeTab === tab.id ? '3px solid var(--primary-orange)' : '3px solid transparent',
-                  marginBottom: '-2px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
+        {/* COLLAPSIBLE PRODUCT INFO ACCORDION */}
+        <div className="qc-product-info-box">
+          <div
+            className={`qc-product-info-header ${isProductInfoOpen ? 'open' : ''}`}
+            onClick={() => setIsProductInfoOpen(!isProductInfoOpen)}
+          >
+            <span className="qc-product-info-title">Product Info</span>
+            {isProductInfoOpen ? <ChevronUp size={20} color="#64748B" /> : <ChevronDown size={20} color="#64748B" />}
           </div>
 
-          {/* Specifications */}
-          {activeTab === 'specs' && (
-            <div>
-              {product.specifications ? (
-                <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                  <table className="product-specs-table">
-                    <tbody>
-                      {Object.entries(product.specifications).map(([key, val], idx) => (
-                        <tr
-                          key={key}
-                          style={{
-                            backgroundColor: idx % 2 === 0 ? 'var(--bg-surface)' : '#FFFFFF',
-                            borderBottom: '1px solid var(--border-subtle)',
-                          }}
-                        >
-                          <td style={{ fontWeight: '700', color: 'var(--text-primary)', width: '42%' }}>{key}</td>
-                          <td style={{ color: 'var(--text-secondary)' }}>{val}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+          {isProductInfoOpen && (
+            <div className="qc-product-info-body">
+              <div className="qc-highlight-qa-box">
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary-navy)', marginBottom: '8px' }}>
+                  Product Highlights
                 </div>
-              ) : (
-                <p style={{ color: 'var(--text-secondary)' }}>Standard manufacturer specifications apply.</p>
-              )}
-            </div>
-          )}
-
-          {/* Features */}
-          {activeTab === 'features' && (
-            <div className="responsive-split-equal" style={{ gap: '0.85rem' }}>
-              {(product.features || [
-                'Complies with latest Bureau of Indian Standards (BIS) norms',
-                'Supplied with original batch test certificate',
-                'Packed in tamper-evident sealed packaging',
-                'Suitable for high-load residential & commercial structures',
-              ]).map((feat, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                  <CheckCircle2 size={18} color="#038A53" style={{ flexShrink: 0, marginTop: '2px' }} />
-                  <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>{feat}</span>
+                <div className="qc-highlight-qa-title">
+                  Quick Answer: What is {product.name} used for?
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Description */}
-          {activeTab === 'description' && (
-            <div>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.7', maxWidth: '820px' }}>
-                {product.description}
-              </p>
-            </div>
-          )}
-
-          {/* Reviews */}
-          {activeTab === 'reviews' && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '1rem' }}>
-                <Star size={16} fill="#CA8A04" color="#CA8A04" />
-                <strong style={{ fontSize: '1rem' }}>{product.rating} / 5.0</strong>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>based on {product.reviewsCount} customer reviews</span>
-              </div>
-              <div style={{ padding: '0.9rem', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <strong style={{ fontSize: '0.88rem', color: 'var(--primary-navy)' }}>Rajesh Verma (Contractor)</strong>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>2 days ago</span>
-                </div>
-                <div style={{ display: 'flex', gap: '2px', color: '#CA8A04', marginBottom: '6px' }}>
-                  {[...Array(5)].map((_, i) => <Star key={i} size={12} fill="#CA8A04" />)}
-                </div>
-                <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                  Authentic batch material delivered promptly at project site in Indore. Excellent quality and smooth invoicing!
+                <p className="qc-highlight-qa-text">
+                  {product.quickAnswer || product.highlights || (
+                    `${product.name} is a high-grade building and construction material designed for residential and commercial applications with certified safety standards, durability, and reliable performance from authorized distributors.`
+                  )}
                 </p>
               </div>
+
+              {/* Tab Navigation inside or below Product Info */}
+              <div className="tab-scroll-container" style={{ borderBottom: '2px solid var(--border-subtle)', marginBottom: '1.25rem', paddingBottom: '2px' }}>
+                {[
+                  { id: 'specs', label: 'Specifications' },
+                  { id: 'features', label: 'Key Features' },
+                  { id: 'description', label: 'Description' },
+                  { id: 'reviews', label: `Reviews (${product.reviewsCount || 390})` },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '0.65rem 0.65rem',
+                      fontSize: '0.9rem',
+                      fontWeight: activeTab === tab.id ? '800' : '600',
+                      color: activeTab === tab.id ? 'var(--primary-orange)' : 'var(--text-secondary)',
+                      borderBottom: activeTab === tab.id ? '3px solid var(--primary-orange)' : '3px solid transparent',
+                      marginBottom: '-2px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Specifications Tab */}
+              {activeTab === 'specs' && (
+                <div>
+                  {product.specifications ? (
+                    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                      <table className="product-specs-table">
+                        <tbody>
+                          {Object.entries(product.specifications).map(([key, val], idx) => (
+                            <tr
+                              key={key}
+                              style={{
+                                backgroundColor: idx % 2 === 0 ? 'var(--bg-surface)' : '#FFFFFF',
+                                borderBottom: '1px solid var(--border-subtle)',
+                              }}
+                            >
+                              <td style={{ fontWeight: '700', color: 'var(--text-primary)', width: '42%' }}>{key}</td>
+                              <td style={{ color: 'var(--text-secondary)' }}>{val}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p style={{ color: 'var(--text-secondary)' }}>Standard manufacturer specifications apply.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Features Tab */}
+              {activeTab === 'features' && (
+                <div className="responsive-split-equal" style={{ gap: '0.85rem' }}>
+                  {(product.features || [
+                    'Complies with latest Bureau of Indian Standards (BIS) norms',
+                    'Supplied with original batch test certificate',
+                    'Packed in tamper-evident sealed packaging',
+                    'Suitable for high-load residential & commercial structures',
+                  ]).map((feat, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      <CheckCircle2 size={18} color="#038A53" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Description Tab */}
+              {activeTab === 'description' && (
+                <div>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.7', maxWidth: '820px' }}>
+                    {product.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Reviews Tab */}
+              {activeTab === 'reviews' && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '1rem' }}>
+                    <Star size={16} fill="#CA8A04" color="#CA8A04" />
+                    <strong style={{ fontSize: '1rem' }}>{product.rating || 4.8} / 5.0</strong>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>based on {product.reviewsCount || 390} customer reviews</span>
+                  </div>
+                  <div style={{ padding: '0.9rem', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <strong style={{ fontSize: '0.88rem', color: 'var(--primary-navy)' }}>Rajesh Verma (Contractor)</strong>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>2 days ago</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '2px', color: '#CA8A04', marginBottom: '6px' }}>
+                      {[...Array(5)].map((_, i) => <Star key={i} size={12} fill="#CA8A04" />)}
+                    </div>
+                    <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                      Authentic batch material delivered promptly at project site. Excellent quality and smooth invoicing!
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -611,7 +749,11 @@ export const ProductDetailsView = () => {
           <div className="qc-bottom-price-row">
             <span className="qc-bottom-price-val">₹ {currentPrice.toLocaleString()}</span>
             {currentMrp && <span className="qc-bottom-mrp-val">₹ {currentMrp.toLocaleString()}</span>}
+            {currentDiscount && (
+              <span className="qc-bottom-discount-badge">{currentDiscount}</span>
+            )}
           </div>
+          <div className="qc-bottom-gst-sub">Including GST</div>
         </div>
 
         <div>

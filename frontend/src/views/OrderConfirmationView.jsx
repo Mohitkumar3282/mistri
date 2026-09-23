@@ -2,13 +2,14 @@ import React from 'react';
 import { CheckCircle2, Truck, Calendar, MapPin, Download, ArrowRight, Home } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { MOCK_ORDERS } from '../data/mockData';
+import { printTaxInvoice } from '../utils/printInvoice';
 
 export const OrderConfirmationView = () => {
-  const { viewParams, navigateTo, addToast } = useStore();
+  const { viewParams, navigateTo, addToast, siteSettings } = useStore();
   const order = viewParams?.order || MOCK_ORDERS[0];
 
   const handleDownloadInvoice = () => {
-    addToast(`Downloading Tax Invoice for ${order.id}...`, 'info');
+    printTaxInvoice(order, siteSettings);
   };
 
   return (

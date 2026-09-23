@@ -19,6 +19,9 @@ import {
 import { useStore } from '../context/StoreContext';
 import SlideToOrder from '../components/SlideToOrder';
 import OnlinePaymentModal from '../components/OnlinePaymentModal';
+import BillDetailsCard from '../components/BillDetailsCard';
+import CancellationPolicyCard from '../components/CancellationPolicyCard';
+import UnloadingServiceCard from '../components/UnloadingServiceCard';
 
 export const CheckoutView = () => {
   const {
@@ -507,7 +510,7 @@ export const CheckoutView = () => {
           </div>
         </div>
 
-        {/* 4. Order Summary Card (Exact Reference Image 3 & 4 Match) */}
+        {/* 4. Coupons & Payment Method Card */}
         <div
           style={{
             backgroundColor: '#FFFFFF',
@@ -515,288 +518,219 @@ export const CheckoutView = () => {
             border: '1px solid #E2E8F0',
             padding: '16px',
             boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
           }}
         >
-          {/* Header */}
+          {/* Coupons Dropdown Row */}
           <div
+            onClick={() => setIsCouponsOpen(!isCouponsOpen)}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: '0.95rem',
-              fontWeight: '800',
-              color: '#0F172A',
-              marginBottom: '14px',
+              backgroundColor: '#F8FAFC',
+              borderRadius: '10px',
+              border: '1px solid #E2E8F0',
+              padding: '10px 12px',
+              cursor: 'pointer',
             }}
           >
-            <Receipt size={18} color="#E11D48" />
-            <span>Order summary</span>
-          </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#FFE4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E11D48' }}>
+                  <Tag size={15} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '0.84rem', color: '#0F172A' }}>
+                    Coupons & Offers
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                    {appliedCoupon ? `Applied: ${appliedCoupon.code} (${appliedCoupon.discountPercentage}% OFF)` : 'Have a coupon code?'}
+                  </div>
+                </div>
+              </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.85rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-              <span>Item total</span>
-              <span style={{ fontWeight: '600', color: '#0F172A' }}>₹{cartSubtotal.toLocaleString('en-IN')}</span>
+              <div style={{ color: '#64748B' }}>
+                {isCouponsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>Delivery</span>
-                {siteSettings?.deliveryType === 'km_based' && (
-                  <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                    ({siteSettings?.estimatedDeliveryKm || 5} km)
-                  </span>
+            {isCouponsOpen && (
+              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #E2E8F0' }} onClick={(e) => e.stopPropagation()}>
+                {appliedCoupon ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.78rem', color: '#E11D48', fontWeight: '700' }}>
+                      '{appliedCoupon.code}' Active
+                    </span>
+                    <button
+                      type="button"
+                      onClick={removeCoupon}
+                      style={{ background: 'none', border: 'none', color: '#E11D48', fontWeight: '700', fontSize: '0.78rem', cursor: 'pointer' }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="ENTER COUPON CODE"
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value)}
+                      style={{
+                        flex: 1,
+                        height: '36px',
+                        borderRadius: '6px',
+                        border: '1px solid #CBD5E1',
+                        padding: '0 10px',
+                        fontSize: '0.8rem',
+                        textTransform: 'uppercase',
+                        fontWeight: '700',
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      style={{
+                        backgroundColor: '#0F172A',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '0 14px',
+                        fontSize: '0.8rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </form>
+                )}
+                {couponError && (
+                  <div style={{ color: '#E11D48', fontSize: '0.74rem', marginTop: '4px' }}>
+                    {couponError}
+                  </div>
                 )}
               </div>
-              {deliveryFee === 0 ? (
-                <span style={{ fontWeight: '700', color: '#10B981' }}>FREE</span>
-              ) : (
-                <span style={{ fontWeight: '700', color: '#0F172A' }}>₹{deliveryFee.toLocaleString('en-IN')}</span>
-              )}
-            </div>
-
-            {siteSettings?.enableUnloadingFee && isUnloadingSelected && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                <span>Site Unloading & Helper</span>
-                <span style={{ fontWeight: '700', color: unloadingCharge === 0 ? '#10B981' : '#0F172A' }}>
-                  {unloadingCharge === 0 ? 'FREE' : `₹${unloadingCharge.toLocaleString('en-IN')}`}
-                </span>
-              </div>
             )}
+          </div>
 
-            {gstAmount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                <span>
-                  Estimated GST ({siteSettings?.gstRatePercent || 18}% {isGstInclusive ? 'Included' : 'ITC Benefit'})
-                </span>
-                <span style={{ fontWeight: '600', color: '#0F172A' }}>
-                  {isGstInclusive ? `(₹${gstAmount.toLocaleString('en-IN')})` : `₹${gstAmount.toLocaleString('en-IN')}`}
-                </span>
-              </div>
-            )}
-
-            {discountAmount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#E11D48' }}>
-                <span>Contractor Coupon / Rebate</span>
-                <span style={{ fontWeight: '700' }}>-₹{discountAmount.toLocaleString('en-IN')}</span>
-              </div>
-            )}
-
-            {/* Coupons Dropdown Row (Exact Reference Match) */}
-            <div
-              onClick={() => setIsCouponsOpen(!isCouponsOpen)}
-              style={{
-                backgroundColor: '#F8FAFC',
-                borderRadius: '10px',
-                border: '1px solid #E2E8F0',
-                padding: '10px 12px',
-                cursor: 'pointer',
-                marginTop: '4px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#FFE4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E11D48' }}>
-                    <Tag size={15} />
+          {/* Payment Method Selector Row */}
+          <div
+            onClick={() => setIsPaymentSelectorOpen(!isPaymentSelectorOpen)}
+            style={{
+              backgroundColor: '#F8FAFC',
+              borderRadius: '10px',
+              border: '1px solid #E2E8F0',
+              padding: '10px 12px',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#FFE4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E11D48' }}>
+                  <CreditCard size={15} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '0.84rem', color: '#0F172A' }}>
+                    Payment Mode
                   </div>
-                  <div>
-                    <div style={{ fontWeight: '700', fontSize: '0.84rem', color: '#0F172A' }}>
-                      Coupons
-                    </div>
-                    <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                      {appliedCoupon ? `Applied: ${appliedCoupon.code} (${appliedCoupon.discountPercentage}% OFF)` : 'No manual coupons'}
-                    </div>
+                  <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                    {isOnline ? 'Pay Online (UPI/Cards/NetBanking)' : 'Cash on Delivery (Pay on Site)'}
                   </div>
                 </div>
-
-                <div style={{ color: '#64748B' }}>
-                  {isCouponsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </div>
               </div>
 
-              {isCouponsOpen && (
-                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #E2E8F0' }} onClick={(e) => e.stopPropagation()}>
-                  {appliedCoupon ? (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.78rem', color: '#E11D48', fontWeight: '700' }}>
-                        '{appliedCoupon.code}' Active
-                      </span>
-                      <button
-                        type="button"
-                        onClick={removeCoupon}
-                        style={{ background: 'none', border: 'none', color: '#E11D48', fontWeight: '700', fontSize: '0.78rem', cursor: 'pointer' }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px' }}>
-                      <input
-                        type="text"
-                        placeholder="ENTER COUPON CODE"
-                        value={couponInput}
-                        onChange={(e) => setCouponInput(e.target.value)}
-                        style={{
-                          flex: 1,
-                          height: '36px',
-                          borderRadius: '6px',
-                          border: '1px solid #CBD5E1',
-                          padding: '0 10px',
-                          fontSize: '0.8rem',
-                          textTransform: 'uppercase',
-                          fontWeight: '700',
-                        }}
-                      />
-                      <button
-                        type="submit"
-                        style={{
-                          backgroundColor: '#0F172A',
-                          color: '#FFFFFF',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '0 14px',
-                          fontSize: '0.8rem',
-                          fontWeight: '700',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Apply
-                      </button>
-                    </form>
-                  )}
-                  {couponError && (
-                    <div style={{ color: '#E11D48', fontSize: '0.74rem', marginTop: '4px' }}>
-                      {couponError}
-                    </div>
-                  )}
-                </div>
-              )}
+              <div style={{ color: '#64748B' }}>
+                {isPaymentSelectorOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </div>
             </div>
 
-            {/* Payment Method Selector Row (Exact Reference Match) */}
-            <div
-              onClick={() => setIsPaymentSelectorOpen(!isPaymentSelectorOpen)}
-              style={{
-                backgroundColor: '#F8FAFC',
-                borderRadius: '10px',
-                border: '1px solid #E2E8F0',
-                padding: '10px 12px',
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#FFE4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E11D48' }}>
-                    <CreditCard size={15} />
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: '700', fontSize: '0.84rem', color: '#0F172A' }}>
-                      Payment
-                    </div>
-                    <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                      {isOnline ? 'Pay Online (UPI/Card)' : 'Cash on Delivery (Pay on Site)'}
-                    </div>
-                  </div>
-                </div>
+            {isPaymentSelectorOpen && (
+              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    padding: '6px',
+                    borderRadius: '6px',
+                    backgroundColor: isOnline ? '#FFF5F5' : 'transparent',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="paymentOption"
+                    checked={isOnline}
+                    onChange={() => setPaymentMethod('online')}
+                    style={{ accentColor: '#E11D48' }}
+                  />
+                  <span style={{ fontWeight: isOnline ? '800' : '500', color: '#0F172A' }}>
+                    💳 Pay Online (UPI / Credit & Debit Cards / NetBanking)
+                  </span>
+                </label>
 
-                <div style={{ color: '#64748B' }}>
-                  {isPaymentSelectorOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </div>
-              </div>
-
-              {isPaymentSelectorOpen && (
-                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '0.82rem',
-                      cursor: 'pointer',
-                      padding: '6px',
-                      borderRadius: '6px',
-                      backgroundColor: isOnline ? '#FFF5F5' : 'transparent',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentOption"
-                      checked={isOnline}
-                      onChange={() => setPaymentMethod('online')}
-                      style={{ accentColor: '#E11D48' }}
-                    />
-                    <span style={{ fontWeight: isOnline ? '800' : '500', color: '#0F172A' }}>
-                      💳 Pay Online (UPI / Credit & Debit Cards / NetBanking)
-                    </span>
-                  </label>
-
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '0.82rem',
-                      cursor: 'pointer',
-                      padding: '6px',
-                      borderRadius: '6px',
-                      backgroundColor: !isOnline ? '#FFF5F5' : 'transparent',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentOption"
-                      checked={!isOnline}
-                      onChange={() => setPaymentMethod('cash')}
-                      style={{ accentColor: '#E11D48' }}
-                    />
-                    <span style={{ fontWeight: !isOnline ? '800' : '500', color: '#0F172A' }}>
-                      💵 Cash on Delivery (Pay upon material delivery at site)
-                    </span>
-                  </label>
-                </div>
-              )}
-            </div>
-
-            {/* Divider */}
-            <div style={{ borderTop: '1px solid #F1F5F9', margin: '4px 0' }} />
-
-            {/* To Pay Amount */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingTop: '2px',
-              }}
-            >
-              <span style={{ fontSize: '1rem', fontWeight: '800', color: '#0F172A' }}>
-                To pay
-              </span>
-              <span style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0F172A' }}>
-                ₹{grandTotal.toLocaleString('en-IN')}
-              </span>
-            </div>
-
-            {/* Guest OTP notice (Matching Reference Image 4) */}
-            {!user && (
-              <div
-                style={{
-                  backgroundColor: '#FFF1F2',
-                  border: '1px solid #FFE4E6',
-                  borderRadius: '10px',
-                  padding: '10px 12px',
-                  textAlign: 'center',
-                  fontSize: '0.78rem',
-                  color: '#9F1239',
-                  fontWeight: '600',
-                  marginTop: '6px',
-                }}
-              >
-                OTP login when you slide to pay — browse as guest until then.
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    padding: '6px',
+                    borderRadius: '6px',
+                    backgroundColor: !isOnline ? '#FFF5F5' : 'transparent',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="paymentOption"
+                    checked={!isOnline}
+                    onChange={() => setPaymentMethod('cash')}
+                    style={{ accentColor: '#E11D48' }}
+                  />
+                  <span style={{ fontWeight: !isOnline ? '800' : '500', color: '#0F172A' }}>
+                    💵 Cash on Delivery (Pay upon material delivery at site)
+                  </span>
+                </label>
               </div>
             )}
           </div>
         </div>
+
+        {/* 5. Unloading Service Selection Card (Exact Reference Match) */}
+        <UnloadingServiceCard />
+
+        {/* 6. Bill Details Card (Exact Reference Image Match) */}
+        <BillDetailsCard
+          subtotal={cartSubtotal}
+          discount={discountAmount}
+          walletDiscount={0}
+          deliveryFee={deliveryFee}
+          handlingFee={isUnloadingSelected ? unloadingCharge : 0}
+          total={grandTotal}
+        />
+
+        {/* 7. Dynamic Cancellation Policy Card (Exact Reference Image Match) */}
+        <CancellationPolicyCard />
+
+        {/* Guest OTP notice */}
+        {!user && (
+          <div
+            style={{
+              backgroundColor: '#FFF1F2',
+              border: '1px solid #FFE4E6',
+              borderRadius: '10px',
+              padding: '10px 12px',
+              textAlign: 'center',
+              fontSize: '0.78rem',
+              color: '#9F1239',
+              fontWeight: '600',
+            }}
+          >
+            OTP login when you slide to pay — browse as guest until then.
+          </div>
+        )}
       </div>
 
       {/* 5. Sticky Bottom Action Bar: SLIDE TO PAY (Compact Mobile-Responsive) */}

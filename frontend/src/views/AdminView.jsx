@@ -58,6 +58,7 @@ import {
   Menu,
   Activity,
   Bookmark,
+  Gift,
   Compass,
   Headphones,
   Lock,
@@ -72,6 +73,7 @@ import { useStore } from '../context/StoreContext';
 import Logo from '../components/Logo';
 import { uploadCloudFile } from '../services/storageService';
 import { uploadBannerToCloud } from '../services/cloudinaryService';
+import { printTaxInvoice } from '../utils/printInvoice';
 
 export default function AdminView() {
   const {
@@ -231,6 +233,9 @@ export default function AdminView() {
     minOrderQty: 1,
     gstRate: 18,
     image: '',
+    gallery: [],
+    variants: [],
+    variantGroups: [],
     status: 'PUBLISHED',
     isFeatured: false,
   });
@@ -1055,6 +1060,17 @@ export default function AdminView() {
       image: '',
       gallery: [],
       variants: [],
+      variantGroups: [],
+      cashbackTitle: 'Assured 2% Cashback',
+      cashbackSubtitle: 'On purchases above ₹50,000',
+      trustBadge1Title: '100%',
+      trustBadge1Sub: 'Genuine',
+      returnPolicyTitle: 'Non',
+      returnPolicySub: 'Returnable',
+      replacementPolicyTitle: '7 Day',
+      replacementPolicySub: 'Replacement',
+      quickAnswer: '',
+      highlights: '',
       status: 'PUBLISHED',
       isFeatured: true,
     });
@@ -1082,6 +1098,17 @@ export default function AdminView() {
       image: prod.image || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400',
       gallery: Array.isArray(prod.gallery) ? prod.gallery : [],
       variants: Array.isArray(prod.variants) ? prod.variants : [],
+      variantGroups: Array.isArray(prod.variantGroups) ? prod.variantGroups : [],
+      cashbackTitle: prod.cashbackTitle || 'Assured 2% Cashback',
+      cashbackSubtitle: prod.cashbackSubtitle || 'On purchases above ₹50,000',
+      trustBadge1Title: prod.trustBadge1Title || '100%',
+      trustBadge1Sub: prod.trustBadge1Sub || 'Genuine',
+      returnPolicyTitle: prod.returnPolicyTitle || (prod.isReturnable ? '7 Days' : 'Non'),
+      returnPolicySub: prod.returnPolicySub || (prod.isReturnable ? 'Returnable' : 'Returnable'),
+      replacementPolicyTitle: prod.replacementPolicyTitle || '7 Day',
+      replacementPolicySub: prod.replacementPolicySub || 'Replacement',
+      quickAnswer: prod.quickAnswer || '',
+      highlights: prod.highlights || '',
       status: prod.status || (prod.inStock ? 'PUBLISHED' : 'OUT_OF_STOCK'),
       isFeatured: prod.isFeatured !== undefined ? prod.isFeatured : true,
     });
@@ -3968,6 +3995,7 @@ export default function AdminView() {
                   { id: 'general', label: 'General Info', icon: Tag },
                   { id: 'categories', label: 'Categories', icon: Layers },
                   { id: 'variants', label: 'Variants & pricing', icon: FileText },
+                  { id: 'badges', label: 'Offers & Badges', icon: Gift },
                   { id: 'photos', label: 'Photos', icon: ImageIcon },
                 ].map((t) => {
                   const Icon = t.icon;
@@ -4308,16 +4336,238 @@ export default function AdminView() {
 
                 {/* 3. Variants & Pricing Tab */}
                 {productModalTab === 'variants' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-                    {/* Header row */}
+                    {/* MULTI-ATTRIBUTE VARIANT GROUPS (Coil Size, Thickness, Colour, etc.) */}
+                    <div style={{ backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: '12px', padding: '1.1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                        <div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A' }}>
+                            Multi-Attribute Variant Groups
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>
+                            Define multiple attribute dimensions like Coil Size, Wire Thickness, Colour, Finish
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newGroup = {
+                              id: `group_${Date.now()}`,
+                              name: '',
+                              options: [{ label: '', price: '', mrp: '', isPopular: false }],
+                            };
+                            setProductFormData({
+                              ...productFormData,
+                              variantGroups: [...(productFormData.variantGroups || []), newGroup],
+                            });
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '0.45rem 0.85rem',
+                            backgroundColor: '#0F172A',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '7px',
+                            fontSize: '0.75rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Plus size={13} /> Add Attribute Group
+                        </button>
+                      </div>
+
+                      {(productFormData.variantGroups || []).length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '1rem', color: '#94A3B8', fontSize: '0.78rem' }}>
+                          No multi-attribute groups yet. Click <strong>+ Add Attribute Group</strong> to add Coil Size, Thickness, Colour, etc.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          {(productFormData.variantGroups || []).map((group, gIdx) => {
+                            const updateGroupName = (val) => {
+                              const updated = [...productFormData.variantGroups];
+                              updated[gIdx] = { ...updated[gIdx], name: val };
+                              setProductFormData({ ...productFormData, variantGroups: updated });
+                            };
+                            const removeGroup = () => {
+                              const updated = productFormData.variantGroups.filter((_, i) => i !== gIdx);
+                              setProductFormData({ ...productFormData, variantGroups: updated });
+                            };
+                            const addOptionToGroup = () => {
+                              const updated = [...productFormData.variantGroups];
+                              const currentOptions = updated[gIdx].options || [];
+                              updated[gIdx] = {
+                                ...updated[gIdx],
+                                options: [...currentOptions, { label: '', price: '', mrp: '', isPopular: false }],
+                              };
+                              setProductFormData({ ...productFormData, variantGroups: updated });
+                            };
+                            const updateGroupOption = (oIdx, field, val) => {
+                              const updated = [...productFormData.variantGroups];
+                              const currentOptions = [...(updated[gIdx].options || [])];
+                              currentOptions[oIdx] = { ...currentOptions[oIdx], [field]: val };
+                              updated[gIdx] = { ...updated[gIdx], options: currentOptions };
+                              setProductFormData({ ...productFormData, variantGroups: updated });
+                            };
+                            const removeGroupOption = (oIdx) => {
+                              const updated = [...productFormData.variantGroups];
+                              const currentOptions = (updated[gIdx].options || []).filter((_, i) => i !== oIdx);
+                              updated[gIdx] = { ...updated[gIdx], options: currentOptions };
+                              setProductFormData({ ...productFormData, variantGroups: updated });
+                            };
+
+                            return (
+                              <div
+                                key={group.id || gIdx}
+                                style={{
+                                  backgroundColor: '#FFFFFF',
+                                  border: '1px solid #CBD5E1',
+                                  borderRadius: '10px',
+                                  padding: '0.9rem',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.75rem',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="Group Name (e.g. Coil Size, Wire Thickness, Colour)"
+                                    value={group.name || ''}
+                                    onChange={(e) => updateGroupName(e.target.value)}
+                                    style={{
+                                      flex: 1,
+                                      padding: '0.5rem 0.75rem',
+                                      borderRadius: '6px',
+                                      border: '1.5px solid #CBD5E1',
+                                      fontSize: '0.82rem',
+                                      fontWeight: 800,
+                                      color: '#0F172A',
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={removeGroup}
+                                    style={{
+                                      padding: '4px 8px',
+                                      backgroundColor: '#FEF2F2',
+                                      color: '#EF4444',
+                                      border: '1px solid #FECACA',
+                                      borderRadius: '6px',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>
+                                    Options in this group:
+                                  </label>
+                                  {(group.options || []).map((opt, oIdx) => (
+                                    <div key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <input
+                                        type="text"
+                                        placeholder="e.g. 90 Meters, 1 Sqmm, Red"
+                                        value={opt.label || ''}
+                                        onChange={(e) => updateGroupOption(oIdx, 'label', e.target.value)}
+                                        style={{
+                                          flex: 2,
+                                          padding: '0.45rem 0.65rem',
+                                          borderRadius: '6px',
+                                          border: '1px solid #E2E8F0',
+                                          fontSize: '0.8rem',
+                                          fontWeight: 600,
+                                        }}
+                                      />
+                                      <input
+                                        type="number"
+                                        placeholder="Price (₹)"
+                                        value={opt.price || ''}
+                                        onChange={(e) => updateGroupOption(oIdx, 'price', e.target.value)}
+                                        style={{
+                                          width: '90px',
+                                          padding: '0.45rem 0.65rem',
+                                          borderRadius: '6px',
+                                          border: '1px solid #E2E8F0',
+                                          fontSize: '0.8rem',
+                                          fontWeight: 700,
+                                          color: '#10B981',
+                                        }}
+                                        title="Optional override price when this option is chosen"
+                                      />
+                                      <input
+                                        type="number"
+                                        placeholder="MRP (₹)"
+                                        value={opt.mrp || ''}
+                                        onChange={(e) => updateGroupOption(oIdx, 'mrp', e.target.value)}
+                                        style={{
+                                          width: '90px',
+                                          padding: '0.45rem 0.65rem',
+                                          borderRadius: '6px',
+                                          border: '1px solid #E2E8F0',
+                                          fontSize: '0.8rem',
+                                          fontWeight: 600,
+                                          color: '#64748B',
+                                        }}
+                                        title="Optional MRP override"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => removeGroupOption(oIdx)}
+                                        style={{
+                                          background: 'none',
+                                          border: 'none',
+                                          color: '#94A3B8',
+                                          cursor: 'pointer',
+                                          padding: '4px',
+                                        }}
+                                      >
+                                        <X size={14} />
+                                      </button>
+                                    </div>
+                                  ))}
+
+                                  <button
+                                    type="button"
+                                    onClick={addOptionToGroup}
+                                    style={{
+                                      alignSelf: 'flex-start',
+                                      marginTop: '4px',
+                                      padding: '4px 10px',
+                                      backgroundColor: '#F1F5F9',
+                                      color: '#334155',
+                                      border: '1px solid #E2E8F0',
+                                      borderRadius: '6px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Plus size={11} style={{ marginRight: '4px' }} /> Add Option
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* SINGLE / PACK VARIANTS (Standard Flat Variants) */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A' }}>Product Variants</div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A' }}>Single Pack / Unit Variants</div>
                         <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>
                           {(productFormData.variants || []).length === 0
-                            ? 'No variants yet — add at least one variant with price & stock'
-                            : `${(productFormData.variants || []).length} variant(s) defined`}
+                            ? 'No single variants defined'
+                            : `${(productFormData.variants || []).length} flat variant(s) defined`}
                         </div>
                       </div>
                       <button
@@ -4330,42 +4580,21 @@ export default function AdminView() {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px',
-                          padding: '0.5rem 1rem',
+                          padding: '0.45rem 0.85rem',
                           backgroundColor: '#0F172A',
                           color: '#FFFFFF',
                           border: 'none',
                           borderRadius: '8px',
-                          fontSize: '0.78rem',
+                          fontSize: '0.75rem',
                           fontWeight: 800,
                           cursor: 'pointer',
                           letterSpacing: '0.03em',
                           whiteSpace: 'nowrap',
-                          boxShadow: '0 2px 6px rgba(15,23,42,0.2)',
                         }}
                       >
-                        <Plus size={14} /> Add Variant
+                        <Plus size={13} /> Add Single Variant
                       </button>
                     </div>
-
-                    {/* Empty state */}
-                    {(productFormData.variants || []).length === 0 && (
-                      <div style={{
-                        border: '1.5px dashed #CBD5E1',
-                        borderRadius: '12px',
-                        padding: '2rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: '8px',
-                        color: '#94A3B8',
-                        backgroundColor: '#F8FAFC',
-                        textAlign: 'center',
-                      }}>
-                        <Layers size={28} style={{ opacity: 0.4 }} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748B' }}>No variants added yet</span>
-                        <span style={{ fontSize: '0.72rem' }}>Click <strong>+ Add Variant</strong> to define sizes, packs, or units with individual pricing</span>
-                      </div>
-                    )}
 
                     {/* Variant cards */}
                     {(productFormData.variants || []).map((variant, vIdx) => {
@@ -4535,6 +4764,123 @@ export default function AdminView() {
                         <Plus size={14} /> Add Another Variant
                       </button>
                     )}
+
+                  </div>
+                )}
+
+                {/* 4. Offers & Badges Tab */}
+                {productModalTab === 'badges' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    
+                    {/* Assured Cashback Box */}
+                    <div style={{ backgroundColor: '#FFFDF0', border: '1px solid #FEF3C7', borderLeft: '3.5px solid #F59E0B', borderRadius: '10px', padding: '1rem' }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Gift size={16} color="#D97706" /> Assured Cashback Banner
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', marginBottom: '4px' }}>
+                            Cashback Title
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Assured 2% Cashback"
+                            value={productFormData.cashbackTitle || ''}
+                            onChange={(e) => setProductFormData({ ...productFormData, cashbackTitle: e.target.value })}
+                            style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', fontWeight: 700 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', marginBottom: '4px' }}>
+                            Cashback Subtitle / Condition
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. On purchases above ₹50,000"
+                            value={productFormData.cashbackSubtitle || ''}
+                            onChange={(e) => setProductFormData({ ...productFormData, cashbackSubtitle: e.target.value })}
+                            style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', fontWeight: 600 }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Trust Badges */}
+                    <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '1rem' }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px' }}>
+                        Trust & Policy Badges (3-Column Grid)
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', marginBottom: '4px' }}>Badge 1 (Authenticity)</label>
+                          <input
+                            type="text"
+                            placeholder="Title (100%)"
+                            value={productFormData.trustBadge1Title || ''}
+                            onChange={(e) => setProductFormData({ ...productFormData, trustBadge1Title: e.target.value })}
+                            style={{ width: '100%', padding: '0.45rem 0.65rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Subtitle (Genuine)"
+                            value={productFormData.trustBadge1Sub || ''}
+                            onChange={(e) => setProductFormData({ ...productFormData, trustBadge1Sub: e.target.value })}
+                            style={{ width: '100%', padding: '0.45rem 0.65rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.8rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', marginBottom: '4px' }}>Badge 2 (Return Policy)</label>
+                          <input
+                            type="text"
+                            placeholder="Title (Non / 7 Days)"
+                            value={productFormData.returnPolicyTitle || ''}
+                            onChange={(e) => setProductFormData({ ...productFormData, returnPolicyTitle: e.target.value })}
+                            style={{ width: '100%', padding: '0.45rem 0.65rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Subtitle (Returnable)"
+                            value={productFormData.returnPolicySub || ''}
+                            onChange={(e) => setProductFormData({ ...productFormData, returnPolicySub: e.target.value })}
+                            style={{ width: '100%', padding: '0.45rem 0.65rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.8rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', marginBottom: '4px' }}>Badge 3 (Replacement)</label>
+                          <input
+                            type="text"
+                            placeholder="Title (7 Day)"
+                            value={productFormData.replacementPolicyTitle || ''}
+                            onChange={(e) => setProductFormData({ ...productFormData, replacementPolicyTitle: e.target.value })}
+                            style={{ width: '100%', padding: '0.45rem 0.65rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.8rem', fontWeight: 700, marginBottom: '4px' }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Subtitle (Replacement)"
+                            value={productFormData.replacementPolicySub || ''}
+                            onChange={(e) => setProductFormData({ ...productFormData, replacementPolicySub: e.target.value })}
+                            style={{ width: '100%', padding: '0.45rem 0.65rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.8rem' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Product Highlights & Quick Answer */}
+                    <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '1rem' }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>
+                        Product Info Accordion: Quick Answer & Highlights
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B', marginBottom: '8px' }}>
+                        Shown inside the expandable "Product Info" section on product details page.
+                      </div>
+                      <textarea
+                        rows={3}
+                        placeholder="Quick Answer summary (e.g. Finolex Silver FR Wire is a flame retardant electrical wire, designed for residential and commercial wiring with fire safety features...)"
+                        value={productFormData.quickAnswer || ''}
+                        onChange={(e) => setProductFormData({ ...productFormData, quickAnswer: e.target.value })}
+                        style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.82rem', lineHeight: 1.5, boxSizing: 'border-box' }}
+                      />
+                    </div>
 
                   </div>
                 )}
@@ -4776,7 +5122,7 @@ export default function AdminView() {
                 <button
                   type="button"
                   onClick={() => {
-                    const order = ['general', 'categories', 'variants', 'photos'];
+                    const order = ['general', 'categories', 'variants', 'badges', 'photos'];
                     const curIdx = order.indexOf(productModalTab);
                     if (curIdx < order.length - 1) setProductModalTab(order[curIdx + 1]);
                   }}
@@ -7969,22 +8315,30 @@ export default function AdminView() {
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedOrderDetailsModal.items?.map((it, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                            <td style={{ padding: '8px 12px', fontWeight: 700, color: theme.textDark }}>
-                              {it.product?.name || it.name || 'Building Material Item'}
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                              {it.quantity || 1} {it.product?.unit || 'Units'}
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                              ₹{(it.price || 0).toLocaleString('en-IN')}
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: theme.primaryBlue }}>
-                              ₹{((it.price || 0) * (it.quantity || 1)).toLocaleString('en-IN')}
-                            </td>
-                          </tr>
-                        ))}
+                        {selectedOrderDetailsModal.items?.map((it, idx) => {
+                          const rawQty = it.quantity || 1;
+                          const qty = typeof rawQty === 'number' ? rawQty : parseInt(rawQty, 10) || 1;
+                          const rawUnit = it.product?.unit || it.unit || '';
+                          const unit = (!rawUnit || !isNaN(rawUnit) || rawUnit === '1' || rawUnit === 'Units') ? '' : rawUnit;
+                          const price = Number(it.price || it.product?.price || 0);
+
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                              <td style={{ padding: '8px 12px', fontWeight: 700, color: theme.textDark }}>
+                                {it.product?.name || it.name || 'Building Material Item'}
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>
+                                {qty}{unit ? ` ${unit}` : ''}
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                                ₹{price.toLocaleString('en-IN')}
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: theme.primaryBlue }}>
+                                ₹{(price * qty).toLocaleString('en-IN')}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -8004,7 +8358,7 @@ export default function AdminView() {
                 <button
                   type="button"
                   onClick={() => {
-                    window.print();
+                    printTaxInvoice(selectedOrderDetailsModal, siteSettings);
                   }}
                   className="btn btn-secondary btn-sm"
                   style={{ display: 'flex', gap: '6px', alignItems: 'center' }}
@@ -9606,59 +9960,183 @@ export default function AdminView() {
           </div>
 
           {siteSettings.enableUnloadingFee ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
-                  Standard Unloading Service Charge (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={siteSettings.unloadingChargeStandard ?? 199}
-                  onChange={(e) => updateSiteSettings({ unloadingChargeStandard: Math.max(0, Number(e.target.value)) })}
-                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 700 }}
-                />
-                <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
-                  {[99, 149, 199, 249, 299, 499].map((amt) => (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                    Standard Unloading Service Charge (₹)
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <button
-                      key={amt}
                       type="button"
-                      onClick={() => updateSiteSettings({ unloadingChargeStandard: amt })}
+                      onClick={() => updateSiteSettings({ unloadingChargeStandard: Math.max(0, (siteSettings.unloadingChargeStandard ?? 199) - 10) })}
                       style={{
-                        padding: '2px 8px',
-                        fontSize: '0.72rem',
-                        fontWeight: '700',
-                        borderRadius: '4px',
-                        border: siteSettings.unloadingChargeStandard === amt ? '1px solid #2563EB' : '1px solid #CBD5E1',
-                        backgroundColor: siteSettings.unloadingChargeStandard === amt ? '#EFF6FF' : '#FFFFFF',
-                        color: siteSettings.unloadingChargeStandard === amt ? '#2563EB' : '#475569',
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: '#F8FAFC',
+                        fontWeight: '800',
+                        fontSize: '1rem',
                         cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
+                      title="Decrease by ₹10"
                     >
-                      ₹{amt}
+                      -
                     </button>
-                  ))}
+                    <input
+                      type="number"
+                      min="0"
+                      value={siteSettings.unloadingChargeStandard ?? 199}
+                      onChange={(e) => updateSiteSettings({ unloadingChargeStandard: Math.max(0, Number(e.target.value)) })}
+                      style={{
+                        flex: 1,
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.92rem',
+                        fontWeight: 700,
+                        textAlign: 'center',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => updateSiteSettings({ unloadingChargeStandard: (siteSettings.unloadingChargeStandard ?? 199) + 10 })}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: '#F8FAFC',
+                        fontWeight: '800',
+                        fontSize: '1rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      title="Increase by ₹10"
+                    >
+                      +
+                    </button>
+                  </div>
+                  
+                  {/* Quick Preset Buttons */}
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                    {[49, 99, 149, 199, 249, 299, 499].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => updateSiteSettings({ unloadingChargeStandard: amt })}
+                        style={{
+                          padding: '2px 8px',
+                          fontSize: '0.72rem',
+                          fontWeight: '700',
+                          borderRadius: '4px',
+                          border: siteSettings.unloadingChargeStandard === amt ? '1px solid #2563EB' : '1px solid #CBD5E1',
+                          backgroundColor: siteSettings.unloadingChargeStandard === amt ? '#EFF6FF' : '#FFFFFF',
+                          color: siteSettings.unloadingChargeStandard === amt ? '#2563EB' : '#475569',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ₹{amt}
+                      </button>
+                    ))}
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px', display: 'block' }}>
+                    Reflected live in user cart as "Handling Charge" (₹{siteSettings.unloadingChargeStandard ?? 199}).
+                  </span>
                 </div>
-                <span style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px', display: 'block' }}>Reflected dynamically in user cart & checkout bill.</span>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                    Helper Subtitle Label
+                  </label>
+                  <input
+                    type="text"
+                    value={siteSettings.unloadingHelperText || '1 Helper'}
+                    onChange={(e) => updateSiteSettings({ unloadingHelperText: e.target.value })}
+                    placeholder="e.g. 1 Helper, 2 Helpers, Site Crew"
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 600 }}
+                  />
+                  <span style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px', display: 'block' }}>
+                    Displayed under "Unloading Service" title in user cart.
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                    Free Unloading Minimum Order Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={siteSettings.freeUnloadingThreshold ?? 50000}
+                    onChange={(e) => updateSiteSettings({ freeUnloadingThreshold: Math.max(0, Number(e.target.value)) })}
+                    style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 700 }}
+                  />
+                  <span style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px', display: 'block' }}>
+                    Bulk orders equal/above this value get free unloading (₹0).
+                  </span>
+                </div>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
-                  Free Unloading Minimum Order Amount (₹)
+                  Unloading Notice / Policy Description
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={siteSettings.freeUnloadingThreshold ?? 50000}
-                  onChange={(e) => updateSiteSettings({ freeUnloadingThreshold: Math.max(0, Number(e.target.value)) })}
-                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 700 }}
+                <textarea
+                  rows={2}
+                  value={
+                    siteSettings.unloadingDescription ||
+                    "Includes unloading & keeping at designated place on ground level. Doesn't include shifting to upper floors."
+                  }
+                  onChange={(e) => updateSiteSettings({ unloadingDescription: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.82rem',
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                  }}
                 />
-                <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Bulk orders equal/above this value get free crane unloading.</span>
+              </div>
+
+              {/* Customer Live Preview Box */}
+              <div style={{ backgroundColor: '#F0FDF4', borderRadius: '12px', border: '1px solid #BBF7D0', padding: '12px' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                  Live Customer Preview:
+                </span>
+                <div style={{ fontSize: '0.74rem', color: '#374151', marginBottom: '8px' }}>
+                  {siteSettings.unloadingDescription || "Includes unloading & keeping at designated place on ground level. Doesn't include shifting to upper floors."}
+                </div>
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '10px', padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '1.2rem' }}>🚚</span>
+                    <div>
+                      <div style={{ fontWeight: '800', fontSize: '0.84rem', color: '#0F172A' }}>Unloading Service</div>
+                      <div style={{ fontSize: '0.74rem', color: '#64748B' }}>{siteSettings.unloadingHelperText || '1 Helper'}</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ display: 'inline-block', border: '1.5px solid #16A34A', color: '#16A34A', borderRadius: '6px', padding: '2px 14px', fontSize: '0.78rem', fontWeight: '700' }}>
+                      Add
+                    </span>
+                    <div style={{ fontSize: '0.84rem', fontWeight: '800', color: '#0F172A', marginTop: '2px' }}>
+                      ₹{siteSettings.unloadingChargeStandard ?? 199}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
             <div style={{ backgroundColor: '#F8FAFC', borderRadius: '10px', padding: '12px 14px', fontSize: '0.8rem', color: '#64748B' }}>
-              Unloading fee is currently <strong>disabled</strong>. Customer bills will not include any ₹500 unloading surcharge, ensuring 100% transparent pricing for retail and small material orders.
+              Unloading fee is currently <strong>disabled</strong>. Customer bills will not include any unloading surcharge.
             </div>
           )}
         </div>
@@ -9836,6 +10314,34 @@ export default function AdminView() {
               onChange={(e) => updateSiteSettings({ tickerMessage: e.target.value })}
               style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
             />
+          </div>
+
+          <div style={{ marginTop: '14px' }}>
+            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+              Customer Cancellation Policy (Shown on Checkout & Orders - One bullet point per line)
+            </label>
+            <textarea
+              rows={4}
+              value={
+                Array.isArray(siteSettings.cancellationPolicy)
+                  ? siteSettings.cancellationPolicy.join('\n')
+                  : siteSettings.cancellationPolicy || ''
+              }
+              onChange={(e) => updateSiteSettings({ cancellationPolicy: e.target.value })}
+              placeholder={'Orders cannot be modified once packed.\nDelivery location cannot be changed.\nOrders cannot be cancelled once packed.'}
+              style={{
+                width: '100%',
+                padding: '0.65rem 0.75rem',
+                borderRadius: '8px',
+                border: '1px solid #CBD5E1',
+                fontSize: '0.86rem',
+                fontFamily: 'inherit',
+                lineHeight: '1.5',
+              }}
+            />
+            <p style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px' }}>
+              Enter each policy rule on a new line. These will immediately appear in the customer's Cart, Checkout, and Order Details screens.
+            </p>
           </div>
         </div>
       </div>

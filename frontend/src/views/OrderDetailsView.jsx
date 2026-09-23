@@ -19,9 +19,10 @@ import {
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { MOCK_ORDERS } from '../data/mockData';
+import { printTaxInvoice } from '../utils/printInvoice';
 
 export const OrderDetailsView = () => {
-  const { viewParams, navigateTo, addToast, getOrderById, addToCart } = useStore();
+  const { viewParams, navigateTo, addToast, getOrderById, addToCart, siteSettings } = useStore();
 
   const orderId =
     viewParams?.id ||
@@ -32,7 +33,7 @@ export const OrderDetailsView = () => {
   const order = getOrderById(orderId) || viewParams?.order || MOCK_ORDERS[0];
 
   const handleDownloadInvoice = () => {
-    addToast(`Downloading GST Tax Invoice for Order #${order.id}...`, 'success');
+    printTaxInvoice(order, siteSettings);
   };
 
   const handleDownloadMTC = () => {

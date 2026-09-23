@@ -183,8 +183,8 @@ const INITIAL_BANNERS = [
 const INITIAL_SETTINGS = {
   storeName: 'MISTRI – Construction Material & Technician Booking Platform',
   tagline: 'From Foundation to Finish',
-  supportPhone: '+91 98260 11223',
-  whatsappNumber: '+91 98260 11223',
+  supportPhone: '+91 96309 38487',
+  whatsappNumber: '+91 96309 38487',
   supportEmail: 'care@mistri.com',
   depotAddress: 'Central Depot #14, Super Corridor Logistics Park, Indore, MP - 452005',
   gstRatePercent: 18,
@@ -198,9 +198,16 @@ const INITIAL_SETTINGS = {
   estimatedDeliveryKm: 5,
   enableUnloadingFee: true,
   unloadingChargeStandard: 199,
+  unloadingHelperText: '1 Helper',
+  unloadingDescription: "Includes unloading & keeping at designated place on ground level. Doesn't include shifting to upper floors.",
   freeUnloadingThreshold: 50000,
   tickerMessage: '🚚 EXPRESS SITE DISPATCH IN 60 MINS • OFFICIAL MTC LAB TEST CERTIFICATES INCLUDED WITH EVERY STEEL & CEMENT ORDER • GST 100% ITC COMPLIANT',
   isMaintenanceMode: false,
+  cancellationPolicy: [
+    'Orders cannot be modified once packed.',
+    'Delivery location of an Order cannot be changed. INR 249 additional charges in unavoidable cases.',
+    'Orders cannot be cancelled once packed. Cancellation charges of INR 199 would apply.',
+  ],
 };
 
 // Storage helper with fallback
@@ -320,6 +327,14 @@ export const StoreProvider = ({ children }) => {
 
   // Dynamic Reactive Entities (Initialized from LocalStorage with fallback)
   const [products, setProducts] = useState(() => getStored('products', INITIAL_PRODUCTS));
+  const [isProductsLoaded, setIsProductsLoaded] = useState(() => {
+    try {
+      const stored = localStorage.getItem('mistri_products');
+      return !!(stored && JSON.parse(stored)?.length > 0);
+    } catch {
+      return false;
+    }
+  });
   const [categories, setCategories] = useState(() => getStored('categories', INITIAL_CATEGORIES));
   const [categorySections, setCategorySections] = useState(() => getStored('category_sections', INITIAL_CATEGORY_SECTIONS));
   const [orders, setOrders] = useState(() => getStored('orders', INITIAL_ORDERS));
@@ -335,7 +350,14 @@ export const StoreProvider = ({ children }) => {
   const [siteSettings, setSiteSettings] = useState(() => {
     const stored = getStored('settings', null);
     if (stored && typeof stored === 'object') {
-      return { ...INITIAL_SETTINGS, ...stored };
+      return { 
+        ...INITIAL_SETTINGS, 
+        ...stored,
+        enableUnloadingFee: stored.enableUnloadingFee !== undefined ? stored.enableUnloadingFee : true,
+        unloadingChargeStandard: stored.unloadingChargeStandard !== undefined ? stored.unloadingChargeStandard : 199,
+        unloadingHelperText: stored.unloadingHelperText || '1 Helper',
+        unloadingDescription: stored.unloadingDescription || "Includes unloading & keeping at designated place on ground level. Doesn't include shifting to upper floors.",
+      };
     }
     return INITIAL_SETTINGS;
   });
@@ -399,7 +421,7 @@ export const StoreProvider = ({ children }) => {
   const [cart, setCart] = useState(() => getStored('cart', []));
 
   const [appliedCoupon, setAppliedCoupon] = useState(() => getStored('applied_coupon', null));
-  const [isUnloadingSelected, setIsUnloadingSelected] = useState(true);
+  const [isUnloadingSelected, setIsUnloadingSelected] = useState(false);
 
   // Wishlist State
   const [wishlist, setWishlist] = useState(() => getStored('wishlist', []));
@@ -542,7 +564,10 @@ export const StoreProvider = ({ children }) => {
       if (name === 'adminNotifications') playOrderNotificationSound();
     },
     onLoaded: (name, items) => {
-      if (name === 'products') reconcileWithCatalog(items);
+      if (name === 'products') {
+        setIsProductsLoaded(true);
+        reconcileWithCatalog(items);
+      }
     },
     onAuthError: (err, kind) => endExpiredSession(kind),
   });
@@ -915,8 +940,18 @@ export const StoreProvider = ({ children }) => {
   // different product in its place.
   const getProductById = (id) => {
     if (!id) return null;
-    const target = String(id).toLowerCase();
-    return products.find((p) => p.id?.toLowerCase() === target || p.id?.toLowerCase() === `prod_${target}`) || null;
+    const target = String(id).toLowerCase().trim();
+    return (
+      products.find((p) => {
+        const pId = String(p.id || p._id || '').toLowerCase().trim();
+        return (
+          pId === target ||
+          pId === `prod_${target}` ||
+          target === `prod_${pId}` ||
+          (p.slug && String(p.slug).toLowerCase().trim() === target)
+        );
+      }) || null
+    );
   };
 
 
@@ -2222,6 +2257,7 @@ export const StoreProvider = ({ children }) => {
 
         // DYNAMIC PLATFORM DATA & ADMIN CRUD OPERATIONS
         products,
+        isProductsLoaded,
         addProduct,
         updateProduct,
         deleteProduct,

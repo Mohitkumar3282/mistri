@@ -110,6 +110,7 @@ html {
   font-size: 16px;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  touch-action: pan-x pan-y;
 }
 
 body {
@@ -121,6 +122,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   overflow-x: hidden;
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+
+#root {
+  touch-action: pan-x pan-y;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -1488,6 +1496,255 @@ img {
   border-radius: 4px;
 }
 
+/* ── Assured Cashback Banner ─────────────────────────────── */
+.qc-cashback-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+  border: 1.5px solid #FCD34D;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.qc-cashback-box::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(253, 224, 71, 0.12) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.qc-cashback-icon-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background-color: #F59E0B;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+}
+
+.qc-cashback-title {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #92400E;
+  line-height: 1.2;
+}
+
+.qc-cashback-subtitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #B45309;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+
+/* ── Multi-Attribute Variant Selectors ───────────────────── */
+.qc-variant-group {
+  margin-bottom: 1rem;
+}
+
+.qc-variant-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.qc-variant-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qc-variant-pill-btn {
+  background-color: #FFFFFF;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.3;
+}
+
+.qc-variant-pill-btn:hover {
+  border-color: var(--primary-orange);
+  color: var(--primary-orange);
+  background-color: #FFF8F5;
+}
+
+.qc-variant-pill-btn.selected {
+  background-color: var(--primary-orange);
+  border-color: var(--primary-orange);
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(241, 90, 36, 0.30);
+}
+
+.qc-variant-pill-btn.selected:hover {
+  background-color: var(--primary-orange-hover);
+  border-color: var(--primary-orange-hover);
+  color: #FFFFFF;
+}
+
+/* ── Free Delivery Pill ──────────────────────────────────── */
+.qc-free-delivery-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  margin-bottom: 12px;
+}
+
+.qc-free-delivery-tag {
+  background-color: #0D9488;
+  color: #FFFFFF;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.qc-free-delivery-text {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0F766E;
+}
+
+/* Trust Badges Grid */
+.qc-trust-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.qc-trust-badge-card {
+  background-color: #FAFAFA;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 12px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.qc-trust-badge-card:hover {
+  background-color: #FFFFFF;
+  border-color: #CBD5E1;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.qc-trust-badge-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background-color: #F1F5F9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qc-trust-badge-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #0F172A;
+  line-height: 1.2;
+}
+
+.qc-trust-badge-sub {
+  font-size: 0.68rem;
+  color: #64748B;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Collapsible Product Info Accordion */
+.qc-product-info-box {
+  background-color: #FFFFFF;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin-top: 1.25rem;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(8, 39, 76, 0.04);
+}
+
+.qc-product-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.25rem;
+  cursor: pointer;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid transparent;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.qc-product-info-header:hover {
+  background-color: #F8FAFC;
+}
+
+.qc-product-info-header.open {
+  border-bottom-color: var(--border-subtle);
+}
+
+.qc-product-info-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--primary-navy);
+}
+
+.qc-product-info-body {
+  padding: 1.25rem;
+}
+
+.qc-highlight-qa-box {
+  margin-bottom: 1.25rem;
+}
+
+.qc-highlight-qa-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0F172A;
+  margin-bottom: 6px;
+}
+
+.qc-highlight-qa-text {
+  font-size: 0.86rem;
+  color: #475569;
+  line-height: 1.6;
+}
+
 .qc-bottom-gst-sub {
   font-size: 0.65rem;
   color: #94A3B8;
@@ -1554,7 +1811,3 @@ img {
   font-weight: 800;
   color: #FFFFFF;
 }
-
-
-
-
