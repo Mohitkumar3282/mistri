@@ -127,6 +127,7 @@ export default function AdminView() {
     updateUser,
     deleteUser,
     updateUserTier,
+    toggleUserStatus,
     coupons,
     addCoupon,
     updateCoupon,
@@ -264,9 +265,105 @@ export default function AdminView() {
     target: '',
     image: '',
     gradient: 'linear-gradient(135deg, #0B2947 0%, #163E68 60%, #0F172A 100%)',
-    accent: '#F59E0B',
-    isActive: true,
   });
+
+  // User Management State & Handlers
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState('all'); // 'all' | 'Active' | 'Deactivated'
+  const [userRoleFilter, setUserRoleFilter] = useState('all'); // 'all' | 'Customer' | 'Contractor' | 'Mistri' | 'Admin'
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [userFormData, setUserFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    company: '',
+    gstin: '',
+    city: '',
+    role: 'Customer',
+    tier: 'Standard Builder Tier',
+    status: 'Active',
+  });
+
+  function handleOpenAddUserModal() {
+    setEditingUser(null);
+    setUserFormData({
+      name: '',
+      email: '',
+      phone: '',
+      password: '',
+      company: '',
+      gstin: '',
+      city: '',
+      role: 'Customer',
+      tier: 'Standard Builder Tier',
+      status: 'Active',
+    });
+    setIsUserModalOpen(true);
+  }
+
+  function handleOpenEditUserModal(userItem) {
+    setEditingUser(userItem);
+    setUserFormData({
+      name: userItem.name || '',
+      email: userItem.email || '',
+      phone: userItem.phone || '',
+      password: '',
+      company: userItem.company || '',
+      gstin: userItem.gstin || '',
+      city: userItem.city || '',
+      role: userItem.role || 'Customer',
+      tier: userItem.tier || 'Standard Builder Tier',
+      status: userItem.status || 'Active',
+    });
+    setIsUserModalOpen(true);
+  }
+
+  function handleSaveUser(e) {
+    e.preventDefault();
+    if (!userFormData.name.trim() || !userFormData.phone.trim()) {
+      addToast('Please enter both name and mobile number', 'error');
+      return;
+    }
+
+    if (editingUser) {
+      updateUser(editingUser.id, {
+        name: userFormData.name.trim(),
+        email: userFormData.email.trim() || '',
+        phone: userFormData.phone.trim(),
+        company: userFormData.company.trim(),
+        gstin: userFormData.gstin.trim().toUpperCase(),
+        city: userFormData.city.trim(),
+        role: userFormData.role,
+        tier: userFormData.tier,
+        status: userFormData.status,
+        ...(userFormData.password ? { password: userFormData.password } : {}),
+      });
+      addToast(`User ${userFormData.name} updated successfully`, 'success');
+    } else {
+      addUser({
+        name: userFormData.name.trim(),
+        email: userFormData.email.trim() || '',
+        phone: userFormData.phone.trim(),
+        password: userFormData.password || 'Mistri@123',
+        company: userFormData.company.trim(),
+        gstin: userFormData.gstin.trim().toUpperCase(),
+        city: userFormData.city.trim(),
+        role: userFormData.role,
+        tier: userFormData.tier,
+        status: userFormData.status,
+      });
+      addToast(`User ${userFormData.name} registered successfully`, 'success');
+    }
+    setIsUserModalOpen(false);
+  }
+
+  function handleDeleteUserConfirm(userId, userName) {
+    if (window.confirm(`Are you sure you want to permanently delete the user account for "${userName}"?`)) {
+      deleteUser(userId);
+    }
+  }
 
   function handleOpenAddBannerModal() {
     setEditingBanner(null);
@@ -8396,38 +8493,685 @@ export default function AdminView() {
   // 6. USERS
   // -------------------------------------------------------------
   function renderUsersView(title) {
+    const filteredUsers = (usersList || []).filter((u) => {
+      const q = userSearchTerm.trim().toLowerCase();
+      const matchesQuery =
+        !q ||
+        (u.name && u.name.toLowerCase().includes(q)) ||
+        (u.email && u.email.toLowerCase().includes(q)) ||
+        (u.phone && u.phone.includes(q)) ||
+        (u.company && u.company.toLowerCase().includes(q)) ||
+        (u.city && u.city.toLowerCase().includes(q)) ||
+        (u.gstin && u.gstin.toLowerCase().includes(q));
+
+      const matchesStatus =
+        userStatusFilter === 'all' ||
+        (userStatusFilter === 'Active' && (u.status === 'Active' || !u.status)) ||
+        (userStatusFilter === 'Deactivated' && (u.status === 'Deactivated' || u.status === 'Inactive'));
+
+      const matchesRole =
+        userRoleFilter === 'all' ||
+        (u.role && u.role.toLowerCase() === userRoleFilter.toLowerCase());
+
+      return matchesQuery && matchesStatus && matchesRole;
+    });
+
+    const totalAccounts = (usersList || []).length;
+    const activeCount = (usersList || []).filter((u) => u.status === 'Active' || !u.status).length;
+    const deactivatedCount = (usersList || []).filter((u) => u.status === 'Deactivated' || u.status === 'Inactive').length;
+    const contractorCount = (usersList || []).filter((u) => (u.role || '').toLowerCase() === 'contractor' || u.tier).length;
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: theme.textDark }}>{title} Directory</h1>
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: `1px solid ${theme.cardBorder}`, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
-            <thead>
-              <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `1px solid ${theme.sidebarBorder}`, color: '#64748B' }}>
-                <th style={{ padding: '0.75rem 1rem' }}>Name / Company</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Role / Tier</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Contact</th>
-                <th style={{ padding: '0.75rem 1rem' }}>GSTIN</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usersList.map((u) => (
-                <tr key={u.id} style={{ borderBottom: `1px solid ${theme.tableBorder}` }}>
-                  <td style={{ padding: '0.75rem 1rem' }}>
-                    <div style={{ fontWeight: 800, color: theme.textDark }}>{u.name}</div>
-                    <div style={{ fontSize: '0.72rem', color: theme.textMuted }}>{u.company}</div>
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: theme.primaryBlue }}>{u.tier || u.role}</td>
-                  <td style={{ padding: '0.75rem 1rem' }}>{u.phone}</td>
-                  <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace' }}>{u.gstin || 'N/A'}</td>
-                  <td style={{ padding: '0.75rem 1rem' }}>
-                    <span style={{ padding: '2px 8px', borderRadius: '10px', backgroundColor: '#ECFDF5', color: '#10B981', fontWeight: 700, fontSize: '0.72rem' }}>Active</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Top Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: theme.textDark, margin: 0 }}>
+              {title} Directory & Customer Accounts
+            </h1>
+            <p style={{ color: theme.textMuted, fontSize: '0.84rem', margin: '4px 0 0 0' }}>
+              Manage registered buyers, contractors, wholesale verification tiers, and access permissions.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleOpenAddUserModal}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '0.6rem 1.1rem',
+              backgroundColor: '#15803D',
+              color: '#FFFFFF',
+              borderRadius: '8px',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(21, 128, 61, 0.25)',
+            }}
+          >
+            <Plus size={16} />
+            <span>Add User / Contractor</span>
+          </button>
         </div>
+
+        {/* Stats Strip */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '10px', border: `1px solid ${theme.cardBorder}`, padding: '12px 16px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Registered</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: theme.textDark, marginTop: '2px' }}>{totalAccounts}</div>
+          </div>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '10px', border: `1px solid ${theme.cardBorder}`, padding: '12px 16px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10B981', textTransform: 'uppercase' }}>Active Accounts</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#10B981', marginTop: '2px' }}>{activeCount}</div>
+          </div>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '10px', border: `1px solid ${theme.cardBorder}`, padding: '12px 16px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#EF4444', textTransform: 'uppercase' }}>Deactivated</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#EF4444', marginTop: '2px' }}>{deactivatedCount}</div>
+          </div>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '10px', border: `1px solid ${theme.cardBorder}`, padding: '12px 16px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase' }}>Contractors / Tiered</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#3B82F6', marginTop: '2px' }}>{contractorCount}</div>
+          </div>
+        </div>
+
+        {/* Filter & Search Bar */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '12px',
+            border: `1px solid ${theme.cardBorder}`,
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          {/* Search Box */}
+          <div style={{ position: 'relative', flex: '1', minWidth: '240px', maxWidth: '380px' }}>
+            <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text"
+              placeholder="Search by name, phone, email, company, city, GSTIN..."
+              value={userSearchTerm}
+              onChange={(e) => setUserSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.5rem 0.75rem 0.5rem 2.2rem',
+                borderRadius: '8px',
+                border: '1.5px solid #CBD5E1',
+                fontSize: '0.84rem',
+                outline: 'none',
+                color: '#0F172A',
+              }}
+            />
+          </div>
+
+          {/* Filters */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <select
+              value={userStatusFilter}
+              onChange={(e) => setUserStatusFilter(e.target.value)}
+              style={{
+                padding: '0.5rem 0.75rem',
+                borderRadius: '8px',
+                border: '1.5px solid #CBD5E1',
+                fontSize: '0.84rem',
+                fontWeight: 600,
+                color: '#0F172A',
+                backgroundColor: '#FFFFFF',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="all">All Statuses</option>
+              <option value="Active">Active Only</option>
+              <option value="Deactivated">Deactivated Only</option>
+            </select>
+
+            <select
+              value={userRoleFilter}
+              onChange={(e) => setUserRoleFilter(e.target.value)}
+              style={{
+                padding: '0.5rem 0.75rem',
+                borderRadius: '8px',
+                border: '1.5px solid #CBD5E1',
+                fontSize: '0.84rem',
+                fontWeight: 600,
+                color: '#0F172A',
+                backgroundColor: '#FFFFFF',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="all">All Roles</option>
+              <option value="Customer">Customer</option>
+              <option value="Contractor">Contractor</option>
+              <option value="Mistri">Mistri</option>
+              <option value="Admin">Admin</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Users Table */}
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: `1px solid ${theme.cardBorder}`, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `1px solid ${theme.sidebarBorder}`, color: '#64748B' }}>
+                  <th style={{ padding: '0.85rem 1rem' }}>User / Company</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Contact Info</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Role & Tier</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>City / GSTIN</th>
+                  <th style={{ padding: '0.85rem 1rem' }}>Status</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#94A3B8' }}>
+                      <Users size={36} style={{ opacity: 0.35, marginBottom: '8px' }} />
+                      <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>No registered users found matching your criteria.</div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => {
+                    const isActive = u.status === 'Active' || !u.status;
+                    return (
+                      <tr key={u.id} style={{ borderBottom: `1px solid ${theme.tableBorder}` }}>
+                        {/* Name & Company */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '50%',
+                                backgroundColor: '#E2E8F0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 800,
+                                color: '#0F172A',
+                                fontSize: '0.9rem',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {(u.name || 'U').charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 800, color: theme.textDark }}>{u.name}</div>
+                              <div style={{ fontSize: '0.74rem', color: theme.textMuted }}>
+                                {u.company || 'Individual Account'}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Contact Info (Phone & Email) */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600, color: '#0F172A' }}>
+                            <Phone size={13} color="#64748B" />
+                            <span>{u.phone || 'No phone'}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.76rem', color: u.email ? '#64748B' : '#94A3B8', marginTop: '2px' }}>
+                            <Mail size={13} color={u.email ? '#64748B' : '#CBD5E1'} />
+                            <span>{u.email || <em style={{ color: '#94A3B8' }}>No email (Phone only)</em>}</span>
+                          </div>
+                        </td>
+
+                        {/* Role & Tier */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#EFF6FF', color: '#1D4ED8', fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                            {u.role || 'Customer'}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginTop: '3px' }}>
+                            {u.tier || 'Standard Builder Tier'}
+                          </div>
+                        </td>
+
+                        {/* City / GSTIN */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <div style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600 }}>
+                            {u.city || 'Not specified'}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', fontFamily: 'monospace', color: '#64748B', marginTop: '2px' }}>
+                            GSTIN: {u.gstin || 'N/A'}
+                          </div>
+                        </td>
+
+                        {/* Status Toggle Button */}
+                        <td style={{ padding: '0.85rem 1rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleUserStatus(u.id)}
+                            title={isActive ? 'Click to deactivate this user account' : 'Click to reactivate this user account'}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 10px',
+                              borderRadius: '12px',
+                              border: isActive ? '1px solid #A7F3D0' : '1px solid #FECACA',
+                              backgroundColor: isActive ? '#ECFDF5' : '#FEF2F2',
+                              color: isActive ? '#059669' : '#DC2626',
+                              fontWeight: 700,
+                              fontSize: '0.74rem',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {isActive ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                            <span>{isActive ? 'Active' : 'Deactivated'}</span>
+                          </button>
+                        </td>
+
+                        {/* Actions (Edit / Delete / Deactivate) */}
+                        <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            {/* Edit Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditUserModal(u)}
+                              title="Edit user details"
+                              style={{
+                                padding: '6px',
+                                borderRadius: '6px',
+                                border: '1px solid #E2E8F0',
+                                backgroundColor: '#F8FAFC',
+                                color: '#0F172A',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <Edit2 size={14} />
+                            </button>
+
+                            {/* Deactivate / Reactivate Quick Button */}
+                            <button
+                              type="button"
+                              onClick={() => toggleUserStatus(u.id)}
+                              title={isActive ? 'Deactivate User' : 'Activate User'}
+                              style={{
+                                padding: '6px',
+                                borderRadius: '6px',
+                                border: isActive ? '1px solid #FECACA' : '1px solid #A7F3D0',
+                                backgroundColor: isActive ? '#FEF2F2' : '#ECFDF5',
+                                color: isActive ? '#DC2626' : '#059669',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              {isActive ? <XCircle size={14} /> : <CheckCircle size={14} />}
+                            </button>
+
+                            {/* Delete Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUserConfirm(u.id, u.name)}
+                              title="Permanently delete user"
+                              style={{
+                                padding: '6px',
+                                borderRadius: '6px',
+                                border: '1px solid #FEE2E2',
+                                backgroundColor: '#FEF2F2',
+                                color: '#EF4444',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Modal: Add or Edit User */}
+        {isUserModalOpen && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.6)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+            }}
+            onClick={() => setIsUserModalOpen(false)}
+          >
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '560px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+                border: '1px solid #E2E8F0',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div
+                style={{
+                  padding: '1.25rem 1.5rem',
+                  borderBottom: '1px solid #E2E8F0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: '#F8FAFC',
+                }}
+              >
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                    {editingUser ? `Edit User: ${editingUser.name}` : 'Register New User / Contractor'}
+                  </h3>
+                  <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '2px' }}>
+                    {editingUser ? 'Update account details, role permissions, and access status.' : 'Create a registered account with custom verification tier.'}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsUserModalOpen(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#64748B',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Modal Form */}
+              <form onSubmit={handleSaveUser} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ramesh Patel"
+                      value={userFormData.name}
+                      onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                      Mobile Number *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="+91 98260 00000"
+                      value={userFormData.phone}
+                      onChange={(e) => setUserFormData({ ...userFormData, phone: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                      Email Address (Optional)
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="name@email.com (optional)"
+                      value={userFormData.email}
+                      onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                      {editingUser ? 'Reset Password (Leave blank to keep)' : 'Initial Password'}
+                    </label>
+                    <input
+                      type="password"
+                      placeholder={editingUser ? '••••••••' : 'Default: Mistri@123'}
+                      value={userFormData.password}
+                      onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                      Company / Business Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Patel Construction Co."
+                      value={userFormData.company}
+                      onChange={(e) => setUserFormData({ ...userFormData, company: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                      GSTIN (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="23AAAAA0000A1Z5"
+                      value={userFormData.gstin}
+                      onChange={(e) => setUserFormData({ ...userFormData, gstin: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        textTransform: 'uppercase',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                      City / Location
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Indore"
+                      value={userFormData.city}
+                      onChange={(e) => setUserFormData({ ...userFormData, city: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                      Role
+                    </label>
+                    <select
+                      value={userFormData.role}
+                      onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        backgroundColor: '#FFFFFF',
+                      }}
+                    >
+                      <option value="Customer">Customer</option>
+                      <option value="Contractor">Contractor</option>
+                      <option value="Mistri">Mistri</option>
+                      <option value="Admin">Admin</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                      Account Status
+                    </label>
+                    <select
+                      value={userFormData.status}
+                      onChange={(e) => setUserFormData({ ...userFormData, status: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.55rem 0.75rem',
+                        borderRadius: '8px',
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        backgroundColor: '#FFFFFF',
+                      }}
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Deactivated">Deactivated</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
+                    Contractor Tier
+                  </label>
+                  <select
+                    value={userFormData.tier}
+                    onChange={(e) => setUserFormData({ ...userFormData, tier: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  >
+                    <option value="Standard Builder Tier">Standard Builder Tier</option>
+                    <option value="Silver Contractor Tier">Silver Contractor Tier (Wholesale Pricing)</option>
+                    <option value="Gold Builder VIP">Gold Builder VIP (Priority Dispatch + 3% Rebate)</option>
+                    <option value="Platinum Infrastructure">Platinum Infrastructure (Dedicated Site Manager)</option>
+                  </select>
+                </div>
+
+                {/* Submit Actions */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsUserModalOpen(false)}
+                    style={{
+                      padding: '0.6rem 1.25rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      backgroundColor: '#FFFFFF',
+                      color: '#64748B',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    style={{
+                      padding: '0.6rem 1.5rem',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: '#15803D',
+                      color: '#FFFFFF',
+                      fontWeight: 800,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(21, 128, 61, 0.25)',
+                    }}
+                  >
+                    {editingUser ? 'Save Changes' : 'Create User Account'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

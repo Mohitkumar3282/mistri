@@ -26,7 +26,7 @@ import {
 import { useStore } from '../context/StoreContext';
 import { PRODUCTS } from '../data/mockData';
 import ProductCard from '../components/ProductCard';
-import { getProductOptions } from '../utils/pricing';
+import { getProductOptions, getCartItemKey } from '../utils/pricing';
 
 export const ProductDetailsView = () => {
   const {
@@ -132,6 +132,17 @@ export const ProductDetailsView = () => {
     return product?.discount || null;
   }, [product, currentPrice, currentMrp]);
 
+  const currentSelection = useMemo(() => {
+    return Object.fromEntries(
+      Object.entries(selectedVariants)
+        .filter(([, opt]) => opt)
+        .map(([groupId, opt]) => [
+          groupId,
+          typeof opt === 'object' ? (opt.name ?? opt.label ?? opt.value ?? opt) : opt,
+        ])
+    );
+  }, [selectedVariants]);
+
   const selectedVariantSummary = useMemo(() => {
     const parts = Object.values(selectedVariants)
       .filter(Boolean)
@@ -140,12 +151,26 @@ export const ProductDetailsView = () => {
         return opt;
       })
       .filter(Boolean);
-    return parts.join(', ');
+    return parts.join(' / ');
   }, [selectedVariants]);
 
-  const cartItem = cart.find(
-    (item) => item.product?.id === product?.id || item.id === product?.id
-  );
+  const currentCartItemKey = useMemo(() => {
+    if (!product) return '';
+    return getCartItemKey({
+      ...product,
+      variantSelection: currentSelection,
+      selectedVariant: selectedVariantSummary,
+    });
+  }, [product, currentSelection, selectedVariantSummary]);
+
+  const cartItem = useMemo(() => {
+    if (!currentCartItemKey) return null;
+    return cart.find((item) => {
+      const itemKey = item.cartItemId || getCartItemKey(item.product);
+      return itemKey === currentCartItemKey;
+    });
+  }, [cart, currentCartItemKey]);
+
   const qtyInCart = cartItem ? cartItem.quantity : 0;
 
   const [activeTab, setActiveTab] = useState('specs'); // 'specs' | 'features' | 'description' | 'reviews'
@@ -212,27 +237,20 @@ export const ProductDetailsView = () => {
   const handleAdd = () => {
     const itemToAdd = {
       ...product,
-      name: selectedVariantSummary ? `${product.name} (${selectedVariantSummary})` : product.name,
+      cartItemId: currentCartItemKey,
       price: currentPrice,
       mrp: currentMrp,
       discount: currentDiscount,
       selectedVariant: selectedVariantSummary,
-      // Which option was chosen in each group, so the server can price the same variant.
-      variantSelection: Object.fromEntries(
-        Object.entries(selectedVariants)
-          .filter(([, opt]) => opt)
-          .map(([groupId, opt]) => [
-            groupId,
-            typeof opt === 'object' ? (opt.name ?? opt.label ?? opt.value ?? opt) : opt,
-          ])
-      ),
+      variantSelection: currentSelection,
+      image: galleryImages[activeImgIdx] || product.image,
     };
     addToCart(itemToAdd, 1);
   };
 
   const handleIncrement = () => {
     if (cartItem) {
-      updateCartQty(product.id, qtyInCart + 1);
+      updateCartQty(cartItem.cartItemId || currentCartItemKey, qtyInCart + 1);
     } else {
       handleAdd();
     }
@@ -240,7 +258,7 @@ export const ProductDetailsView = () => {
 
   const handleDecrement = () => {
     if (cartItem) {
-      updateCartQty(product.id, qtyInCart - 1);
+      updateCartQty(cartItem.cartItemId || currentCartItemKey, qtyInCart - 1);
     }
   };
 

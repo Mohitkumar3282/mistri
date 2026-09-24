@@ -63,6 +63,32 @@ export const getProductOptions = (product) => {
 const optionLabel = (opt) => (opt && typeof opt === 'object' ? opt.name ?? opt.label ?? opt.value : opt);
 
 /**
+ * Generate a deterministic key for a cart item based on base product ID and variant selections.
+ */
+export const getCartItemKey = (productOrItem) => {
+  if (!productOrItem) return '';
+  const prod = productOrItem.product || productOrItem;
+  const baseId = String(prod.id ?? prod._id ?? '');
+
+  if (prod.variantSelection && typeof prod.variantSelection === 'object') {
+    const entries = Object.entries(prod.variantSelection)
+      .filter(([_, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k, v]) => `${k}:${typeof v === 'object' ? (v.name || v.label || v.value || '') : v}`)
+      .sort();
+    if (entries.length > 0) {
+      return `${baseId}___${entries.join('|')}`;
+    }
+  }
+  if (prod.selectedVariant) {
+    return `${baseId}___${String(prod.selectedVariant).trim()}`;
+  }
+  if (prod.variant) {
+    return `${baseId}___${String(prod.variant).trim()}`;
+  }
+  return baseId;
+};
+
+/**
  * Resolve the chosen variant options of a product.
  * `selection` maps a variant group id (or "default" for a flat options list) to the
  * chosen option's name. Missing choices fall back to the storefront's default option.
@@ -74,10 +100,14 @@ export const resolveVariantOptions = (product, selection = {}) => {
     for (const group of product.variantGroups) {
       const groupOptions = Array.isArray(group?.options) ? group.options : [];
       if (!groupOptions.length) continue;
-      const wanted = selection?.[group.id];
+      const wanted = selection?.[group.id] ?? selection?.[group.name];
       const opt =
         wanted !== undefined && wanted !== null
-          ? groupOptions.find((o) => String(optionLabel(o)) === String(wanted))
+          ? groupOptions.find(
+              (o) =>
+                String(optionLabel(o)).trim().toLowerCase() === String(wanted).trim().toLowerCase() ||
+                String(o?.id || '').trim() === String(wanted).trim()
+            )
           : groupOptions.find((o) => o?.isPopular) || groupOptions[0];
       if (!opt) return { options, error: `Unknown option "${wanted}" for ${product.name}` };
       options.push(opt);
@@ -87,7 +117,7 @@ export const resolveVariantOptions = (product, selection = {}) => {
     const wanted = selection?.default;
     const opt =
       wanted !== undefined && wanted !== null
-        ? list.find((o) => o.name === String(wanted).trim())
+        ? list.find((o) => o.name.toLowerCase() === String(wanted).trim().toLowerCase())
         : list[0];
     if (!opt) return { options, error: `Unknown option "${wanted}" for ${product.name}` };
     options.push(opt);

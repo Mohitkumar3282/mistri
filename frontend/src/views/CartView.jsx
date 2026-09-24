@@ -10,8 +10,13 @@ import {
   Receipt,
   Sparkles,
   Truck,
+  Clock,
+  MapPin,
+  XCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import { getCartItemKey } from '../utils/pricing';
 import BillDetailsCard from '../components/BillDetailsCard';
 import CancellationPolicyCard from '../components/CancellationPolicyCard';
 import UnloadingServiceCard from '../components/UnloadingServiceCard';
@@ -36,6 +41,7 @@ export const CartView = () => {
     grandTotal,
     siteSettings,
     navigateTo,
+    addresses,
   } = useStore();
 
   if (cart.length === 0) {
@@ -52,34 +58,36 @@ export const CartView = () => {
             padding: '12px 16px',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
+            justifyContent: 'space-between',
           }}
         >
-          <button
-            type="button"
-            onClick={() => navigateTo('home')}
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '8px',
-              border: '1px solid #E2E8F0',
-              backgroundColor: '#FFFFFF',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-            }}
-          >
-            <ChevronLeft size={20} color="#0F172A" />
-          </button>
-          <div>
-            <h1 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0F172A', margin: 0, lineHeight: 1.2 }}>
-              Your cart
-            </h1>
-            <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: '500' }}>
-              0 items
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => navigateTo('home')}
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                border: '1px solid #E2E8F0',
+                backgroundColor: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              }}
+            >
+              <ChevronLeft size={20} color="#0F172A" />
+            </button>
+            <div>
+              <h1 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0F172A', margin: 0, lineHeight: 1.2 }}>
+                Your Cart
+              </h1>
+              <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: '500' }}>
+                0 items
+              </span>
+            </div>
           </div>
         </div>
 
@@ -99,12 +107,12 @@ export const CartView = () => {
                 width: '64px',
                 height: '64px',
                 borderRadius: '50%',
-                backgroundColor: '#FFE4E6',
+                backgroundColor: '#DCFCE7',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 1.25rem auto',
-                color: '#E11D48',
+                color: '#15803D',
               }}
             >
               <ShoppingCart size={32} />
@@ -113,7 +121,7 @@ export const CartView = () => {
               Your cart is empty
             </h2>
             <p style={{ color: '#64748B', fontSize: '0.88rem', marginBottom: '1.75rem', lineHeight: 1.5 }}>
-              You haven't added any building materials or products to your cart yet.
+              You haven't added any building materials or electrical supplies to your cart yet.
             </p>
             <button
               onClick={() => navigateTo('home')}
@@ -122,7 +130,7 @@ export const CartView = () => {
                 gap: '8px',
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: '#E11D48',
+                backgroundColor: '#15803D',
                 color: '#FFFFFF',
                 border: 'none',
                 borderRadius: '10px',
@@ -130,7 +138,7 @@ export const CartView = () => {
                 fontSize: '0.92rem',
                 fontWeight: '700',
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(225, 29, 72, 0.25)',
+                boxShadow: '0 4px 12px rgba(21, 128, 61, 0.25)',
               }}
             >
               <span>Explore Materials & Products</span>
@@ -142,9 +150,16 @@ export const CartView = () => {
     );
   }
 
+  // Calculate cashback: ₹22 per item or 2% of subtotal, whichever is higher
+  const calculatedCashback = Math.max(cartItemCount * 22, Math.round(cartSubtotal * 0.02));
+
+  // Current date formatting for processing notice
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
   return (
     <div style={{ backgroundColor: '#F8FAFC', minHeight: '100vh', paddingBottom: '90px' }}>
-      {/* 1. Clean Top Header: Back Button + Your cart Title + Subtitle */}
+      {/* 1. Header: Back Button + Your Cart Title + Clear Cart */}
       <div
         style={{
           position: 'sticky',
@@ -177,34 +192,49 @@ export const CartView = () => {
           >
             <ChevronLeft size={20} color="#0F172A" />
           </button>
-          <div>
-            <h1 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#0F172A', margin: 0, lineHeight: 1.2 }}>
-              Your cart
-            </h1>
-            <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: '500' }}>
-              {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'} · ₹{(grandTotal || 0).toLocaleString('en-IN')}
-            </span>
-          </div>
+          <h1 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0F172A', margin: 0, lineHeight: 1.2 }}>
+            Your Cart
+          </h1>
         </div>
 
         <button
           type="button"
           onClick={clearCart}
           style={{
-            background: 'none',
-            border: 'none',
-            color: '#E11D48',
-            fontSize: '0.78rem',
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: '8px',
+            color: '#0F172A',
+            fontSize: '0.82rem',
             fontWeight: '700',
+            padding: '6px 12px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '4px',
+            gap: '6px',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
           }}
         >
-          <Trash2 size={13} />
+          <ShoppingCart size={15} color="#0F172A" />
           <span>Clear</span>
         </button>
+      </div>
+
+      {/* Processing Notice Strip */}
+      <div
+        style={{
+          backgroundColor: '#FEE2E2',
+          borderBottom: '1px solid #FECACA',
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+        }}
+      >
+        <div style={{ fontSize: '1.1rem' }}>🚚</div>
+        <div style={{ color: '#991B1B', fontSize: '0.82rem', fontWeight: '600', lineHeight: 1.35 }}>
+          Your order will get processed at 8 AM on {dateStr}
+        </div>
       </div>
 
       {/* Main Cart Content Container */}
@@ -218,7 +248,26 @@ export const CartView = () => {
           gap: '14px',
         }}
       >
-        {/* 2. Your items Card (Exact Reference Image Match) */}
+        {/* 2. Forest Green Congrats Cashback Banner (Exact Reference Match) */}
+        <div
+          style={{
+            backgroundColor: '#15803D',
+            borderRadius: '14px',
+            padding: '18px 16px',
+            textAlign: 'center',
+            color: '#FFFFFF',
+            boxShadow: '0 4px 12px rgba(21, 128, 61, 0.2)',
+          }}
+        >
+          <h2 style={{ fontSize: '1.45rem', fontWeight: '900', margin: '0 0 4px 0', letterSpacing: '-0.3px' }}>
+            Congrats
+          </h2>
+          <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: '600', color: '#F0FDF4' }}>
+            You've earned <span style={{ color: '#FACC15', fontWeight: '800' }}>₹{calculatedCashback} cashback</span> on this order
+          </p>
+        </div>
+
+        {/* 3. Items List Container */}
         <div
           style={{
             backgroundColor: '#FFFFFF',
@@ -228,32 +277,41 @@ export const CartView = () => {
             boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
           }}
         >
-          <div
-            style={{
-              fontSize: '0.95rem',
-              fontWeight: '800',
-              color: '#0F172A',
-              marginBottom: '16px',
-            }}
-          >
-            Your items
-          </div>
-
           <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             {cart.map((item, index) => {
-              const itemTotal = (item.price || 0) * item.quantity;
+              const itemKey = item.cartItemId || getCartItemKey(item.product);
+              const itemPrice = item.price || item.product?.price || 0;
+              const itemTotal = itemPrice * item.quantity;
               const isLast = index === cart.length - 1;
+
+              // Format variant subtitle (e.g. "1 sqmm / Red")
+              const variantSubtitle =
+                item.product?.selectedVariant ||
+                (item.product?.variantSelection
+                  ? Object.values(item.product.variantSelection)
+                      .map((v) => (typeof v === 'object' ? v.name || v.label || v.value : v))
+                      .filter(Boolean)
+                      .join(' / ')
+                  : '') ||
+                item.variant ||
+                item.product?.unit ||
+                'Standard';
+
+              // Individual item cashback badge (₹22 or 2%)
+              const itemCashback = Math.max(22, Math.round(itemPrice * 0.02));
+
+              // Product clean base name
+              const cleanName = item.product?.name ? item.product.name.replace(/\s*\([^)]*\)$/, '') : 'Product';
 
               return (
                 <div
-                  key={item.product.id}
+                  key={itemKey}
                   style={{
                     paddingBottom: isLast ? '0' : '16px',
                     borderBottom: isLast ? 'none' : '1px solid #F1F5F9',
                   }}
                 >
-                  {/* Top Row: Thumbnail + Info */}
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
                     {/* Thumbnail */}
                     <div
                       style={{
@@ -270,8 +328,8 @@ export const CartView = () => {
                       }}
                     >
                       <img
-                        src={item.product.image}
-                        alt={item.product.name}
+                        src={item.product?.image || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400'}
+                        alt={cleanName}
                         style={{
                           width: '100%',
                           height: '100%',
@@ -281,50 +339,36 @@ export const CartView = () => {
                       />
                     </div>
 
-                    {/* Info */}
+                    {/* Middle Info: Title + Variant Subtitle */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <h3
                         style={{
-                          fontSize: '0.88rem',
+                          fontSize: '0.9rem',
                           fontWeight: '700',
                           color: '#0F172A',
-                          margin: '0 0 4px 0',
+                          margin: '0 0 3px 0',
                           lineHeight: 1.3,
                         }}
                       >
-                        {item.product.name}
+                        {cleanName}
                       </h3>
 
-                      {/* Variant Badge */}
-                      <div style={{ marginBottom: '4px' }}>
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            backgroundColor: '#FFE4E6',
-                            color: '#E11D48',
-                            fontSize: '0.7rem',
-                            fontWeight: '800',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.3px',
-                          }}
-                        >
-                          VARIANT {item.variant || item.product.unit || 'Standard'}
-                        </span>
+                      {/* Variant details (e.g. "1 sqmm / Red") */}
+                      <div
+                        style={{
+                          fontSize: '0.8rem',
+                          color: '#64748B',
+                          fontWeight: '500',
+                          marginBottom: '4px',
+                        }}
+                      >
+                        {variantSubtitle}
                       </div>
 
-                      {/* Price Per Unit */}
-                      <div style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: '4px', fontWeight: '500' }}>
-                        ₹{(item.price || 0).toLocaleString('en-IN')} each
-                      </div>
-
-                      {/* Remove Action */}
+                      {/* Remove item button for convenience */}
                       <button
                         type="button"
-                        onClick={() => removeFromCart(item.product.id)}
+                        onClick={() => removeFromCart(itemKey)}
                         style={{
                           background: 'none',
                           border: 'none',
@@ -332,101 +376,119 @@ export const CartView = () => {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '3px',
-                          fontSize: '0.75rem',
+                          fontSize: '0.72rem',
                           color: '#94A3B8',
                           cursor: 'pointer',
                           fontWeight: '500',
                         }}
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={11} />
                         <span>Remove</span>
                       </button>
                     </div>
-                  </div>
 
-                  {/* Bottom Row: Red outlined Stepper on left + Total Price on right */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginTop: '12px',
-                    }}
-                  >
-                    {/* Red Outline Stepper (Exact Reference Match) */}
+                    {/* Right Side: Green Stepper Pill + Cashback Tag + Price */}
                     <div
                       style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        border: '1.5px solid #E11D48',
-                        borderRadius: '8px',
-                        height: '32px',
-                        backgroundColor: '#FFFFFF',
-                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                        gap: '6px',
+                        flexShrink: 0,
                       }}
                     >
-                      <button
-                        type="button"
-                        onClick={() => updateCartQty(item.product.id, item.quantity - 1)}
+                      {/* Green Rounded Stepper Pill « - QTY + » */}
+                      <div
                         style={{
-                          width: '32px',
-                          height: '32px',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#E11D48',
-                        }}
-                      >
-                        {item.quantity === 1 ? (
-                          <Trash2 size={14} color="#E11D48" />
-                        ) : (
-                          <Minus size={14} color="#E11D48" strokeWidth={2.5} />
-                        )}
-                      </button>
-
-                      <span
-                        style={{
-                          minWidth: '28px',
-                          textAlign: 'center',
-                          fontWeight: '800',
-                          fontSize: '0.88rem',
-                          color: '#E11D48',
-                        }}
-                      >
-                        {item.quantity}
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() => updateCartQty(item.product.id, item.quantity + 1)}
-                        style={{
-                          width: '32px',
+                          backgroundColor: '#15803D',
+                          borderRadius: '8px',
                           height: '32px',
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#E11D48',
+                          padding: '0 4px',
+                          boxShadow: '0 2px 6px rgba(21, 128, 61, 0.25)',
                         }}
                       >
-                        <Plus size={14} color="#E11D48" strokeWidth={2.5} />
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => updateCartQty(itemKey, item.quantity - 1)}
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#FFFFFF',
+                            fontSize: '0.85rem',
+                            fontWeight: '800',
+                          }}
+                          aria-label="Decrease quantity"
+                        >
+                          {item.quantity === 1 ? '« -' : '« -'}
+                        </button>
 
-                    {/* Total Price for item */}
-                    <div
-                      style={{
-                        fontSize: '1.15rem',
-                        fontWeight: '800',
-                        color: '#0F172A',
-                      }}
-                    >
-                      ₹{itemTotal.toLocaleString('en-IN')}
+                        <span
+                          style={{
+                            minWidth: '22px',
+                            textAlign: 'center',
+                            fontWeight: '800',
+                            fontSize: '0.9rem',
+                            color: '#FFFFFF',
+                          }}
+                        >
+                          {item.quantity}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => updateCartQty(itemKey, item.quantity + 1)}
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#FFFFFF',
+                            fontSize: '0.85rem',
+                            fontWeight: '800',
+                          }}
+                          aria-label="Increase quantity"
+                        >
+                          {'+ »'}
+                        </button>
+                      </div>
+
+                      {/* Cashback Pill + Item Price */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span
+                          style={{
+                            backgroundColor: '#FEF9C3',
+                            border: '1px solid #FEF08A',
+                            color: '#166534',
+                            fontSize: '0.72rem',
+                            fontWeight: '700',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                          }}
+                        >
+                          ₹{itemCashback} cashback
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.98rem',
+                            fontWeight: '800',
+                            color: '#0F172A',
+                          }}
+                        >
+                          ₹ {itemTotal.toLocaleString('en-IN')}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -435,10 +497,10 @@ export const CartView = () => {
           </div>
         </div>
 
-        {/* Unloading Service Selection Card (Exact Reference Match) */}
+        {/* 4. Unloading Service Card */}
         <UnloadingServiceCard />
 
-        {/* 3. Bill details Card (Exact Reference Design Match) */}
+        {/* 5. Bill Details Card */}
         <BillDetailsCard
           subtotal={cartSubtotal}
           discount={discountAmount}
@@ -448,11 +510,11 @@ export const CartView = () => {
           total={grandTotal}
         />
 
-        {/* 4. Cancellation Policy Card (Exact Reference Design Match) */}
+        {/* 6. Cancellation Policy Card */}
         <CancellationPolicyCard />
       </div>
 
-      {/* 4. Sticky Bottom Action Bar: Continue to checkout Button (Sleek Mobile-Responsive) */}
+      {/* 7. Sticky Bottom Action Bar (Exact Reference Match) */}
       <div
         style={{
           position: 'fixed',
@@ -461,8 +523,8 @@ export const CartView = () => {
           right: 0,
           backgroundColor: '#FFFFFF',
           borderTop: '1px solid #E2E8F0',
-          padding: '8px 14px max(8px, env(safe-area-inset-bottom, 8px)) 14px',
-          boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
+          padding: '10px 16px max(10px, env(safe-area-inset-bottom, 10px)) 16px',
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.06)',
           zIndex: 1000,
         }}
       >
@@ -472,25 +534,26 @@ export const CartView = () => {
             onClick={() => navigateTo('checkout')}
             style={{
               width: '100%',
-              height: '42px',
-              backgroundColor: '#E11D48',
+              height: '46px',
+              backgroundColor: '#15803D',
               color: '#FFFFFF',
               borderRadius: '10px',
               border: 'none',
-              fontWeight: '700',
-              fontSize: '0.88rem',
+              fontWeight: '800',
+              fontSize: '0.95rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '6px',
-              boxShadow: '0 2px 8px rgba(225, 29, 72, 0.22)',
+              boxShadow: '0 3px 10px rgba(21, 128, 61, 0.3)',
               transition: 'transform 0.15s ease, opacity 0.15s ease',
             }}
             onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
             onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
           >
-            <span>Continue to checkout</span>
+            <span>Proceed to Checkout</span>
+            <span style={{ fontSize: '1.1rem', fontWeight: '800' }}>›</span>
           </button>
         </div>
       </div>

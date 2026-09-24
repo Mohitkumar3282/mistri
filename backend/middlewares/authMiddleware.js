@@ -20,13 +20,17 @@ export const protect = async (req, res, next) => {
         req.user = null;
       }
 
+      if (req.user && (req.user.status === 'Deactivated' || req.user.status === 'Inactive') && req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Your account has been deactivated. Please contact support.',
+        });
+      }
+
       if (!req.user) {
         req.user = {
           _id: decoded.id,
           name: decoded.name || 'Demo User',
-          // Tokens issued before roles were embedded carry only the id. The built-in
-          // admin id is only ever issued to the administrator (and the token is signed),
-          // so those sessions keep their admin rights instead of silently becoming customers.
           role: decoded.role || (decoded.id === 'usr_admin_root' ? 'admin' : 'customer'),
         };
       }

@@ -40,7 +40,7 @@ export const SYNC_COLLECTIONS = [
   { name: 'quotations', path: '/quotations', key: 'id', read: 'owner', write: 'owner', poll: true },
   { name: 'supportMessages', path: '/support-messages', key: 'id', read: 'admin', write: 'public', poll: true },
   { name: 'adminNotifications', path: '/admin/notifications', key: 'id', read: 'admin', write: 'admin', poll: true },
-  { name: 'usersList', path: '/admin/users', key: 'id', read: 'admin', write: 'none', poll: true },
+  { name: 'usersList', path: '/admin/users', key: 'id', read: 'admin', write: 'admin', poll: true },
 ];
 
 const PUSH_DELAY_MS = 400;
@@ -156,20 +156,49 @@ export const useServerSync = ({ collections, settings, account, session, onError
     const serverItems = (res?.data || []).map(cfg.fromServer || ((x) => x));
     const local = latest.current[cfg.name] || [];
 
-    // One-time migration: an administrator whose browser holds data the (empty) server
-    // has never seen uploads it instead of losing it.
-    if (initial && serverItems.length === 0 && local.length > 0 && cfg.write === 'admin' && sess.isAdmin) {
-      snapshots.current[cfg.name] = new Map();
-      hydrated.current[cfg.name] = true;
-      schedulePush(cfg);
-      return;
+    // Admin safety net: if the local cache has records that are missing on the server,
+    // merge them and schedule a push to MongoDB rather than discarding the administrator's additions.
+    if (initial && cfg.write === 'admin' && sess.isAdmin && Array.isArray(local) && local.length > 0) {
+      const getKey = keyFn(cfg);
+      const serverKeySet = new Set(serverItems.map((item) => String(getKey(item))));
+      const missingOnServer = local.filter((item) => {
+        const k = getKey(item);
+        return k !== undefined && k !== null && k !== '' && !serverKeySet.has(String(k));
+      });
+
+      if (missingOnServer.length > 0) {
+        const merged = [...serverItems, ...missingOnServer];
+        snapshots.current[cfg.name] = toSnapshot(cfg, serverItems);
+        hydrated.current[cfg.name] = true;
+        setState(merged);
+        callbacks.current.onLoaded?.(cfg.name, merged);
+        schedulePush(cfg);
+        return;
+      }
     }
 
+    const nextSnapshot = toSnapshot(cfg, serverItems);
     const previous = snapshots.current[cfg.name];
-    snapshots.current[cfg.name] = toSnapshot(cfg, serverItems);
+
+    // Determine if data has actually changed compared to our previous server snapshot
+    let hasChanged = !previous || previous.size !== nextSnapshot.size;
+    if (!hasChanged && previous) {
+      for (const [k, v] of nextSnapshot.entries()) {
+        if (previous.get(k) !== v) {
+          hasChanged = true;
+          break;
+        }
+      }
+    }
+
+    snapshots.current[cfg.name] = nextSnapshot;
     hydrated.current[cfg.name] = true;
-    setState(serverItems);
-    callbacks.current.onLoaded?.(cfg.name, serverItems);
+
+    // Only update React state if the data is genuinely new or on initial load
+    if (initial || hasChanged) {
+      setState(serverItems);
+      callbacks.current.onLoaded?.(cfg.name, serverItems);
+    }
 
     if (!initial && previous && callbacks.current.onNewItems) {
       const getKey = keyFn(cfg);
@@ -194,8 +223,11 @@ export const useServerSync = ({ collections, settings, account, session, onError
       if (gen !== generation.current) return;
       if (res?.data) {
         const merged = { ...latest.current.__settings, ...res.data };
-        settingsSnapshot.current = stableStringify(merged);
-        settings[1](merged);
+        const serialized = stableStringify(merged);
+        if (settingsSnapshot.current !== serialized) {
+          settingsSnapshot.current = serialized;
+          settings[1](merged);
+        }
       } else if (sessionRef.current.isAdmin) {
         // Nothing saved on the server yet: store this administrator's settings.
         settingsSnapshot.current = '';
@@ -222,9 +254,12 @@ export const useServerSync = ({ collections, settings, account, session, onError
         addresses: server.addresses?.length ? server.addresses : local.addresses || [],
         wishlist: server.wishlist?.length ? server.wishlist : local.wishlist || [],
       };
-      accountSnapshot.current = stableStringify({ addresses: server.addresses || [], wishlist: server.wishlist || [] });
-      account[1].setAddresses(next.addresses);
-      account[1].setWishlist(next.wishlist);
+      const serialized = stableStringify({ addresses: server.addresses || [], wishlist: server.wishlist || [] });
+      if (accountSnapshot.current !== serialized) {
+        accountSnapshot.current = serialized;
+        account[1].setAddresses(next.addresses);
+        account[1].setWishlist(next.wishlist);
+      }
     } catch (err) {
       accountSnapshot.current = null;
     }

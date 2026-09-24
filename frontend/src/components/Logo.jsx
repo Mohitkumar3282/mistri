@@ -1,10 +1,10 @@
 import React from 'react';
-import mistriLogoImg from '../assets/mistri-logo.jpg';
+import mistriLogoImg from '../assets/mistri-logo.png';
 
 /**
  * MISTRI Brand Logo
  * Official Brand Logo Image:
- * - Direct high-res asset: mistri-logo.jpg
+ * - Direct asset: mistri-logo.png
  * - Tagline: "FROM FOUNDATION TO FINISH"
  */
 export const Logo = ({

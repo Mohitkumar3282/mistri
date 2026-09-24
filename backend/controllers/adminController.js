@@ -85,6 +85,15 @@ export const updateSettings = async (req, res) => {
 
 const capitalize = (s = '') => s.charAt(0).toUpperCase() + s.slice(1);
 
+const findUserById = async (id) => {
+  if (!id) return null;
+  let user = await User.findOne({ clientId: id });
+  if (!user && mongoose.Types.ObjectId.isValid(id)) {
+    user = await User.findById(id);
+  }
+  return user;
+};
+
 /**
  * @desc List registered accounts in the shape the admin Users table expects
  * @route GET /api/admin/users
@@ -94,20 +103,166 @@ export const getUsers = async (req, res) => {
     const users = await User.find().sort({ _id: -1 }).lean();
     const data = users.map((u) => ({
       id: u.clientId || String(u._id),
+      _id: String(u._id),
       name: u.name,
-      email: u.email,
-      phone: u.phone,
+      email: u.email || '',
+      phone: u.phone || '',
       role: capitalize(u.role),
-      company: u.company,
-      gstin: u.gstin,
+      company: u.company || '',
+      gstin: u.gstin || '',
       city: u.city || u.address?.city || '',
-      tier: u.tier,
-      status: u.status,
-      totalOrders: u.totalOrders,
-      totalSpend: u.totalSpend,
+      tier: u.tier || 'Standard Builder Tier',
+      status: u.status || 'Active',
+      totalOrders: u.totalOrders || 0,
+      totalSpend: u.totalSpend || 0,
       createdAt: u.createdAt,
     }));
     res.json({ success: true, count: data.length, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc Create user account from admin panel
+ * @route POST /api/admin/users
+ */
+export const createUser = async (req, res) => {
+  try {
+    const { name, email, phone, password, role, company, gstin, city, tier, status, id } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Please provide user name' });
+    }
+
+    const cleanEmail = email && typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : undefined;
+    const cleanPhone = phone && typeof phone === 'string' ? phone.trim() : '';
+
+    if (cleanEmail) {
+      const exists = await User.findOne({ email: cleanEmail });
+      if (exists) {
+        return res.status(400).json({ success: false, message: 'User with this email already exists' });
+      }
+    }
+
+    const userData = {
+      name: name.trim(),
+      password: password || 'Mistri@123',
+      phone: cleanPhone,
+      role: (role || 'customer').toLowerCase(),
+      company: company || '',
+      gstin: gstin || '',
+      city: city || '',
+      tier: tier || 'Standard Builder Tier',
+      status: status || 'Active',
+      clientId: id || `usr_${Date.now()}`,
+    };
+    if (cleanEmail) userData.email = cleanEmail;
+
+    const user = await User.create(userData);
+    res.status(201).json({
+      success: true,
+      data: {
+        id: user.clientId || String(user._id),
+        _id: String(user._id),
+        name: user.name,
+        email: user.email || '',
+        phone: user.phone || '',
+        role: capitalize(user.role),
+        company: user.company || '',
+        gstin: user.gstin || '',
+        city: user.city || '',
+        tier: user.tier,
+        status: user.status,
+        totalOrders: user.totalOrders || 0,
+        totalSpend: user.totalSpend || 0,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc Update user account details or status
+ * @route PUT /api/admin/users/:id
+ */
+export const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, phone, role, company, gstin, city, tier, status, password } = req.body;
+
+    const user = await findUserById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (name !== undefined) user.name = name.trim();
+    if (email !== undefined) {
+      const cleanEmail = email && typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : undefined;
+      if (cleanEmail && cleanEmail !== user.email) {
+        const emailExists = await User.findOne({ email: cleanEmail, _id: { $ne: user._id } });
+        if (emailExists) {
+          return res.status(400).json({ success: false, message: 'Email is already in use by another account' });
+        }
+      }
+      user.email = cleanEmail;
+    }
+    if (phone !== undefined) user.phone = phone.trim();
+    if (role !== undefined) user.role = role.toLowerCase();
+    if (company !== undefined) user.company = company;
+    if (gstin !== undefined) user.gstin = gstin;
+    if (city !== undefined) user.city = city;
+    if (tier !== undefined) user.tier = tier;
+    if (status !== undefined) user.status = status;
+    if (password && password.trim()) {
+      user.password = password.trim();
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      data: {
+        id: user.clientId || String(user._id),
+        _id: String(user._id),
+        name: user.name,
+        email: user.email || '',
+        phone: user.phone || '',
+        role: capitalize(user.role),
+        company: user.company || '',
+        gstin: user.gstin || '',
+        city: user.city || '',
+        tier: user.tier,
+        status: user.status,
+        totalOrders: user.totalOrders || 0,
+        totalSpend: user.totalSpend || 0,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc Delete user account
+ * @route DELETE /api/admin/users/:id
+ */
+export const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await findUserById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.role === 'admin' && (user.email === process.env.ADMIN_EMAIL || user.clientId === 'usr_admin_root')) {
+      return res.status(403).json({ success: false, message: 'Cannot delete primary root administrator' });
+    }
+
+    await User.findByIdAndDelete(user._id);
+    res.json({ success: true, message: 'User account deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

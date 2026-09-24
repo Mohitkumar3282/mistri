@@ -95,8 +95,8 @@ export const LoginModal = () => {
     e.preventDefault();
     setErrorMsg('');
 
-    if (!signUpData.name || !signUpData.phone || !signUpData.email || !signUpData.password) {
-      setErrorMsg('Please fill in all mandatory fields.');
+    if (!signUpData.name || !signUpData.phone || !signUpData.password) {
+      setErrorMsg('Please fill in your name, mobile number, and password.');
       return;
     }
 
@@ -508,7 +508,7 @@ export const LoginModal = () => {
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.35rem' }}>
-                  Email Address *
+                  Email Address (Optional)
                 </label>
                 <div style={{ position: 'relative' }}>
                   <Mail
@@ -518,8 +518,7 @@ export const LoginModal = () => {
                   />
                   <input
                     type="email"
-                    required
-                    placeholder="name@email.com"
+                    placeholder="name@email.com (optional)"
                     value={signUpData.email}
                     onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
                     style={{

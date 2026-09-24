@@ -110,11 +110,10 @@ export const SignupView = () => {
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={{ fontSize: '0.825rem', fontWeight: 700 }}>Email Address *</label>
+            <label className="form-label" style={{ fontSize: '0.825rem', fontWeight: 700 }}>Email Address (Optional)</label>
             <input
               type="email"
-              required
-              placeholder="name@email.com"
+              placeholder="name@email.com (optional)"
               className="form-control"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}

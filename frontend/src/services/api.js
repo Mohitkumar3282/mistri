@@ -91,56 +91,59 @@ export const api = {
 
   // Products (Materials)
   getProducts: (params = {}) => request(withQuery('/products', params)),
-  getProductById: (id) => request(`/products/${id}`),
-  createProduct: (data) => request('/products', json('POST', data)),
-  updateProduct: (id, data) => request(`/products/${id}`, json('PATCH', data)),
-  deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
+  getProductById: (id) => request(`/products/${encodeURIComponent(id)}`),
+  createProduct: (data) => request('/products', json('POST', data, { auth: 'admin' })),
+  updateProduct: (id, data) => request(`/products/${encodeURIComponent(id)}`, json('PATCH', data, { auth: 'admin' })),
+  deleteProduct: (id) => request(`/products/${encodeURIComponent(id)}`, { method: 'DELETE', auth: 'admin' }),
 
   // Categories & storefront sections
   getCategories: () => request('/categories'),
-  getCategoryById: (id) => request(`/categories/${id}`),
-  createCategory: (data) => request('/categories', json('POST', data)),
-  updateCategory: (id, data) => request(`/categories/${id}`, json('PATCH', data)),
-  deleteCategory: (id) => request(`/categories/${id}`, { method: 'DELETE' }),
+  getCategoryById: (id) => request(`/categories/${encodeURIComponent(id)}`),
+  createCategory: (data) => request('/categories', json('POST', data, { auth: 'admin' })),
+  updateCategory: (id, data) => request(`/categories/${encodeURIComponent(id)}`, json('PATCH', data, { auth: 'admin' })),
+  deleteCategory: (id) => request(`/categories/${encodeURIComponent(id)}`, { method: 'DELETE', auth: 'admin' }),
   getCategorySections: () => request('/category-sections'),
 
   // Orders
   getOrders: (params = {}) => request(withQuery('/orders', params)),
-  getOrderById: (id) => request(`/orders/${id}`),
+  getOrderById: (id) => request(`/orders/${encodeURIComponent(id)}`),
   createOrder: (data) => request('/orders', json('POST', data, { auth: 'user', quiet: true })),
-  updateOrder: (id, data) => request(`/orders/${id}`, json('PATCH', data)),
-  deleteOrder: (id) => request(`/orders/${id}`, { method: 'DELETE' }),
+  updateOrder: (id, data) => request(`/orders/${encodeURIComponent(id)}`, json('PATCH', data, { auth: 'admin' })),
+  deleteOrder: (id) => request(`/orders/${encodeURIComponent(id)}`, { method: 'DELETE', auth: 'admin' }),
 
   // Services
   getServices: (params = {}) => request(withQuery('/services', params)),
-  getServiceById: (id) => request(`/services/${id}`),
+  getServiceById: (id) => request(`/services/${encodeURIComponent(id)}`),
 
   // Mistris / Technicians
   getMistris: (params = {}) => request(withQuery('/mistris', params)),
-  getMistriById: (id) => request(`/mistris/${id}`),
+  getMistriById: (id) => request(`/mistris/${encodeURIComponent(id)}`),
 
   // Bookings
   createBooking: (data) => request('/bookings', json('POST', data, { auth: 'user' })),
   getMyBookings: () => request('/bookings/my', { auth: 'user' }),
-  updateBookingStatus: (id, status) => request(`/bookings/${id}`, json('PATCH', { status })),
+  updateBookingStatus: (id, status) => request(`/bookings/${encodeURIComponent(id)}`, json('PATCH', { status })),
 
   // Coupons
   getCoupons: () => request('/coupons'),
-  createCoupon: (data) => request('/coupons', json('POST', data)),
-  updateCoupon: (code, data) => request(`/coupons/${encodeURIComponent(code)}`, json('PATCH', data)),
-  deleteCoupon: (code) => request(`/coupons/${encodeURIComponent(code)}`, { method: 'DELETE' }),
+  createCoupon: (data) => request('/coupons', json('POST', data, { auth: 'admin' })),
+  updateCoupon: (code, data) => request(`/coupons/${encodeURIComponent(code)}`, json('PATCH', data, { auth: 'admin' })),
+  deleteCoupon: (code) => request(`/coupons/${encodeURIComponent(code)}`, { method: 'DELETE', auth: 'admin' }),
 
   // Quotations
   getQuotations: () => request('/quotations'),
-  updateQuotation: (id, data) => request(`/quotations/${id}`, json('PATCH', data)),
+  updateQuotation: (id, data) => request(`/quotations/${encodeURIComponent(id)}`, json('PATCH', data, { auth: 'admin' })),
 
   // Platform settings
   getSettings: () => request('/settings'),
-  updateSettings: (data) => request('/settings', json('PUT', data)),
+  updateSettings: (data) => request('/settings', json('PUT', data, { auth: 'admin' })),
 
   // Admin
   getAdminStats: () => request('/admin/stats'),
   getAdminUsers: () => request('/admin/users', { auth: 'admin' }),
+  createAdminUser: (data) => request('/admin/users', json('POST', data, { auth: 'admin' })),
+  updateAdminUser: (id, data) => request(`/admin/users/${encodeURIComponent(id)}`, json('PUT', data, { auth: 'admin' })),
+  deleteAdminUser: (id) => request(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE', auth: 'admin' }),
 
   // Payments
   getPaymentKey: () => request('/payments/key'),

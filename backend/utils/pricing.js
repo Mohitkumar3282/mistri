@@ -74,10 +74,14 @@ export const resolveVariantOptions = (product, selection = {}) => {
     for (const group of product.variantGroups) {
       const groupOptions = Array.isArray(group?.options) ? group.options : [];
       if (!groupOptions.length) continue;
-      const wanted = selection?.[group.id];
+      const wanted = selection?.[group.id] ?? selection?.[group.name];
       const opt =
         wanted !== undefined && wanted !== null
-          ? groupOptions.find((o) => String(optionLabel(o)) === String(wanted))
+          ? groupOptions.find(
+              (o) =>
+                String(optionLabel(o)).trim().toLowerCase() === String(wanted).trim().toLowerCase() ||
+                String(o?.id || '').trim() === String(wanted).trim()
+            )
           : groupOptions.find((o) => o?.isPopular) || groupOptions[0];
       if (!opt) return { options, error: `Unknown option "${wanted}" for ${product.name}` };
       options.push(opt);
@@ -87,7 +91,7 @@ export const resolveVariantOptions = (product, selection = {}) => {
     const wanted = selection?.default;
     const opt =
       wanted !== undefined && wanted !== null
-        ? list.find((o) => o.name === String(wanted).trim())
+        ? list.find((o) => o.name.toLowerCase() === String(wanted).trim().toLowerCase())
         : list[0];
     if (!opt) return { options, error: `Unknown option "${wanted}" for ${product.name}` };
     options.push(opt);

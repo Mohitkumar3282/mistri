@@ -42,33 +42,57 @@ export const registerUser = async (req, res, next) => {
     // Never let a request self-assign a privileged role.
     const safeRole = ['customer', 'mistri'].includes(role) ? role : 'customer';
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ success: false, message: 'Please provide name, email, and password' });
+    if (!name || !password) {
+      return res.status(400).json({ success: false, message: 'Please provide your name and a password' });
+    }
+
+    const cleanEmail = email && typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : null;
+    const cleanPhone = phone && typeof phone === 'string' ? phone.trim() : '';
+
+    if (!cleanEmail && !cleanPhone) {
+      return res.status(400).json({ success: false, message: 'Please provide either a mobile number or email address' });
     }
 
     try {
-      const userExists = await User.findOne({ email: String(email).trim().toLowerCase() });
-      if (userExists) {
-        return res.status(400).json({ success: false, message: 'User with this email already exists' });
+      if (cleanEmail) {
+        const userExists = await User.findOne({ email: cleanEmail });
+        if (userExists) {
+          return res.status(400).json({ success: false, message: 'User with this email already exists' });
+        }
       }
 
-      const user = await User.create({
-        name,
-        email,
+      if (cleanPhone) {
+        const digits = cleanPhone.replace(/\D/g, '').slice(-10);
+        if (digits.length === 10) {
+          const phonePattern = new RegExp(`${digits.split('').join('\\D*')}$`);
+          const phoneExists = await User.findOne({ phone: phonePattern });
+          if (phoneExists) {
+            return res.status(400).json({ success: false, message: 'User with this mobile number already exists' });
+          }
+        }
+      }
+
+      const userData = {
+        name: name.trim(),
         password,
-        phone: phone || '',
+        phone: cleanPhone,
         role: safeRole,
         company: company || '',
         gstin: gstin || '',
         city: city || '',
-      });
+      };
+      if (cleanEmail) {
+        userData.email = cleanEmail;
+      }
+
+      const user = await User.create(userData);
 
       return res.status(201).json({
         success: true,
         data: {
           _id: user._id,
           name: user.name,
-          email: user.email,
+          email: user.email || '',
           role: user.role,
           phone: user.phone,
           token: generateToken(user._id, user.role),
@@ -80,7 +104,8 @@ export const registerUser = async (req, res, next) => {
         return res.status(400).json({ success: false, message: dbError.message });
       }
       if (dbError?.code === 11000) {
-        return res.status(400).json({ success: false, message: 'User with this email already exists' });
+        const field = Object.keys(dbError.keyPattern || {})[0] || 'email/phone';
+        return res.status(400).json({ success: false, message: `User with this ${field} already exists` });
       }
 
       // Database unreachable: only issue a temporary in-memory account when demo mode
@@ -91,9 +116,9 @@ export const registerUser = async (req, res, next) => {
 
       const newUser = {
         _id: `usr_${Date.now()}`,
-        name,
-        email,
-        phone: phone || '',
+        name: name.trim(),
+        email: cleanEmail || '',
+        phone: cleanPhone,
         role: safeRole,
       };
       mockUsers.push(newUser);
@@ -165,18 +190,26 @@ export const loginUser = async (req, res, next) => {
       }
 
       if (user && (await user.matchPassword(password))) {
+        if ((user.status === 'Deactivated' || user.status === 'Inactive') && user.role !== 'admin') {
+          return res.status(403).json({
+            success: false,
+            message: 'Your account has been deactivated by the administrator. Please contact support.',
+          });
+        }
+
         return res.json({
           success: true,
           data: {
             _id: user._id,
             name: user.name,
-            email: user.email,
+            email: user.email || '',
             role: user.role,
             phone: user.phone,
             avatar: user.avatar,
             company: user.company,
             gstin: user.gstin,
             tier: user.tier,
+            status: user.status,
             token: generateToken(user._id, user.role),
           },
         });

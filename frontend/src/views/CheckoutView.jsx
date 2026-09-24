@@ -22,6 +22,7 @@ import OnlinePaymentModal from '../components/OnlinePaymentModal';
 import BillDetailsCard from '../components/BillDetailsCard';
 import CancellationPolicyCard from '../components/CancellationPolicyCard';
 import UnloadingServiceCard from '../components/UnloadingServiceCard';
+import { getCartItemKey } from '../utils/pricing';
 
 export const CheckoutView = () => {
   const {
@@ -409,12 +410,28 @@ export const CheckoutView = () => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {cart.map((item, idx) => {
-              const itemTotal = (item.price || 0) * item.quantity;
+              const itemKey = item.cartItemId || getCartItemKey(item.product);
+              const itemPrice = item.price || item.product?.price || 0;
+              const itemTotal = itemPrice * item.quantity;
               const isLast = idx === cart.length - 1;
+
+              const variantSubtitle =
+                item.product?.selectedVariant ||
+                (item.product?.variantSelection
+                  ? Object.values(item.product.variantSelection)
+                      .map((v) => (typeof v === 'object' ? v.name || v.label || v.value : v))
+                      .filter(Boolean)
+                      .join(' / ')
+                  : '') ||
+                item.variant ||
+                item.product?.unit ||
+                'Standard';
+
+              const cleanName = item.product?.name ? item.product.name.replace(/\s*\([^)]*\)$/, '') : 'Product';
 
               return (
                 <div
-                  key={item.product.id}
+                  key={itemKey}
                   style={{
                     paddingBottom: isLast ? 0 : '16px',
                     borderBottom: isLast ? 'none' : '1px solid #F1F5F9',
@@ -436,36 +453,35 @@ export const CheckoutView = () => {
                       }}
                     >
                       <img
-                        src={item.product.image}
-                        alt={item.product.name}
+                        src={item.product?.image || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400'}
+                        alt={cleanName}
                         style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '4px' }}
                       />
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <h4 style={{ fontSize: '0.86rem', fontWeight: '700', color: '#0F172A', margin: '0 0 4px 0', lineHeight: 1.3 }}>
-                        {item.product.name}
+                        {cleanName}
                       </h4>
 
                       <div style={{ marginBottom: '4px' }}>
                         <span
                           style={{
                             display: 'inline-flex',
-                            backgroundColor: '#FFE4E6',
-                            color: '#E11D48',
-                            fontSize: '0.68rem',
-                            fontWeight: '800',
+                            backgroundColor: '#F1F5F9',
+                            color: '#475569',
+                            fontSize: '0.72rem',
+                            fontWeight: '700',
                             padding: '2px 6px',
                             borderRadius: '4px',
-                            textTransform: 'uppercase',
                           }}
                         >
-                          VARIANT {item.variant || item.product.unit || 'Standard'}
+                          {variantSubtitle}
                         </span>
                       </div>
 
                       <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: '500' }}>
-                        ₹{(item.price || 0).toLocaleString('en-IN')} each
+                        ₹{itemPrice.toLocaleString('en-IN')} each
                       </div>
                     </div>
                   </div>
@@ -475,7 +491,7 @@ export const CheckoutView = () => {
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        border: '1.5px solid #E11D48',
+                        border: '1.5px solid #15803D',
                         borderRadius: '8px',
                         height: '30px',
                         backgroundColor: '#FFFFFF',
@@ -483,20 +499,20 @@ export const CheckoutView = () => {
                     >
                       <button
                         type="button"
-                        onClick={() => updateCartQty(item.product.id, item.quantity - 1)}
-                        style={{ width: '28px', height: '28px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E11D48' }}
+                        onClick={() => updateCartQty(itemKey, item.quantity - 1)}
+                        style={{ width: '28px', height: '28px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#15803D' }}
                       >
-                        {item.quantity === 1 ? <Trash2 size={13} color="#E11D48" /> : <Minus size={13} color="#E11D48" strokeWidth={2.5} />}
+                        {item.quantity === 1 ? <Trash2 size={13} color="#15803D" /> : <Minus size={13} color="#15803D" strokeWidth={2.5} />}
                       </button>
-                      <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '800', fontSize: '0.84rem', color: '#E11D48' }}>
+                      <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '800', fontSize: '0.84rem', color: '#15803D' }}>
                         {item.quantity}
                       </span>
                       <button
                         type="button"
-                        onClick={() => updateCartQty(item.product.id, item.quantity + 1)}
-                        style={{ width: '28px', height: '28px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E11D48' }}
+                        onClick={() => updateCartQty(itemKey, item.quantity + 1)}
+                        style={{ width: '28px', height: '28px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#15803D' }}
                       >
-                        <Plus size={13} color="#E11D48" strokeWidth={2.5} />
+                        <Plus size={13} color="#15803D" strokeWidth={2.5} />
                       </button>
                     </div>
 
@@ -510,7 +526,124 @@ export const CheckoutView = () => {
           </div>
         </div>
 
-        {/* 4. Coupons & Payment Method Card */}
+        {/* 4. Coupons & Offers Card */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '14px',
+            border: '1px solid #E2E8F0',
+            padding: '14px 16px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+          }}
+        >
+          <div
+            onClick={() => setIsCouponsOpen(!isCouponsOpen)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: '#FFE4E6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#E11D48',
+                }}
+              >
+                <Tag size={16} />
+              </div>
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '0.88rem', color: '#0F172A' }}>
+                  Coupons & Offers
+                </div>
+                <div style={{ fontSize: '0.75rem', color: appliedCoupon ? '#15803D' : '#64748B', fontWeight: appliedCoupon ? '600' : '400' }}>
+                  {appliedCoupon ? `Applied: ${appliedCoupon.code} (${appliedCoupon.discountPercentage}% OFF)` : 'Have a coupon code?'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748B' }}>
+              {appliedCoupon && (
+                <span style={{ fontSize: '0.72rem', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: '700', padding: '2px 8px', borderRadius: '4px' }}>
+                  APPLIED
+                </span>
+              )}
+              {isCouponsOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </div>
+          </div>
+
+          {isCouponsOpen && (
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }} onClick={(e) => e.stopPropagation()}>
+              {appliedCoupon ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F0FDF4', border: '1px dashed #86EFAC', padding: '8px 12px', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={16} color="#15803D" />
+                    <span style={{ fontSize: '0.82rem', color: '#15803D', fontWeight: '700' }}>
+                      '{appliedCoupon.code}' Active ({appliedCoupon.discountPercentage}% Discount)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeCoupon}
+                    style={{ background: 'none', border: 'none', color: '#DC2626', fontWeight: '700', fontSize: '0.78rem', cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="ENTER COUPON CODE"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value)}
+                    style={{
+                      flex: 1,
+                      height: '38px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      padding: '0 12px',
+                      fontSize: '0.82rem',
+                      textTransform: 'uppercase',
+                      fontWeight: '700',
+                      letterSpacing: '0.5px',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    style={{
+                      backgroundColor: '#0F172A',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '0 16px',
+                      fontSize: '0.82rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Apply
+                  </button>
+                </form>
+              )}
+              {couponError && (
+                <div style={{ color: '#DC2626', fontSize: '0.74rem', marginTop: '6px', fontWeight: '500' }}>
+                  {couponError}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 5. Payment Mode Selection Card */}
         <div
           style={{
             backgroundColor: '#FFFFFF',
@@ -523,178 +656,158 @@ export const CheckoutView = () => {
             gap: '12px',
           }}
         >
-          {/* Coupons Dropdown Row */}
-          <div
-            onClick={() => setIsCouponsOpen(!isCouponsOpen)}
-            style={{
-              backgroundColor: '#F8FAFC',
-              borderRadius: '10px',
-              border: '1px solid #E2E8F0',
-              padding: '10px 12px',
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#FFE4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E11D48' }}>
-                  <Tag size={15} />
-                </div>
-                <div>
-                  <div style={{ fontWeight: '700', fontSize: '0.84rem', color: '#0F172A' }}>
-                    Coupons & Offers
-                  </div>
-                  <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                    {appliedCoupon ? `Applied: ${appliedCoupon.code} (${appliedCoupon.discountPercentage}% OFF)` : 'Have a coupon code?'}
-                  </div>
-                </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: '#EFF6FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#2563EB',
+                }}
+              >
+                <CreditCard size={16} />
               </div>
-
-              <div style={{ color: '#64748B' }}>
-                {isCouponsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#0F172A' }}>
+                  Select Payment Mode
+                </div>
+                <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                  Choose online payment or cash on delivery
+                </div>
               </div>
             </div>
-
-            {isCouponsOpen && (
-              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #E2E8F0' }} onClick={(e) => e.stopPropagation()}>
-                {appliedCoupon ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.78rem', color: '#E11D48', fontWeight: '700' }}>
-                      '{appliedCoupon.code}' Active
-                    </span>
-                    <button
-                      type="button"
-                      onClick={removeCoupon}
-                      style={{ background: 'none', border: 'none', color: '#E11D48', fontWeight: '700', fontSize: '0.78rem', cursor: 'pointer' }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ) : (
-                  <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="text"
-                      placeholder="ENTER COUPON CODE"
-                      value={couponInput}
-                      onChange={(e) => setCouponInput(e.target.value)}
-                      style={{
-                        flex: 1,
-                        height: '36px',
-                        borderRadius: '6px',
-                        border: '1px solid #CBD5E1',
-                        padding: '0 10px',
-                        fontSize: '0.8rem',
-                        textTransform: 'uppercase',
-                        fontWeight: '700',
-                      }}
-                    />
-                    <button
-                      type="submit"
-                      style={{
-                        backgroundColor: '#0F172A',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '0 14px',
-                        fontSize: '0.8rem',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Apply
-                    </button>
-                  </form>
-                )}
-                {couponError && (
-                  <div style={{ color: '#E11D48', fontSize: '0.74rem', marginTop: '4px' }}>
-                    {couponError}
-                  </div>
-                )}
-              </div>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#15803D', fontWeight: '600', backgroundColor: '#DCFCE7', padding: '3px 8px', borderRadius: '6px' }}>
+              <ShieldCheck size={13} />
+              100% Safe
+            </div>
           </div>
 
-          {/* Payment Method Selector Row */}
-          <div
-            onClick={() => setIsPaymentSelectorOpen(!isPaymentSelectorOpen)}
-            style={{
-              backgroundColor: '#F8FAFC',
-              borderRadius: '10px',
-              border: '1px solid #E2E8F0',
-              padding: '10px 12px',
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#FFE4E6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E11D48' }}>
-                  <CreditCard size={15} />
-                </div>
-                <div>
-                  <div style={{ fontWeight: '700', fontSize: '0.84rem', color: '#0F172A' }}>
-                    Payment Mode
-                  </div>
-                  <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                    {isOnline ? 'Pay Online (UPI/Cards/NetBanking)' : 'Cash on Delivery (Pay on Site)'}
-                  </div>
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Option A: Pay Online */}
+            <div
+              onClick={() => setPaymentMethod('online')}
+              style={{
+                border: isOnline ? '2px solid #15803D' : '1px solid #E2E8F0',
+                backgroundColor: isOnline ? '#F0FDF4' : '#FAFAFA',
+                borderRadius: '12px',
+                padding: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+              }}
+            >
+              <div style={{ marginTop: '2px' }}>
+                <input
+                  type="radio"
+                  name="paymentOption"
+                  checked={isOnline}
+                  onChange={() => setPaymentMethod('online')}
+                  style={{
+                    accentColor: '#15803D',
+                    width: '18px',
+                    height: '18px',
+                    cursor: 'pointer',
+                  }}
+                />
               </div>
 
-              <div style={{ color: '#64748B' }}>
-                {isPaymentSelectorOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: isOnline ? '700' : '600', fontSize: '0.88rem', color: '#0F172A' }}>
+                    💳 Pay Online (UPI / Cards / NetBanking)
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      backgroundColor: '#DCFCE7',
+                      color: '#15803D',
+                      fontWeight: '700',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    RECOMMENDED
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '3px', lineHeight: '1.4' }}>
+                  Instant digital payment via Google Pay, PhonePe, Paytm, UPI, Debit/Credit Card or NetBanking.
+                </div>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.68rem', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', padding: '2px 8px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
+                    ⚡ Instant Confirmation
+                  </span>
+                  <span style={{ fontSize: '0.68rem', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', padding: '2px 8px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
+                    🔒 Fast & Secure
+                  </span>
+                </div>
               </div>
             </div>
 
-            {isPaymentSelectorOpen && (
-              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
-                <label
+            {/* Option B: Cash on Delivery */}
+            <div
+              onClick={() => setPaymentMethod('cash')}
+              style={{
+                border: !isOnline ? '2px solid #15803D' : '1px solid #E2E8F0',
+                backgroundColor: !isOnline ? '#F0FDF4' : '#FAFAFA',
+                borderRadius: '12px',
+                padding: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+              }}
+            >
+              <div style={{ marginTop: '2px' }}>
+                <input
+                  type="radio"
+                  name="paymentOption"
+                  checked={!isOnline}
+                  onChange={() => setPaymentMethod('cash')}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '0.82rem',
+                    accentColor: '#15803D',
+                    width: '18px',
+                    height: '18px',
                     cursor: 'pointer',
-                    padding: '6px',
-                    borderRadius: '6px',
-                    backgroundColor: isOnline ? '#FFF5F5' : 'transparent',
                   }}
-                >
-                  <input
-                    type="radio"
-                    name="paymentOption"
-                    checked={isOnline}
-                    onChange={() => setPaymentMethod('online')}
-                    style={{ accentColor: '#E11D48' }}
-                  />
-                  <span style={{ fontWeight: isOnline ? '800' : '500', color: '#0F172A' }}>
-                    💳 Pay Online (UPI / Credit & Debit Cards / NetBanking)
-                  </span>
-                </label>
-
-                <label
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '0.82rem',
-                    cursor: 'pointer',
-                    padding: '6px',
-                    borderRadius: '6px',
-                    backgroundColor: !isOnline ? '#FFF5F5' : 'transparent',
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="paymentOption"
-                    checked={!isOnline}
-                    onChange={() => setPaymentMethod('cash')}
-                    style={{ accentColor: '#E11D48' }}
-                  />
-                  <span style={{ fontWeight: !isOnline ? '800' : '500', color: '#0F172A' }}>
-                    💵 Cash on Delivery (Pay upon material delivery at site)
-                  </span>
-                </label>
+                />
               </div>
-            )}
+
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: !isOnline ? '700' : '600', fontSize: '0.88rem', color: '#0F172A' }}>
+                    💵 Cash on Delivery (Pay on Site)
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      backgroundColor: '#FEF3C7',
+                      color: '#B45309',
+                      fontWeight: '700',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    PAY AT SITE
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '3px', lineHeight: '1.4' }}>
+                  Pay via Cash or UPI directly to the delivery partner upon arrival at the delivery address.
+                </div>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.68rem', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', padding: '2px 8px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
+                    📦 Pay After Delivery
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

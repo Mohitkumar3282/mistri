@@ -34,6 +34,7 @@ export const ProductOptionsModal = () => {
       price: currentPrice,
       mrp: currentMrp,
       discount: currentDiscount,
+      selectedVariant: selectedOption ? selectedOption.name : undefined,
       // The chosen option, so the server can price the same variant.
       variantSelection: selectedOption ? { default: selectedOption.name } : undefined,
     };

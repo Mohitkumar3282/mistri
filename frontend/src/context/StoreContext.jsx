@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { useServerSync } from '../services/serverSync';
-import { computeTotals, couponDiscount, resolveVariantOptions, unitPrice } from '../utils/pricing';
+import { computeTotals, couponDiscount, resolveVariantOptions, unitPrice, getCartItemKey } from '../utils/pricing';
 import { auth, googleProvider } from '../config/firebase';
 import {
   signInWithPopup,
@@ -591,8 +591,10 @@ export const StoreProvider = ({ children }) => {
         return;
       }
       const price = unitPrice(fresh, item.quantity, options);
+      const itemKey = item.cartItemId || getCartItemKey(item.product || fresh);
       nextCart.push({
         ...item,
+        cartItemId: itemKey,
         price,
         product: {
           ...fresh,
@@ -719,8 +721,11 @@ export const StoreProvider = ({ children }) => {
 
   // Cart Operations
   const addToCart = (product, quantity = 1) => {
+    const itemKey = product.cartItemId || getCartItemKey(product);
     setCart((prev) => {
-      const existingIndex = prev.findIndex((item) => item.product.id === product.id);
+      const existingIndex = prev.findIndex(
+        (item) => (item.cartItemId || getCartItemKey(item.product)) === itemKey
+      );
       let newPrice = product.price;
       const newQty = existingIndex > -1 ? prev[existingIndex].quantity + quantity : quantity;
       if (Array.isArray(product.wholesaleTiers)) {
@@ -736,32 +741,47 @@ export const StoreProvider = ({ children }) => {
         const updated = [...prev];
         updated[existingIndex] = {
           ...updated[existingIndex],
+          cartItemId: itemKey,
           quantity: newQty,
           price: newPrice,
+          product: {
+            ...updated[existingIndex].product,
+            ...product,
+            price: newPrice,
+          },
         };
         return updated;
       }
-      return [...prev, { product, quantity, price: newPrice }];
+      return [...prev, { cartItemId: itemKey, product, quantity, price: newPrice }];
     });
 
     trackAddToCart(product, quantity);
-    addToast(`Added ${quantity}x ${product.name} to Cart`, 'success');
+    const displayName = product.selectedVariant
+      ? `${product.name} (${product.selectedVariant})`
+      : product.name;
+    addToast(`Added ${quantity}x ${displayName} to Cart`, 'success');
   };
 
-  const removeFromCart = (productId) => {
-    trackRemoveFromCart(productId);
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  const removeFromCart = (targetId) => {
+    trackRemoveFromCart(targetId);
+    setCart((prev) =>
+      prev.filter((item) => {
+        const itemKey = item.cartItemId || getCartItemKey(item.product);
+        return itemKey !== targetId && item.product?.id !== targetId;
+      })
+    );
     addToast('Item removed from cart', 'info');
   };
 
-  const updateCartQty = (productId, newQty) => {
+  const updateCartQty = (targetId, newQty) => {
     if (newQty <= 0) {
-      removeFromCart(productId);
+      removeFromCart(targetId);
       return;
     }
     setCart((prev) =>
       prev.map((item) => {
-        if (item.product.id === productId) {
+        const itemKey = item.cartItemId || getCartItemKey(item.product);
+        if (itemKey === targetId || item.product?.id === targetId) {
           let price = item.product.price;
           if (Array.isArray(item.product.wholesaleTiers)) {
             const matchedTier = [...item.product.wholesaleTiers]
@@ -771,7 +791,7 @@ export const StoreProvider = ({ children }) => {
               price = matchedTier.price;
             }
           }
-          return { ...item, quantity: newQty, price };
+          return { ...item, cartItemId: itemKey, quantity: newQty, price };
         }
         return item;
       })
@@ -1167,7 +1187,7 @@ export const StoreProvider = ({ children }) => {
   // =========================================================================
 
   // 1. PRODUCT CRUD
-  const addProduct = (newProduct) => {
+  const addProduct = async (newProduct) => {
     const id = newProduct.id || `prod_${Date.now()}`;
     const name = newProduct.name || 'New Construction Material';
     const slug = newProduct.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -1211,17 +1231,24 @@ export const StoreProvider = ({ children }) => {
     };
 
     setProducts((prev) => [created, ...prev.filter((p) => p.id !== id)]);
-    try {
-      api.createProduct(created).then(() => markSynced('products', created)).catch((err) => {
-        console.warn('Backend product save warning:', err);
-      });
-    } catch (e) {}
 
-    addToast(`Product "${created.name}" added to catalog!`, 'success');
+    try {
+      await api.createProduct(created);
+      markSynced('products', created);
+      addToast(`Product "${created.name}" saved to database!`, 'success');
+    } catch (err) {
+      console.warn('Backend product save warning:', err);
+      if (err?.status === 401 || err?.status === 403) {
+        addToast(`Product added locally, but admin token is missing or expired. Please re-login as Admin to save to Database.`, 'warning', 7000);
+      } else {
+        addToast(`Product saved locally. Server sync will retry in the background.`, 'info');
+      }
+    }
+
     return created;
   };
 
-  const updateProduct = (id, updatedFields) => {
+  const updateProduct = async (id, updatedFields) => {
     let updatedDoc = null;
     setProducts((prev) =>
       prev.map((p) => {
@@ -1240,21 +1267,25 @@ export const StoreProvider = ({ children }) => {
 
     if (updatedDoc) {
       try {
-        api.updateProduct(id, updatedFields).then(() => markSynced('products', updatedDoc)).catch((err) => {
-          console.warn('Backend product update warning:', err);
-        });
-      } catch (e) {}
+        await api.updateProduct(id, updatedFields);
+        markSynced('products', updatedDoc);
+        addToast('Product updated successfully in database', 'success');
+      } catch (err) {
+        console.warn('Backend product update warning:', err);
+        addToast('Product updated locally', 'info');
+      }
     }
-
-    addToast('Product updated successfully', 'success');
   };
 
-  const deleteProduct = (id) => {
+  const deleteProduct = async (id) => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
     try {
-      api.deleteProduct(id).catch((err) => console.warn('Backend product delete warning:', err));
-    } catch (e) {}
-    addToast('Product removed from catalog', 'info');
+      await api.deleteProduct(id);
+      addToast('Product removed from catalog and database', 'info');
+    } catch (err) {
+      console.warn('Backend product delete warning:', err);
+      addToast('Product removed locally', 'info');
+    }
   };
 
   const toggleProductStock = (id) => {
@@ -1272,7 +1303,7 @@ export const StoreProvider = ({ children }) => {
   };
 
   // 2. CATEGORY CRUD
-  const addCategory = (newCat) => {
+  const addCategory = async (newCat) => {
     const id = newCat.id || `cat_${Date.now()}`;
     const slug = newCat.slug || newCat.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const sectionName = newCat.section || 'Civil & Interiors';
@@ -1285,11 +1316,17 @@ export const StoreProvider = ({ children }) => {
       section: sectionName,
     };
     setCategories((prev) => [created, ...prev]);
+
     try {
-      api.createCategory(created).then(() => markSynced('categories', created)).catch((err) => {
-        console.warn('Backend category save warning:', err);
-      });
-    } catch (e) {}
+      await api.createCategory(created);
+      markSynced('categories', created);
+      addToast(`Category "${created.name}" saved to database!`, 'success');
+    } catch (err) {
+      console.warn('Backend category save warning:', err);
+      if (err?.status === 401 || err?.status === 403) {
+        addToast(`Category created locally, but admin token is missing or expired. Please re-login as Admin.`, 'warning', 7000);
+      }
+    }
 
     // Also update or create matching category section
     setCategorySections((prev) => {
@@ -1324,11 +1361,10 @@ export const StoreProvider = ({ children }) => {
       }
     });
 
-    addToast(`Category "${created.name}" added!`, 'success');
     return created;
   };
 
-  const updateCategory = (id, updatedFields) => {
+  const updateCategory = async (id, updatedFields) => {
     let updatedDoc = null;
     setCategories((prev) =>
       prev.map((c) => {
@@ -1342,10 +1378,12 @@ export const StoreProvider = ({ children }) => {
     );
     if (updatedDoc) {
       try {
-        api.updateCategory(id, updatedFields).then(() => markSynced('categories', updatedDoc)).catch((err) => {
-          console.warn('Backend category update warning:', err);
-        });
-      } catch (e) {}
+        await api.updateCategory(id, updatedFields);
+        markSynced('categories', updatedDoc);
+        addToast('Category updated in database', 'success');
+      } catch (err) {
+        console.warn('Backend category update warning:', err);
+      }
     }
     // Keep the copy stored inside its storefront section in step.
     setCategorySections((prev) =>
@@ -1355,10 +1393,9 @@ export const StoreProvider = ({ children }) => {
           : sec
       )
     );
-    addToast('Category updated successfully', 'success');
   };
 
-  const deleteCategory = (id) => {
+  const deleteCategory = async (id) => {
     const target = categories.find((c) => c.id === id || c.slug === id);
     const isTarget = (c) => !!c && (c.id === id || c.slug === id || (target && c.id === target.id));
     setCategories((prev) => prev.filter((c) => c.id !== id && c.slug !== id));
@@ -1371,13 +1408,15 @@ export const StoreProvider = ({ children }) => {
       )
     );
     try {
-      api.deleteCategory(id).catch((err) => console.warn('Backend category delete warning:', err));
-    } catch (e) {}
-    addToast('Category deleted', 'info');
+      await api.deleteCategory(id);
+      addToast('Category deleted from database', 'info');
+    } catch (err) {
+      console.warn('Backend category delete warning:', err);
+    }
   };
 
   // Parent Categories / Sections CRUD
-  const addCategorySection = (newSec) => {
+  const addCategorySection = async (newSec) => {
     const id = newSec.id || `sec_${Date.now()}`;
     const title = newSec.title || newSec.name;
     const slug = newSec.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -1394,16 +1433,17 @@ export const StoreProvider = ({ children }) => {
     setCategorySections((prev) => [created, ...prev]);
 
     try {
-      api.collection.save('/category-sections', created.id, created, { auth: 'admin' })
-        .then(() => markSynced('categorySections', created))
-        .catch((err) => console.warn('Backend section save warning:', err));
-    } catch (e) {}
+      await api.collection.save('/category-sections', created.id, created, { auth: 'admin' });
+      markSynced('categorySections', created);
+      addToast(`Parent Category "${created.title}" saved to database!`, 'success');
+    } catch (err) {
+      console.warn('Backend section save warning:', err);
+    }
 
-    addToast(`Parent Category "${created.title}" created successfully!`, 'success');
     return created;
   };
 
-  const updateCategorySection = (id, updatedFields) => {
+  const updateCategorySection = async (id, updatedFields) => {
     let updatedDoc = null;
     setCategorySections((prev) =>
       prev.map((s) => {
@@ -1417,20 +1457,23 @@ export const StoreProvider = ({ children }) => {
     );
     if (updatedDoc) {
       try {
-        api.collection.save('/category-sections', id, updatedDoc, { auth: 'admin' })
-          .then(() => markSynced('categorySections', updatedDoc))
-          .catch((err) => console.warn('Backend section update warning:', err));
-      } catch (e) {}
+        await api.collection.save('/category-sections', id, updatedDoc, { auth: 'admin' });
+        markSynced('categorySections', updatedDoc);
+        addToast('Parent Category updated in database', 'success');
+      } catch (err) {
+        console.warn('Backend section update warning:', err);
+      }
     }
-    addToast('Parent Category updated successfully', 'success');
   };
 
-  const deleteCategorySection = (id) => {
+  const deleteCategorySection = async (id) => {
     setCategorySections((prev) => prev.filter((s) => s.id !== id));
     try {
-      api.collection.remove('/category-sections', id, { auth: 'admin' }).catch((err) => console.warn('Backend section delete warning:', err));
-    } catch (e) {}
-    addToast('Parent Category removed', 'info');
+      await api.collection.remove('/category-sections', id, { auth: 'admin' });
+      addToast('Parent Category removed from database', 'info');
+    } catch (err) {
+      console.warn('Backend section delete warning:', err);
+    }
   };
 
   // Subcategories CRUD
@@ -1737,6 +1780,20 @@ export const StoreProvider = ({ children }) => {
       setUser((prev) => ({ ...prev, tier: newTier }));
     }
     addToast(`Contractor tier updated to "${newTier}"`, 'success');
+  };
+
+  const toggleUserStatus = (id) => {
+    let nextStatus = 'Active';
+    setUsersList((prev) =>
+      prev.map((u) => {
+        if (u.id === id) {
+          nextStatus = u.status === 'Active' ? 'Deactivated' : 'Active';
+          return { ...u, status: nextStatus };
+        }
+        return u;
+      })
+    );
+    addToast(`User account status set to ${nextStatus}`, 'info');
   };
 
   // 7. COUPONS CRUD
@@ -2309,6 +2366,7 @@ export const StoreProvider = ({ children }) => {
         updateUser,
         deleteUser,
         updateUserTier,
+        toggleUserStatus,
 
         coupons,
         addCoupon,
