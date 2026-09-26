@@ -22,8 +22,12 @@ export const getRazorpayKey = async (req, res) => {
  */
 export const createRazorpayOrder = async (req, res) => {
   try {
-    const { items, couponCode } = req.body || {};
-    const { lines, totals, couponCode: appliedCode } = await priceCart({ items, couponCode });
+    const { items, couponCode, includeUnloading, isUnloadingSelected } = req.body || {};
+    const { lines, totals, couponCode: appliedCode } = await priceCart({
+      items,
+      couponCode,
+      includeUnloading: Boolean(includeUnloading ?? isUnloadingSelected ?? false),
+    });
     if (totals.grandTotal <= 0) {
       return res.status(400).json({ success: false, message: 'Nothing to pay for this order' });
     }

@@ -1,23 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, X, Check, Search, Building, Navigation } from 'lucide-react';
+import { MapPin, X, Check, Search, Building, Navigation, ShieldCheck } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { CITIES } from '../data/mockData';
-
-const CITY_DEFAULT_PINS = {
-  'Indore': '452001',
-  'Bhopal': '462001',
-  'Ujjain': '456001',
-  'Dewas': '455001',
-  'Jabalpur': '482001',
-  'Gwalior': '474001',
-  'Mumbai': '400001',
-  'Pune': '411001',
-  'Delhi NCR': '110001',
-  'Ahmedabad': '380001',
-  'Jaipur': '302001',
-  'Bengaluru': '560001',
-  'Hyderabad': '500001',
-};
+import { checkDeliveryServiceability } from '../utils/deliveryValidation';
 
 export const LocationModal = () => {
   const {
@@ -28,44 +12,33 @@ export const LocationModal = () => {
     currentPincode,
     setCurrentPincode,
     addToast,
-    cities,
+    siteSettings,
     fetchCurrentGpsLocation,
     isDetectingLocation,
   } = useStore();
-  const [searchCity, setSearchCity] = useState('');
   const [tempPincode, setTempPincode] = useState(currentPincode || '452005');
 
   // Keep tempPincode in sync with currentPincode when modal opens
   useEffect(() => {
     if (isLocationModalOpen) {
       setTempPincode(currentPincode || '');
-      setSearchCity('');
     }
   }, [isLocationModalOpen, currentPincode]);
 
   if (!isLocationModalOpen) return null;
 
-  const cityList = cities && cities.length > 0 ? cities : CITIES;
-  const filteredCities = cityList.filter((c) => c.toLowerCase().includes(searchCity.toLowerCase()));
-
-  const handleSelectCity = (cityName) => {
-    setCurrentCity(cityName);
-    if (tempPincode && tempPincode.trim().length === 6) {
-      setCurrentPincode(tempPincode.trim());
-    } else if (CITY_DEFAULT_PINS[cityName]) {
-      setCurrentPincode(CITY_DEFAULT_PINS[cityName]);
-    }
-    setIsLocationModalOpen(false);
-    addToast(`Delivery location updated to ${cityName}`, 'success');
-  };
-
   const handleApplyPincode = (e) => {
     if (e) e.preventDefault();
     const cleanPin = (tempPincode || '').replace(/\D/g, '').trim();
     if (cleanPin.length === 6) {
+      const check = checkDeliveryServiceability({ pincode: cleanPin, siteSettings });
+      if (!check.isServiceable) {
+        addToast(check.reason, 'warning', 7000);
+      } else {
+        addToast(`Delivery pincode ${cleanPin} applied! (Serviceable Area)`, 'success');
+      }
       setCurrentPincode(cleanPin);
       setIsLocationModalOpen(false);
-      addToast(`Delivery pincode ${cleanPin} applied!`, 'success');
     } else {
       addToast('Please enter a valid 6-digit site pincode', 'warning');
     }
@@ -149,7 +122,7 @@ export const LocationModal = () => {
             )}
           </button>
           {/* Pincode Input Form */}
-          <form onSubmit={handleApplyPincode} style={{ marginBottom: '1.5rem' }}>
+          <form onSubmit={handleApplyPincode} style={{ marginBottom: 0 }}>
             <label className="form-label" style={{ fontSize: '0.85rem' }}>Enter 6-Digit Site Pincode</label>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
@@ -170,56 +143,29 @@ export const LocationModal = () => {
             </div>
           </form>
 
-          {/* Quick Major Construction Hub Cities */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>Major Operational Cities</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Express Hubs</span>
+          {/* Serviceable Zones Info */}
+          {Array.isArray(siteSettings?.serviceableCities) && siteSettings.serviceableCities.length > 0 && (
+            <div
+              style={{
+                marginTop: '1.25rem',
+                backgroundColor: '#F8FAFC',
+                borderRadius: '10px',
+                padding: '10px 14px',
+                border: '1px solid #E2E8F0',
+                fontSize: '0.78rem',
+                color: '#64748B',
+              }}
+            >
+              <div style={{ fontWeight: '700', color: '#334155', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <ShieldCheck size={14} color="#10B981" />
+                <span>Serviceable Cities & Dispatch Hubs</span>
+              </div>
+              <div>
+                Accepting orders in: <strong style={{ color: '#0F172A' }}>{siteSettings.serviceableCities.slice(0, 8).join(', ')}</strong>
+                {siteSettings.maxDeliveryRadiusKm ? ` (within ${siteSettings.maxDeliveryRadiusKm} km range)` : ''}.
+              </div>
             </div>
-
-            {/* City search */}
-            <div style={{ position: 'relative', marginBottom: '1rem' }}>
-              <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '12px' }} />
-              <input
-                type="text"
-                placeholder="Search city (e.g. Indore, Bhopal, Mumbai)..."
-                className="form-control"
-                value={searchCity}
-                onChange={(e) => setSearchCity(e.target.value)}
-                style={{ paddingLeft: '36px', fontSize: '0.875rem' }}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '8px' }}>
-              {filteredCities.map((cityName) => {
-                const isSelected = currentCity.toLowerCase() === cityName.toLowerCase();
-                return (
-                  <button
-                    key={cityName}
-                    type="button"
-                    onClick={() => handleSelectCity(cityName)}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: isSelected ? 'var(--navy-subtle)' : '#FFFFFF',
-                      border: `1.5px solid ${isSelected ? 'var(--primary-navy)' : 'var(--border-subtle)'}`,
-                      color: isSelected ? 'var(--primary-navy)' : 'var(--text-primary)',
-                      fontWeight: isSelected ? '700' : '500',
-                      fontSize: '0.875rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      transition: 'var(--transition)',
-                    }}
-                  >
-                    <span>{cityName}</span>
-                    {isSelected && <Check size={14} color="var(--primary-navy)" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -26,6 +26,9 @@ const CUSTOMER_FIELDS = [
   'siteAddress',
   'shippingAddress',
   'expectedDelivery',
+  'deliveryDate',
+  'deliveryMessage',
+  'isAfter8PMOrder',
   'date',
   'time',
   'driverName',
@@ -132,7 +135,11 @@ export const placeOrder = async (req, res) => {
       // The order is exactly what was priced and paid for.
       ({ lines, totals, couponCode } = intent);
     } else {
-      ({ lines, totals, couponCode } = await priceCart({ items: body.items, couponCode: body.couponCode }));
+      ({ lines, totals, couponCode } = await priceCart({
+        items: body.items,
+        couponCode: body.couponCode,
+        includeUnloading: Boolean(body.includeUnloading ?? body.isUnloadingSelected ?? false),
+      }));
       paymentStatus = 'Pending (Pay on Site)';
       gateway = 'Cash On Site';
     }

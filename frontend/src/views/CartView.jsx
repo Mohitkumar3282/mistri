@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ChevronLeft,
   Trash2,
@@ -14,9 +14,13 @@ import {
   MapPin,
   XCircle,
   ShieldCheck,
+  Tag,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { getCartItemKey } from '../utils/pricing';
+import { getCartItemKey, couponDiscount } from '../utils/pricing';
 import BillDetailsCard from '../components/BillDetailsCard';
 import CancellationPolicyCard from '../components/CancellationPolicyCard';
 import UnloadingServiceCard from '../components/UnloadingServiceCard';
@@ -29,7 +33,10 @@ export const CartView = () => {
     clearCart,
     cartSubtotal,
     cartItemCount,
+    coupons = [],
     appliedCoupon,
+    applyCoupon,
+    removeCoupon,
     discountAmount,
     deliveryFee,
     deliveryNote,
@@ -43,6 +50,24 @@ export const CartView = () => {
     navigateTo,
     addresses,
   } = useStore();
+
+  const [isCouponsOpen, setIsCouponsOpen] = useState(false);
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState('');
+
+  const handleApplyCoupon = (e) => {
+    e.preventDefault();
+    if (couponInput.trim()) {
+      const res = applyCoupon(couponInput.trim());
+      if (!res || !res.success) {
+        setCouponError(res?.message || 'Invalid coupon code');
+      } else {
+        setCouponError('');
+        setCouponInput('');
+        setIsCouponsOpen(false);
+      }
+    }
+  };
 
   if (cart.length === 0) {
     return (
@@ -150,12 +175,7 @@ export const CartView = () => {
     );
   }
 
-  // Calculate cashback: ₹22 per item or 2% of subtotal, whichever is higher
-  const calculatedCashback = Math.max(cartItemCount * 22, Math.round(cartSubtotal * 0.02));
 
-  // Current date formatting for processing notice
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
     <div style={{ backgroundColor: '#F8FAFC', minHeight: '100vh', paddingBottom: '90px' }}>
@@ -220,23 +240,6 @@ export const CartView = () => {
         </button>
       </div>
 
-      {/* Processing Notice Strip */}
-      <div
-        style={{
-          backgroundColor: '#FEE2E2',
-          borderBottom: '1px solid #FECACA',
-          padding: '10px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-        }}
-      >
-        <div style={{ fontSize: '1.1rem' }}>🚚</div>
-        <div style={{ color: '#991B1B', fontSize: '0.82rem', fontWeight: '600', lineHeight: 1.35 }}>
-          Your order will get processed at 8 AM on {dateStr}
-        </div>
-      </div>
-
       {/* Main Cart Content Container */}
       <div
         style={{
@@ -248,24 +251,6 @@ export const CartView = () => {
           gap: '14px',
         }}
       >
-        {/* 2. Forest Green Congrats Cashback Banner (Exact Reference Match) */}
-        <div
-          style={{
-            backgroundColor: '#15803D',
-            borderRadius: '14px',
-            padding: '18px 16px',
-            textAlign: 'center',
-            color: '#FFFFFF',
-            boxShadow: '0 4px 12px rgba(21, 128, 61, 0.2)',
-          }}
-        >
-          <h2 style={{ fontSize: '1.45rem', fontWeight: '900', margin: '0 0 4px 0', letterSpacing: '-0.3px' }}>
-            Congrats
-          </h2>
-          <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: '600', color: '#F0FDF4' }}>
-            You've earned <span style={{ color: '#FACC15', fontWeight: '800' }}>₹{calculatedCashback} cashback</span> on this order
-          </p>
-        </div>
 
         {/* 3. Items List Container */}
         <div
@@ -297,8 +282,6 @@ export const CartView = () => {
                 item.product?.unit ||
                 'Standard';
 
-              // Individual item cashback badge (₹22 or 2%)
-              const itemCashback = Math.max(22, Math.round(itemPrice * 0.02));
 
               // Product clean base name
               const cleanName = item.product?.name ? item.product.name.replace(/\s*\([^)]*\)$/, '') : 'Product';
@@ -464,21 +447,8 @@ export const CartView = () => {
                         </button>
                       </div>
 
-                      {/* Cashback Pill + Item Price */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span
-                          style={{
-                            backgroundColor: '#FEF9C3',
-                            border: '1px solid #FEF08A',
-                            color: '#166534',
-                            fontSize: '0.72rem',
-                            fontWeight: '700',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                          }}
-                        >
-                          ₹{itemCashback} cashback
-                        </span>
+                      {/* Item Price */}
+                      <div>
                         <span
                           style={{
                             fontSize: '0.98rem',
@@ -499,6 +469,226 @@ export const CartView = () => {
 
         {/* 4. Unloading Service Card */}
         <UnloadingServiceCard />
+
+        {/* Coupons & Offers Card */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '14px',
+            border: '1px solid #E2E8F0',
+            padding: '14px 16px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+          }}
+        >
+          <div
+            onClick={() => setIsCouponsOpen(!isCouponsOpen)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  backgroundColor: appliedCoupon ? '#DCFCE7' : '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: appliedCoupon ? '#15803D' : '#0F172A',
+                }}
+              >
+                <Tag size={18} />
+              </div>
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '0.88rem', color: '#0F172A' }}>
+                  Coupons & Offers
+                </div>
+                <div style={{ fontSize: '0.75rem', color: appliedCoupon ? '#15803D' : '#64748B', fontWeight: appliedCoupon ? '600' : '400' }}>
+                  {appliedCoupon ? `Applied: ${appliedCoupon.code} (Saved ₹${(discountAmount || 0).toLocaleString('en-IN')})` : 'Have a coupon or promo code?'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748B' }}>
+              {appliedCoupon && (
+                <span style={{ fontSize: '0.72rem', backgroundColor: '#DCFCE7', color: '#15803D', fontWeight: '700', padding: '2px 8px', borderRadius: '4px' }}>
+                  APPLIED
+                </span>
+              )}
+              {isCouponsOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </div>
+          </div>
+
+          {isCouponsOpen && (
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }} onClick={(e) => e.stopPropagation()}>
+              {appliedCoupon ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F0FDF4', border: '1.5px dashed #86EFAC', padding: '10px 14px', borderRadius: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle2 size={18} color="#15803D" />
+                    <div>
+                      <div style={{ fontSize: '0.86rem', color: '#15803D', fontWeight: '800' }}>
+                        '{appliedCoupon.code}' Applied!
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#166534' }}>
+                        Saved ₹{(discountAmount || appliedCoupon.discountAmount || 0).toLocaleString('en-IN')} on your cart
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeCoupon}
+                    style={{ background: 'none', border: 'none', color: '#DC2626', fontWeight: '700', fontSize: '0.78rem', cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="ENTER COUPON CODE"
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value)}
+                      style={{
+                        flex: 1,
+                        height: '38px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        padding: '0 12px',
+                        fontSize: '0.82rem',
+                        textTransform: 'uppercase',
+                        fontWeight: '700',
+                        letterSpacing: '0.5px',
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      style={{
+                        backgroundColor: '#0F172A',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '0 16px',
+                        fontSize: '0.82rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </form>
+
+                  {couponError && (
+                    <div style={{ color: '#DC2626', fontSize: '0.74rem', fontWeight: '600' }}>
+                      {couponError}
+                    </div>
+                  )}
+
+                  {/* Active Admin Coupons List */}
+                  {coupons.filter((c) => c.isActive !== false).length > 0 && (
+                    <div style={{ marginTop: '4px' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: '800', color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Available Offers & Promo Codes
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {coupons
+                          .filter((c) => c.isActive !== false)
+                          .map((coupon) => {
+                            const { amount: potentialSavings, reason } = couponDiscount(coupon, cartSubtotal);
+                            const isEligible = !reason;
+                            const isFlat = coupon.discountType === 'flat' || (Number(coupon.flatAmount) > 0 && !Number(coupon.discountPercentage));
+                            const discountBadge = isFlat
+                              ? `₹${(coupon.flatAmount || coupon.discountAmount || 0).toLocaleString('en-IN')} FLAT OFF`
+                              : `${coupon.discountPercentage || 0}% OFF`;
+
+                            return (
+                              <div
+                                key={coupon.code}
+                                style={{
+                                  border: `1.5px dashed ${isEligible ? '#86EFAC' : '#CBD5E1'}`,
+                                  backgroundColor: isEligible ? '#F0FDF4' : '#F8FAFC',
+                                  borderRadius: '10px',
+                                  padding: '10px 12px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: '10px',
+                                }}
+                              >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                                    <span
+                                      style={{
+                                        fontWeight: '800',
+                                        fontSize: '0.84rem',
+                                        color: isEligible ? '#15803D' : '#334155',
+                                        backgroundColor: isEligible ? '#DCFCE7' : '#E2E8F0',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        letterSpacing: '0.5px',
+                                      }}
+                                    >
+                                      {coupon.code}
+                                    </span>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#15803D' }}>
+                                      {discountBadge}
+                                    </span>
+                                    {coupon.badge && (
+                                      <span style={{ fontSize: '0.65rem', fontWeight: '800', color: '#C2410C', backgroundColor: '#FFEDD5', padding: '1px 5px', borderRadius: '4px' }}>
+                                        {coupon.badge}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div style={{ fontSize: '0.74rem', color: '#475569', lineHeight: 1.3 }}>
+                                    {coupon.description || `Save ${discountBadge} on orders above ₹${(coupon.minOrderValue || 0).toLocaleString('en-IN')}`}
+                                  </div>
+
+                                  {!isEligible && reason && (
+                                    <div style={{ fontSize: '0.7rem', color: '#D97706', fontWeight: '600', marginTop: '2px' }}>
+                                      • {reason}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  disabled={!isEligible}
+                                  onClick={() => applyCoupon(coupon.code)}
+                                  style={{
+                                    backgroundColor: isEligible ? '#15803D' : '#E2E8F0',
+                                    color: isEligible ? '#FFFFFF' : '#94A3B8',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    padding: '6px 12px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '800',
+                                    cursor: isEligible ? 'pointer' : 'not-allowed',
+                                    whiteSpace: 'nowrap',
+                                    boxShadow: isEligible ? '0 2px 4px rgba(21, 128, 61, 0.2)' : 'none',
+                                  }}
+                                >
+                                  {isEligible ? `APPLY (Save ₹${potentialSavings})` : 'APPLY'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* 5. Bill Details Card */}
         <BillDetailsCard

@@ -3,10 +3,12 @@ import { CheckCircle2, Truck, Calendar, MapPin, Download, ArrowRight, Home } fro
 import { useStore } from '../context/StoreContext';
 import { MOCK_ORDERS } from '../data/mockData';
 import { printTaxInvoice } from '../utils/printInvoice';
+import { getDeliverySchedule } from '../utils/deliverySchedule';
 
 export const OrderConfirmationView = () => {
   const { viewParams, navigateTo, addToast, siteSettings } = useStore();
   const order = viewParams?.order || MOCK_ORDERS[0];
+  const deliveryInfo = getDeliverySchedule(order);
 
   const handleDownloadInvoice = () => {
     printTaxInvoice(order, siteSettings);
@@ -78,6 +80,46 @@ export const OrderConfirmationView = () => {
 
         {/* Order Details Body */}
         <div style={{ padding: '1.5rem' }}>
+          {/* Prominent Delivery Date Notice Banner */}
+          <div
+            style={{
+              backgroundColor: '#EFF6FF',
+              border: '1.5px solid #BFDBFE',
+              borderRadius: '12px',
+              padding: '14px 18px',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px',
+            }}
+          >
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                backgroundColor: '#DBEAFE',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#1D4ED8',
+                flexShrink: 0,
+              }}
+            >
+              <Truck size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: '800', color: '#1E3A8A' }}>
+                Your order will be delivered on {order.deliveryDate || deliveryInfo.deliveryDate}
+              </div>
+              <div style={{ fontSize: '0.82rem', color: '#3B82F6', marginTop: '2px', fontWeight: '600' }}>
+                {deliveryInfo.isAfter8PM
+                  ? `Placed after 8:00 PM (${order.date || deliveryInfo.orderDate}) · Scheduled for priority delivery tomorrow.`
+                  : `Dispatched from nearest hub for same-day delivery today.`}
+              </div>
+            </div>
+          </div>
+
           {/* Key Quick Facts Grid */}
           <div className="responsive-split-equal" style={{ gap: '1rem', marginBottom: '1.5rem' }}>
             <div style={{ backgroundColor: 'var(--bg-surface)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
@@ -86,7 +128,7 @@ export const OrderConfirmationView = () => {
                 <span>Expected Site Delivery:</span>
               </div>
               <div style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--primary-navy)' }}>
-                {order.expectedDelivery}
+                {order.expectedDelivery || deliveryInfo.expectedDelivery}
               </div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 Slot: {order.deliverySlot}

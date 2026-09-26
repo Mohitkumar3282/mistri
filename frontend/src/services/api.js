@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const API_BASE = import.meta.env.DEV
+  ? (import.meta.env.VITE_DEV_API_URL || '/api')
+  : (import.meta.env.VITE_API_URL || '/api');
 
 /**
  * Resolve the bearer token to send.

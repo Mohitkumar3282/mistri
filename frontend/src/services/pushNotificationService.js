@@ -176,7 +176,9 @@ export const syncFcmTokenWithBackend = async (fcmToken, authToken = null) => {
   if (!fcmToken) return null;
 
   try {
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://mistri-s2c0.onrender.com/api';
+    const apiUrl = import.meta.env.DEV
+      ? (import.meta.env.VITE_DEV_API_URL || '/api')
+      : (import.meta.env.VITE_API_URL || 'https://mistri-s2c0.onrender.com/api');
     const headers = {
       'Content-Type': 'application/json',
     };

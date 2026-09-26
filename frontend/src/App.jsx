@@ -40,9 +40,58 @@ import PrivacyPolicyView from './views/PrivacyPolicyView';
 import AdminView from './views/AdminView';
 
 function MainAppLayout() {
-  const { currentView } = useStore();
+  const { currentView, user } = useStore();
 
   const isAdminView = currentView === 'admin';
+
+  if (isAdminView) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <main style={{ flex: 1 }}>
+          <AdminView />
+        </main>
+        <ToastContainer />
+      </div>
+    );
+  }
+
+  // Force Authentication Gate for unauthenticated visitors while allowing public policy pages
+  if (!user) {
+    const isPublicPolicyView = ['privacy', 'terms', 'help', 'contact', 'about'].includes(currentView);
+
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
+        <main
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: isPublicPolicyView ? 'flex-start' : 'center',
+            justifyContent: 'center',
+            padding: '1.5rem 1rem',
+          }}
+        >
+          {currentView === 'signup' ? (
+            <SignupView />
+          ) : currentView === 'forgot-password' ? (
+            <ForgotPasswordView />
+          ) : currentView === 'privacy' ? (
+            <PrivacyPolicyView />
+          ) : currentView === 'terms' ? (
+            <TermsView />
+          ) : currentView === 'help' ? (
+            <HelpFaqView />
+          ) : currentView === 'contact' ? (
+            <ContactView />
+          ) : currentView === 'about' ? (
+            <AboutView />
+          ) : (
+            <LoginView />
+          )}
+        </main>
+        <ToastContainer />
+      </div>
+    );
+  }
 
   // Hide global website header (logo, search bar) on categories, orders, order-details, order-tracking, profile, admin, cart, checkout
   const isCustomHeaderView = ['categories', 'orders', 'order-details', 'order-tracking', 'profile', 'admin', 'cart', 'checkout'].includes(currentView);
