@@ -68,6 +68,10 @@ import {
   ArrowLeft,
   CreditCard,
   Loader2,
+  Building,
+  Copy,
+  Percent,
+  Ticket,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import Logo from '../components/Logo';
@@ -188,6 +192,9 @@ export default function AdminView() {
   // Settings Delivery & Price Simulator State
   const [simCartSubtotal, setSimCartSubtotal] = useState(555);
   const [simDistanceKm, setSimDistanceKm] = useState(8);
+  const [newServiceCityInput, setNewServiceCityInput] = useState('');
+  const [newServicePincodeInput, setNewServicePincodeInput] = useState('');
+  const [pincodeSearchQuery, setPincodeSearchQuery] = useState('');
 
   // Category Sidebar Accordion expansion state
   const isCategoryTab = ['categories', 'parent-categories', 'sub-categories', 'category-products'].includes(adminActiveTab);
@@ -362,6 +369,98 @@ export default function AdminView() {
   function handleDeleteUserConfirm(userId, userName) {
     if (window.confirm(`Are you sure you want to permanently delete the user account for "${userName}"?`)) {
       deleteUser(userId);
+    }
+  }
+
+  // Coupon Management State & Handlers
+  const [couponSearchQuery, setCouponSearchQuery] = useState('');
+  const [couponStatusFilter, setCouponStatusFilter] = useState('all'); // 'all' | 'active' | 'disabled'
+  const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState(null);
+  const [couponFormData, setCouponFormData] = useState({
+    code: '',
+    description: '',
+    discountType: 'percentage', // 'percentage' | 'flat'
+    discountPercentage: 10,
+    flatAmount: 100,
+    minOrderValue: 999,
+    maxDiscount: 500,
+    badge: 'SPECIAL',
+    expiryDate: '',
+    scope: 'All Customers',
+    isActive: true,
+  });
+
+  function handleOpenAddCouponModal() {
+    setEditingCoupon(null);
+    setCouponFormData({
+      code: '',
+      description: '',
+      discountType: 'percentage',
+      discountPercentage: 10,
+      flatAmount: 100,
+      minOrderValue: 999,
+      maxDiscount: 500,
+      badge: 'SPECIAL',
+      expiryDate: '',
+      scope: 'All Customers',
+      isActive: true,
+    });
+    setIsCouponModalOpen(true);
+  }
+
+  function handleOpenEditCouponModal(c) {
+    setEditingCoupon(c);
+    setCouponFormData({
+      code: c.code || '',
+      description: c.description || '',
+      discountType: c.discountType || (c.flatAmount ? 'flat' : 'percentage'),
+      discountPercentage: c.discountPercentage || 0,
+      flatAmount: c.flatAmount || c.discountAmount || 0,
+      minOrderValue: c.minOrderValue || 0,
+      maxDiscount: c.maxDiscount || 0,
+      badge: c.badge || '',
+      expiryDate: c.expiryDate ? c.expiryDate.split('T')[0] : '',
+      scope: c.scope || 'All Customers',
+      isActive: c.isActive !== false,
+    });
+    setIsCouponModalOpen(true);
+  }
+
+  async function handleSaveCoupon(e) {
+    e.preventDefault();
+    const cleanCode = (couponFormData.code || '').toUpperCase().trim();
+    if (!cleanCode) {
+      addToast('Please enter a valid promo/coupon code', 'warning');
+      return;
+    }
+
+    const payload = {
+      code: cleanCode,
+      description: couponFormData.description || '',
+      discountType: couponFormData.discountType,
+      discountPercentage: couponFormData.discountType === 'percentage' ? Number(couponFormData.discountPercentage) || 0 : 0,
+      flatAmount: couponFormData.discountType === 'flat' ? Number(couponFormData.flatAmount) || 0 : 0,
+      minOrderValue: Number(couponFormData.minOrderValue) || 0,
+      maxDiscount: couponFormData.discountType === 'percentage' ? Number(couponFormData.maxDiscount) || 0 : Number(couponFormData.flatAmount) || 0,
+      badge: couponFormData.badge || '',
+      expiryDate: couponFormData.expiryDate || null,
+      scope: couponFormData.scope || 'All Customers',
+      isActive: couponFormData.isActive !== false,
+    };
+
+    if (editingCoupon) {
+      await updateCoupon(editingCoupon.code, payload);
+    } else {
+      await addCoupon(payload);
+    }
+
+    setIsCouponModalOpen(false);
+  }
+
+  function handleDeleteCouponConfirm(code) {
+    if (window.confirm(`Are you sure you want to delete promo coupon "${code}"?`)) {
+      deleteCoupon(code);
     }
   }
 
@@ -9180,40 +9279,581 @@ export default function AdminView() {
   // 7. COUPONS, BANNERS, BOOKINGS, SERVICES, QUOTES, SETTINGS
   // -------------------------------------------------------------
   function renderCouponsView() {
+    const q = (couponSearchQuery || '').toLowerCase().trim();
+    const filteredCoupons = coupons.filter((c) => {
+      const matchSearch =
+        !q ||
+        (c.code && c.code.toLowerCase().includes(q)) ||
+        (c.description && c.description.toLowerCase().includes(q)) ||
+        (c.badge && c.badge.toLowerCase().includes(q));
+
+      const matchStatus =
+        couponStatusFilter === 'all'
+          ? true
+          : couponStatusFilter === 'active'
+          ? c.isActive !== false
+          : c.isActive === false;
+
+      return matchSearch && matchStatus;
+    });
+
+    const activeCount = coupons.filter((c) => c.isActive !== false).length;
+    const disabledCount = coupons.filter((c) => c.isActive === false).length;
+    const totalClaims = coupons.reduce((sum, c) => sum + (Number(c.usageCount) || 0), 0);
+
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: theme.textDark }}>Coupons & Promo Codes</h1>
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: `1px solid ${theme.cardBorder}`, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
-            <thead>
-              <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `1px solid ${theme.sidebarBorder}`, color: '#64748B' }}>
-                <th style={{ padding: '0.75rem 1rem' }}>Promo Code</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Discount %</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Min Order</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Usage</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {coupons.map((c) => (
-                <tr key={c.code} style={{ borderBottom: `1px solid ${theme.tableBorder}` }}>
-                  <td style={{ padding: '0.75rem 1rem', fontWeight: 800, color: theme.primaryBlue }}>{c.code}</td>
-                  <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#10B981' }}>{c.discountPercentage}% Off</td>
-                  <td style={{ padding: '0.75rem 1rem' }}>₹{c.minOrderValue?.toLocaleString('en-IN')}</td>
-                  <td style={{ padding: '0.75rem 1rem' }}>{c.usageCount || 0} times</td>
-                  <td style={{ padding: '0.75rem 1rem' }}>
-                    <button
-                      onClick={() => toggleCouponStatus(c.code)}
-                      style={{ padding: '3px 8px', borderRadius: '10px', backgroundColor: c.isActive ? '#ECFDF5' : '#FEF2F2', color: c.isActive ? '#10B981' : '#EF4444', border: 'none', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer' }}
-                    >
-                      {c.isActive ? 'Active' : 'Disabled'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        {/* Top Header & Add Button */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+          <div>
+            <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: theme.textDark, margin: '0 0 4px 0' }}>
+              Coupons & Promo Codes Management
+            </h1>
+            <p style={{ fontSize: '0.85rem', color: theme.textMuted, margin: 0 }}>
+              Create discount coupons, set minimum order values, percentage or flat discounts, and make them available to customers on the storefront.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleOpenAddCouponModal}
+            style={{
+              backgroundColor: '#15803D',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '10px',
+              padding: '0.65rem 1.25rem',
+              fontWeight: 800,
+              fontSize: '0.88rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(21, 128, 61, 0.25)',
+            }}
+          >
+            <Plus size={18} />
+            <span>Create New Promo / Coupon</span>
+          </button>
         </div>
+
+        {/* Quick KPI Stat Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: `1px solid ${theme.cardBorder}` }}>
+            <div style={{ fontSize: '0.78rem', color: theme.textMuted, fontWeight: 700, marginBottom: '4px' }}>Total Promos</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: theme.textDark }}>{coupons.length}</div>
+          </div>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: `1px solid ${theme.cardBorder}` }}>
+            <div style={{ fontSize: '0.78rem', color: '#15803D', fontWeight: 700, marginBottom: '4px' }}>Active on Storefront</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#15803D' }}>{activeCount}</div>
+          </div>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: `1px solid ${theme.cardBorder}` }}>
+            <div style={{ fontSize: '0.78rem', color: '#2563EB', fontWeight: 700, marginBottom: '4px' }}>Total Customer Claims</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#2563EB' }}>{totalClaims}</div>
+          </div>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: `1px solid ${theme.cardBorder}` }}>
+            <div style={{ fontSize: '0.78rem', color: '#D97706', fontWeight: 700, marginBottom: '4px' }}>Disabled / Inactive</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#D97706' }}>{disabledCount}</div>
+          </div>
+        </div>
+
+        {/* Search Bar & Filter Tabs */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', backgroundColor: '#FFFFFF', padding: '0.75rem 1rem', borderRadius: '12px', border: `1px solid ${theme.cardBorder}` }}>
+          {/* Status Tabs */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {[
+              { id: 'all', label: `All Promos (${coupons.length})` },
+              { id: 'active', label: `Active (${activeCount})` },
+              { id: 'disabled', label: `Disabled (${disabledCount})` },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setCouponStatusFilter(tab.id)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backgroundColor: couponStatusFilter === tab.id ? '#0F172A' : '#F1F5F9',
+                  color: couponStatusFilter === tab.id ? '#FFFFFF' : theme.textDark,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Search Box */}
+          <div style={{ position: 'relative', minWidth: '240px' }}>
+            <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text"
+              placeholder="Search coupon code or description..."
+              value={couponSearchQuery}
+              onChange={(e) => setCouponSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                paddingLeft: '36px',
+                paddingRight: '12px',
+                paddingTop: '7px',
+                paddingBottom: '7px',
+                borderRadius: '8px',
+                border: `1px solid ${theme.cardBorder}`,
+                fontSize: '0.82rem',
+                outline: 'none',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Coupons List / Cards */}
+        {filteredCoupons.length === 0 ? (
+          <div style={{ backgroundColor: '#FFFFFF', padding: '3rem 1.5rem', textAlign: 'center', borderRadius: '12px', border: `1px solid ${theme.cardBorder}` }}>
+            <Tag size={48} color="#CBD5E1" style={{ marginBottom: '0.75rem' }} />
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: theme.textDark, margin: '0 0 4px 0' }}>No Coupons Found</h3>
+            <p style={{ fontSize: '0.85rem', color: theme.textMuted, margin: 0 }}>
+              {couponSearchQuery ? 'No coupons matched your search criteria.' : 'Click "Create New Promo / Coupon" to add your first promotion.'}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
+            {filteredCoupons.map((c) => {
+              const isFlat = c.discountType === 'flat' || (Number(c.flatAmount) > 0 && !Number(c.discountPercentage));
+              const discountText = isFlat ? `₹${(c.flatAmount || c.discountAmount || 0).toLocaleString('en-IN')} FLAT OFF` : `${c.discountPercentage || 0}% OFF`;
+
+              return (
+                <div
+                  key={c.code}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '14px',
+                    border: `1.5px solid ${c.isActive !== false ? '#E2E8F0' : '#FECDD3'}`,
+                    padding: '16px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* Top Status & Badge */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div
+                          style={{
+                            border: '1.5px dashed #0284C7',
+                            backgroundColor: '#F0F9FF',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            fontSize: '0.95rem',
+                            fontWeight: 800,
+                            color: '#0369A1',
+                            letterSpacing: '1px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                          }}
+                        >
+                          <Tag size={14} />
+                          <span>{c.code}</span>
+                        </div>
+
+                        {c.badge && (
+                          <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#C2410C', backgroundColor: '#FFEDD5', padding: '2px 6px', borderRadius: '4px' }}>
+                            {c.badge}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleCouponStatus(c.code)}
+                        style={{
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          backgroundColor: c.isActive !== false ? '#DCFCE7' : '#FEE2E2',
+                          color: c.isActive !== false ? '#15803D' : '#DC2626',
+                          fontWeight: 700,
+                          fontSize: '0.72rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {c.isActive !== false ? '● Active on Store' : '○ Disabled'}
+                      </button>
+                    </div>
+
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#15803D', marginBottom: '4px' }}>
+                      {discountText}
+                    </div>
+
+                    <p style={{ fontSize: '0.82rem', color: '#475569', margin: '0 0 8px 0', lineHeight: 1.4 }}>
+                      {c.description || 'Special promo offer on construction materials and site supplies.'}
+                    </p>
+
+                    {/* Criteria Details */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '0.75rem', color: '#64748B' }}>
+                      <span style={{ backgroundColor: '#F8FAFC', padding: '3px 8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                        Min Order: <strong>₹{(c.minOrderValue || 0).toLocaleString('en-IN')}</strong>
+                      </span>
+                      {!isFlat && c.maxDiscount > 0 && (
+                        <span style={{ backgroundColor: '#F8FAFC', padding: '3px 8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                          Max Discount: <strong>₹{c.maxDiscount.toLocaleString('en-IN')}</strong>
+                        </span>
+                      )}
+                      <span style={{ backgroundColor: '#F8FAFC', padding: '3px 8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                        Usage: <strong>{c.usageCount || 0} times</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bottom Actions */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
+                    <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>
+                      {c.expiryDate ? `Expires: ${new Date(c.expiryDate).toLocaleDateString()}` : 'Never expires'}
+                    </span>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditCouponModal(c)}
+                        style={{
+                          backgroundColor: '#F1F5F9',
+                          color: '#334155',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '5px 10px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <Edit2 size={13} />
+                        <span>Edit</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCouponConfirm(c.code)}
+                        style={{
+                          backgroundColor: '#FEE2E2',
+                          color: '#DC2626',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '5px 8px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        title="Delete coupon"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Create / Edit Coupon Modal */}
+        {isCouponModalOpen && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              padding: '16px',
+            }}
+            onClick={() => setIsCouponModalOpen(false)}
+          >
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '560px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                padding: '24px',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', paddingBottom: '12px', borderBottom: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#15803D' }}>
+                    <Tag size={18} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      {editingCoupon ? `Edit Coupon: ${editingCoupon.code}` : 'Create New Promo / Coupon'}
+                    </h3>
+                    <span style={{ fontSize: '0.75rem', color: '#64748B' }}>
+                      Customers can apply this promo code on the Cart and Checkout pages
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsCouponModalOpen(false)}
+                  style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Modal Form */}
+              <form onSubmit={handleSaveCoupon} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* Coupon Code Input */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Promo Code (e.g. MISTRI100, SITE500) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. BUILDER20"
+                    value={couponFormData.code}
+                    onChange={(e) => setCouponFormData({ ...couponFormData, code: e.target.value.toUpperCase().replace(/\s+/g, '') })}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.95rem',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px',
+                    }}
+                  />
+                </div>
+
+                {/* Offer Description */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Offer Description / Summary
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Flat ₹500 Off on Cement & Steel Orders over ₹5,000"
+                    value={couponFormData.description}
+                    onChange={(e) => setCouponFormData({ ...couponFormData, description: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+
+                {/* Discount Type Selector */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Discount Calculation Type
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setCouponFormData({ ...couponFormData, discountType: 'percentage' })}
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: `1.5px solid ${couponFormData.discountType === 'percentage' ? '#15803D' : '#E2E8F0'}`,
+                        backgroundColor: couponFormData.discountType === 'percentage' ? '#F0FDF4' : '#FFFFFF',
+                        fontWeight: 700,
+                        fontSize: '0.84rem',
+                        color: couponFormData.discountType === 'percentage' ? '#15803D' : '#475569',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      % Percentage Discount
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCouponFormData({ ...couponFormData, discountType: 'flat' })}
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: `1.5px solid ${couponFormData.discountType === 'flat' ? '#15803D' : '#E2E8F0'}`,
+                        backgroundColor: couponFormData.discountType === 'flat' ? '#F0FDF4' : '#FFFFFF',
+                        fontWeight: 700,
+                        fontSize: '0.84rem',
+                        color: couponFormData.discountType === 'flat' ? '#15803D' : '#475569',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ₹ Flat Rupee Amount Off
+                    </button>
+                  </div>
+                </div>
+
+                {/* Values row */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {couponFormData.discountType === 'percentage' ? (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                        Discount Percentage (%) *
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        required
+                        value={couponFormData.discountPercentage}
+                        onChange={(e) => setCouponFormData({ ...couponFormData, discountPercentage: e.target.value })}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 700 }}
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                        Flat Discount Amount (₹) *
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        value={couponFormData.flatAmount}
+                        onChange={(e) => setCouponFormData({ ...couponFormData, flatAmount: e.target.value })}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 700 }}
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                      Minimum Order Value (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={couponFormData.minOrderValue}
+                      onChange={(e) => setCouponFormData({ ...couponFormData, minOrderValue: e.target.value })}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 700 }}
+                    />
+                  </div>
+                </div>
+
+                {/* Optional Max Discount Cap & Badge */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {couponFormData.discountType === 'percentage' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                        Maximum Discount Cap (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0 for unlimited"
+                        value={couponFormData.maxDiscount}
+                        onChange={(e) => setCouponFormData({ ...couponFormData, maxDiscount: e.target.value })}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem' }}
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                      Badge Tag (e.g. TRENDING, BEST VALUE)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. EXCLUSIVE"
+                      value={couponFormData.badge}
+                      onChange={(e) => setCouponFormData({ ...couponFormData, badge: e.target.value.toUpperCase() })}
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Expiry Date */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Expiry Date (Optional - Leave blank for no expiry)
+                  </label>
+                  <input
+                    type="date"
+                    value={couponFormData.expiryDate}
+                    onChange={(e) => setCouponFormData({ ...couponFormData, expiryDate: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem' }}
+                  />
+                </div>
+
+                {/* Active Toggle */}
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '10px 12px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  <input
+                    type="checkbox"
+                    checked={couponFormData.isActive}
+                    onChange={(e) => setCouponFormData({ ...couponFormData, isActive: e.target.checked })}
+                    style={{ width: '18px', height: '18px', accentColor: '#15803D' }}
+                  />
+                  <div>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>Active & Visible on Storefront</span>
+                    <span style={{ display: 'block', fontSize: '0.74rem', color: '#64748B' }}>When active, customers can see and apply this promo code</span>
+                  </div>
+                </label>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsCouponModalOpen(false)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      backgroundColor: '#FFFFFF',
+                      color: '#475569',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    style={{
+                      padding: '8px 20px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: '#15803D',
+                      color: '#FFFFFF',
+                      fontWeight: 800,
+                      fontSize: '0.88rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(21, 128, 61, 0.25)',
+                    }}
+                  >
+                    {editingCoupon ? 'Save Changes' : 'Create Promo Code'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -10962,7 +11602,473 @@ export default function AdminView() {
           </div>
         </div>
 
-        {/* SECTION 5: Store Profile & Depot Details */}
+        {/* SECTION 5: Serviceable Delivery Areas, Cities, Pincodes & Range Control */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            border: `1px solid ${theme.cardBorder}`,
+            padding: '1.5rem',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', paddingBottom: '0.85rem', borderBottom: '1px solid #F1F5F9', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
+                <MapPin size={16} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                  Serviceable Delivery Areas, Cities, Pincodes & Range Control
+                </h2>
+                <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                  Define depot hub address, maximum delivery radius (KM), and configure exact cities & pincodes where you accept orders.
+                </span>
+              </div>
+            </div>
+
+            {/* Strict Restriction Mode Toggle */}
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', backgroundColor: siteSettings.restrictToServiceableAreas !== false ? '#F0FDF4' : '#F8FAFC', padding: '6px 12px', borderRadius: '8px', border: siteSettings.restrictToServiceableAreas !== false ? '1px solid #BBF7D0' : '1px solid #E2E8F0' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: siteSettings.restrictToServiceableAreas !== false ? '#15803D' : '#64748B' }}>
+                {siteSettings.restrictToServiceableAreas !== false ? '✅ RESTRICTION ACTIVE (Orders checked)' : '⚪ OPEN (Accept all areas)'}
+              </span>
+              <input
+                type="checkbox"
+                checked={siteSettings.restrictToServiceableAreas !== false}
+                onChange={(e) => updateSiteSettings({ restrictToServiceableAreas: e.target.checked })}
+                style={{ width: '18px', height: '18px', accentColor: '#16A34A', cursor: 'pointer' }}
+              />
+            </label>
+          </div>
+
+          {/* 1. Depot Address & Location Details */}
+          <div style={{ marginBottom: '1.5rem', backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1E293B', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Building size={16} color="#2563EB" />
+              <span>Central Depot Dispatch Address</span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  Full Depot / Warehouse Address
+                </label>
+                <input
+                  type="text"
+                  value={siteSettings.depotAddress || ''}
+                  onChange={(e) => updateSiteSettings({ depotAddress: e.target.value })}
+                  placeholder="e.g. Central Logistics Park, Near Vavdimohala, Kod, Dist- Dhar"
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem', fontWeight: 600 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  Depot City
+                </label>
+                <input
+                  type="text"
+                  value={siteSettings.depotCity || 'Dhar'}
+                  onChange={(e) => updateSiteSettings({ depotCity: e.target.value })}
+                  placeholder="e.g. Dhar / Indore"
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem', fontWeight: 600 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  Depot Pincode
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={siteSettings.depotPincode || '454001'}
+                  onChange={(e) => updateSiteSettings({ depotPincode: e.target.value.replace(/\D/g, '') })}
+                  placeholder="e.g. 454001"
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem', fontWeight: 700, letterSpacing: '1px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                  State
+                </label>
+                <input
+                  type="text"
+                  value={siteSettings.depotState || 'Madhya Pradesh'}
+                  onChange={(e) => updateSiteSettings({ depotState: e.target.value })}
+                  placeholder="e.g. Madhya Pradesh"
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem', fontWeight: 600 }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Maximum Delivery Radius / Range */}
+          <div style={{ marginBottom: '1.5rem', backgroundColor: '#F0F9FF', borderRadius: '12px', padding: '14px', border: '1px solid #BAE6FD' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0369A1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Truck size={16} /> Maximum Delivery Radius / Range from Depot (KM)
+                </span>
+                <span style={{ fontSize: '0.74rem', color: '#0284C7', display: 'block', marginTop: '2px' }}>
+                  Orders with calculated distance beyond this radius will be flagged or rejected.
+                </span>
+              </div>
+              <span style={{ fontSize: '1rem', fontWeight: 800, color: '#0369A1', backgroundColor: '#E0F2FE', padding: '3px 12px', borderRadius: '9999px', border: '1px solid #BAE6FD' }}>
+                {Number(siteSettings.maxDeliveryRadiusKm) > 0 ? `${siteSettings.maxDeliveryRadiusKm} KM` : 'Unlimited'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+              <input
+                type="number"
+                min="0"
+                max="500"
+                value={siteSettings.maxDeliveryRadiusKm ?? 50}
+                onChange={(e) => updateSiteSettings({ maxDeliveryRadiusKm: Math.max(0, Number(e.target.value)) })}
+                style={{ width: '120px', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.92rem', fontWeight: 800, textAlign: 'center', backgroundColor: '#FFFFFF' }}
+              />
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {[15, 25, 35, 50, 75, 100, 150, 0].map((km) => (
+                  <button
+                    key={km}
+                    type="button"
+                    onClick={() => updateSiteSettings({ maxDeliveryRadiusKm: km })}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: siteSettings.maxDeliveryRadiusKm === km ? '1.5px solid #0284C7' : '1px solid #CBD5E1',
+                      backgroundColor: siteSettings.maxDeliveryRadiusKm === km ? '#0284C7' : '#FFFFFF',
+                      color: siteSettings.maxDeliveryRadiusKm === km ? '#FFFFFF' : '#334155',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {km === 0 ? 'All / Unlimited' : `${km} km`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Serviceable Cities Manager */}
+          <div style={{ marginBottom: '1.5rem', backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  🏙️ Serviceable Operational Cities ({Array.isArray(siteSettings.serviceableCities) ? siteSettings.serviceableCities.length : 0})
+                </span>
+                <span style={{ fontSize: '0.74rem', color: '#64748B', display: 'block', marginTop: '2px' }}>
+                  Customers from these cities can place orders.
+                </span>
+              </div>
+            </div>
+
+            {/* Add City Input Box */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <input
+                type="text"
+                value={newServiceCityInput}
+                onChange={(e) => setNewServiceCityInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const trimmed = newServiceCityInput.trim();
+                    if (trimmed) {
+                      const current = Array.isArray(siteSettings.serviceableCities) ? siteSettings.serviceableCities : [];
+                      if (!current.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+                        updateSiteSettings({ serviceableCities: [...current, trimmed] });
+                      }
+                      setNewServiceCityInput('');
+                    }
+                  }
+                }}
+                placeholder="Enter city name (e.g. Indore, Bhopal, Dhar) and press Add"
+                style={{ flex: 1, padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const trimmed = newServiceCityInput.trim();
+                  if (trimmed) {
+                    const current = Array.isArray(siteSettings.serviceableCities) ? siteSettings.serviceableCities : [];
+                    if (!current.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+                      updateSiteSettings({ serviceableCities: [...current, trimmed] });
+                    }
+                    setNewServiceCityInput('');
+                  }
+                }}
+                style={{
+                  padding: '0.55rem 1.2rem',
+                  borderRadius: '8px',
+                  backgroundColor: '#2563EB',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <Plus size={16} />
+                <span>Add City</span>
+              </button>
+            </div>
+
+            {/* Quick Add City Suggestions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+              <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Quick Add:</span>
+              {['Indore', 'Bhopal', 'Ujjain', 'Dewas', 'Dhar', 'Pithampur', 'Gwalior', 'Jabalpur', 'Khandwa', 'Khargone', 'Ratlam'].map((suggestedCity) => {
+                const current = Array.isArray(siteSettings.serviceableCities) ? siteSettings.serviceableCities : [];
+                const alreadyAdded = current.some((c) => c.toLowerCase() === suggestedCity.toLowerCase());
+                if (alreadyAdded) return null;
+                return (
+                  <button
+                    key={suggestedCity}
+                    type="button"
+                    onClick={() => {
+                      updateSiteSettings({ serviceableCities: [...current, suggestedCity] });
+                    }}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      border: '1px dashed #CBD5E1',
+                      backgroundColor: '#F8FAFC',
+                      color: '#475569',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    + {suggestedCity}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active Serviceable Cities Chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {(Array.isArray(siteSettings.serviceableCities) ? siteSettings.serviceableCities : []).map((city, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    backgroundColor: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
+                    color: '#1E40AF',
+                    borderRadius: '9999px',
+                    padding: '4px 12px',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span>{city}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = (siteSettings.serviceableCities || []).filter((_, i) => i !== idx);
+                      updateSiteSettings({ serviceableCities: updated });
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: '#1E40AF',
+                    }}
+                    title={`Remove ${city}`}
+                  >
+                    <X size={14} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* 4. Serviceable Pincodes Manager */}
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  📮 Serviceable Pincodes Acceptance List ({Array.isArray(siteSettings.serviceablePincodes) ? siteSettings.serviceablePincodes.length : 0})
+                </span>
+                <span style={{ fontSize: '0.74rem', color: '#64748B', display: 'block', marginTop: '2px' }}>
+                  Customer addresses with these 6-digit pincodes can complete checkout.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const mpCommon = ['452001', '452002', '452003', '452005', '452010', '453331', '454001', '456001', '455001', '462001'];
+                    const current = Array.isArray(siteSettings.serviceablePincodes) ? siteSettings.serviceablePincodes : [];
+                    const merged = Array.from(new Set([...current, ...mpCommon]));
+                    updateSiteSettings({ serviceablePincodes: merged });
+                  }}
+                  style={{
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                    backgroundColor: '#F0FDF4',
+                    border: '1px solid #86EFAC',
+                    color: '#166534',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  + Add Common MP Pincodes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Clear all serviceable pincodes? (Delivery will rely on city or radius)')) {
+                      updateSiteSettings({ serviceablePincodes: [] });
+                    }
+                  }}
+                  style={{
+                    padding: '3px 10px',
+                    borderRadius: '6px',
+                    backgroundColor: '#FEF2F2',
+                    border: '1px solid #FECDD3',
+                    color: '#991B1B',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            {/* Add Pincode Input Box (Supports comma separated or single) */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <input
+                type="text"
+                value={newServicePincodeInput}
+                onChange={(e) => setNewServicePincodeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const raw = newServicePincodeInput;
+                    const pins = raw.split(/[\s,]+/).map((p) => p.replace(/\D/g, '').trim()).filter((p) => p.length === 6);
+                    if (pins.length > 0) {
+                      const current = Array.isArray(siteSettings.serviceablePincodes) ? siteSettings.serviceablePincodes : [];
+                      const updated = Array.from(new Set([...current, ...pins]));
+                      updateSiteSettings({ serviceablePincodes: updated });
+                      setNewServicePincodeInput('');
+                    }
+                  }
+                }}
+                placeholder="Enter 6-digit pincode or multiple comma-separated (e.g. 452001, 452005, 454001)"
+                style={{ flex: 1, padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const raw = newServicePincodeInput;
+                  const pins = raw.split(/[\s,]+/).map((p) => p.replace(/\D/g, '').trim()).filter((p) => p.length === 6);
+                  if (pins.length > 0) {
+                    const current = Array.isArray(siteSettings.serviceablePincodes) ? siteSettings.serviceablePincodes : [];
+                    const updated = Array.from(new Set([...current, ...pins]));
+                    updateSiteSettings({ serviceablePincodes: updated });
+                    setNewServicePincodeInput('');
+                  } else {
+                    addToast('Please enter valid 6-digit pincodes', 'warning');
+                  }
+                }}
+                style={{
+                  padding: '0.55rem 1.2rem',
+                  borderRadius: '8px',
+                  backgroundColor: '#0F172A',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <Plus size={16} />
+                <span>Add Pincode(s)</span>
+              </button>
+            </div>
+
+            {/* Pincode Search Filter */}
+            {(siteSettings.serviceablePincodes || []).length > 8 && (
+              <div style={{ position: 'relative', marginBottom: '10px' }}>
+                <Search size={14} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '9px' }} />
+                <input
+                  type="text"
+                  placeholder="Filter active pincodes..."
+                  value={pincodeSearchQuery}
+                  onChange={(e) => setPincodeSearchQuery(e.target.value)}
+                  style={{ width: '100%', padding: '0.4rem 0.6rem 0.4rem 32px', borderRadius: '6px', border: '1px solid #E2E8F0', fontSize: '0.78rem' }}
+                />
+              </div>
+            )}
+
+            {/* Active Serviceable Pincodes List */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '200px', overflowY: 'auto', padding: '4px' }}>
+              {(Array.isArray(siteSettings.serviceablePincodes) ? siteSettings.serviceablePincodes : [])
+                .filter((p) => !pincodeSearchQuery || String(p).includes(pincodeSearchQuery))
+                .map((pin, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      backgroundColor: '#F8FAFC',
+                      border: '1px solid #CBD5E1',
+                      color: '#0F172A',
+                      borderRadius: '6px',
+                      padding: '3px 8px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontFamily: 'monospace',
+                    }}
+                  >
+                    <span>{pin}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = (siteSettings.serviceablePincodes || []).filter((p) => p !== pin);
+                        updateSiteSettings({ serviceablePincodes: updated });
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        color: '#94A3B8',
+                      }}
+                      title={`Remove pincode ${pin}`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 6: Store Profile & Depot Details */}
         <div
           style={{
             backgroundColor: '#FFFFFF',

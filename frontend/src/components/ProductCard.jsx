@@ -20,6 +20,19 @@ export const ProductCard = ({ product }) => {
   );
   const qtyInCart = cartItem ? cartItem.quantity : 0;
 
+  // Calculate discount percentage from price & MRP
+  const priceNum = Number(product.price) || 0;
+  const mrpNum = Number(product.mrp) || 0;
+  let discountPercentage = 0;
+  if (mrpNum > priceNum && priceNum > 0) {
+    discountPercentage = Math.round(((mrpNum - priceNum) / mrpNum) * 100);
+  } else if (product.discountPercent) {
+    discountPercentage = Number(product.discountPercent);
+  } else if (typeof product.discount === 'string') {
+    const match = product.discount.match(/(\d+)/);
+    if (match) discountPercentage = parseInt(match[1], 10);
+  }
+
   const handleCardClick = () => {
     navigateTo('product-details', { product, id: product.id, productId: product.id });
   };
@@ -65,10 +78,10 @@ export const ProductCard = ({ product }) => {
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
         {/* Top Image Section */}
         <div className="qc-product-img-wrap">
-          {/* Top-Left Yellow Discount Tag */}
-          {product.discount && (
-            <div className="qc-product-discount-tag">
-              {product.discount}
+          {/* Top-Right Green Discount Badge */}
+          {discountPercentage > 0 && (
+            <div className="qc-product-discount-tag-right">
+              {discountPercentage}% OFF
             </div>
           )}
 

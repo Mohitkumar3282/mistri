@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import api from '../services/api';
 import { useServerSync } from '../services/serverSync';
 import { computeTotals, couponDiscount, resolveVariantOptions, unitPrice, getCartItemKey } from '../utils/pricing';
+import { getDeliverySchedule } from '../utils/deliverySchedule';
 import { auth, googleProvider } from '../config/firebase';
 import {
   signInWithPopup,
@@ -98,85 +99,63 @@ const INITIAL_BOOKINGS = [];
 // Initial Registered Users & Contractors
 const INITIAL_USERS_LIST = [];
 
-// Initial Coupons
-const INITIAL_COUPONS = [];
+// Initial Coupons & Promos
+const INITIAL_COUPONS = [
+  {
+    code: 'MISTRI100',
+    description: 'Flat ₹100 Instant Discount on your material orders',
+    discountType: 'flat',
+    flatAmount: 100,
+    discountPercentage: 0,
+    minOrderValue: 999,
+    maxDiscount: 100,
+    badge: 'FIRST ORDER',
+    isActive: true,
+    usageCount: 42,
+  },
+  {
+    code: 'BUILDER10',
+    description: '10% Contractor Discount on structural materials & tools',
+    discountType: 'percentage',
+    discountPercentage: 10,
+    flatAmount: 0,
+    minOrderValue: 2500,
+    maxDiscount: 1000,
+    badge: 'TRENDING',
+    isActive: true,
+    usageCount: 88,
+  },
+  {
+    code: 'BULK500',
+    description: 'Flat ₹500 Mega Savings on cement bags & steel rebar orders',
+    discountType: 'flat',
+    flatAmount: 500,
+    discountPercentage: 0,
+    minOrderValue: 10000,
+    maxDiscount: 500,
+    badge: 'BEST VALUE',
+    isActive: true,
+    usageCount: 29,
+  },
+  {
+    code: 'SITE20',
+    description: '20% Off on electrical cables, switches & plumbing fittings',
+    discountType: 'percentage',
+    discountPercentage: 20,
+    flatAmount: 0,
+    minOrderValue: 1500,
+    maxDiscount: 600,
+    badge: 'SPECIAL',
+    isActive: true,
+    usageCount: 54,
+  },
+];
 
 // Initial Quotation Requests
 const INITIAL_QUOTATIONS = [];
 
 // Initial Marketing Banners
-const INITIAL_BANNERS = [
-  {
-    id: 'bnr_hero_1',
-    position: 'hero',
-    title: 'Original Plywood & MDF',
-    subtitle: '100% Genuine Certified Quality with Wholesale Factory Pricing Direct to Site.',
-    badge: 'WHOLESALE PRICES',
-    ctaText: 'ORDER NOW',
-    target: 'plywood-mdf-hdhmr',
-    image: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
-    isActive: true,
-  },
-  {
-    id: 'bnr_hero_2',
-    position: 'hero',
-    title: 'TMT Steel & Cement Bulk Deals',
-    subtitle: 'MTC Lab Certificates Included. Direct Dispatch from Central Logistics Park.',
-    badge: 'EXPRESS SITE DISPATCH',
-    ctaText: 'EXPLORE STEEL',
-    target: 'tmt-steel-bars',
-    image: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=1200&q=80',
-    isActive: true,
-  },
-  {
-    id: 'bnr_bottom_1',
-    position: 'bottom',
-    title: 'Site Delivery in 60 Mins',
-    subtitle: 'Cement, TMT steel, sand & bricks direct to your plot',
-    badge: '60-MIN EXPRESS',
-    ctaText: 'Order Now',
-    target: 'products',
-    gradient: 'linear-gradient(135deg, #0B2947 0%, #163E68 60%, #0F172A 100%)',
-    accent: '#F59E0B',
-    isActive: true,
-  },
-  {
-    id: 'bnr_bottom_2',
-    position: 'bottom',
-    title: 'Book Verified Mistri & Masons',
-    subtitle: 'Expert masons, plumbers, electricians & carpenters near you',
-    badge: 'VERIFIED EXPERTS',
-    ctaText: 'Book Mistri',
-    target: 'mistris',
-    gradient: 'linear-gradient(135deg, #064E3B 0%, #065F46 60%, #022C22 100%)',
-    accent: '#34D399',
-    isActive: true,
-  },
-  {
-    id: 'bnr_bottom_3',
-    position: 'bottom',
-    title: '100% Genuine Materials',
-    subtitle: 'Factory certified (MTC) with automated GST input tax credit',
-    badge: 'DEPOT DIRECT',
-    ctaText: 'View Brands',
-    target: 'products',
-    gradient: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 60%, #0F172A 100%)',
-    accent: '#FACC15',
-    isActive: true,
-  },
-  {
-    id: 'bnr_bottom_4',
-    position: 'bottom',
-    title: 'Contractor Bulk Discounts',
-    subtitle: 'Special depot rates for 500+ cement bags & bulk steel orders',
-    badge: 'BULK WHOLESALE',
-    ctaText: 'Get Quote',
-    target: 'contact',
-    gradient: 'linear-gradient(135deg, #78350F 0%, #92400E 60%, #451A03 100%)',
-    accent: '#FBBF24',
-    isActive: true,
-  },
-];
+const INITIAL_BANNERS = [];
 
 
 // Initial Site Settings
@@ -186,7 +165,14 @@ const INITIAL_SETTINGS = {
   supportPhone: '+91 96309 38487',
   whatsappNumber: '+91 96309 38487',
   supportEmail: 'care@mistri.com',
-  depotAddress: 'Central Depot #14, Super Corridor Logistics Park, Indore, MP - 452005',
+  depotAddress: 'Central Logistics Park, Near Vavdimohala, Kod, Dist- Dhar, MP - 454001',
+  depotCity: 'Dhar',
+  depotPincode: '454001',
+  depotState: 'Madhya Pradesh',
+  maxDeliveryRadiusKm: 50,
+  restrictToServiceableAreas: true,
+  serviceableCities: ['Indore', 'Bhopal', 'Ujjain', 'Dewas', 'Dhar', 'Pithampur', 'Gwalior', 'Jabalpur'],
+  serviceablePincodes: ['452001', '452002', '452003', '452005', '452010', '453331', '454001', '456001', '455001', '462001'],
   gstRatePercent: 18,
   isGstInclusive: false,
   deliveryType: 'free', // 'free' | 'km_based' | 'min_order_free' | 'flat'
@@ -810,7 +796,6 @@ export const StoreProvider = ({ children }) => {
     const foundCoupon = coupons.find((c) => c.code?.toUpperCase() === upper);
 
     if (foundCoupon) {
-      // Same rules the server applies when the order is placed.
       const { amount: calculatedDiscount, reason } = couponDiscount(foundCoupon, cartSubtotal);
       if (reason) {
         const msg = `${upper}: ${reason}`;
@@ -820,11 +805,14 @@ export const StoreProvider = ({ children }) => {
 
       setAppliedCoupon({
         code: upper,
-        discountPercentage: foundCoupon.discountPercentage,
+        discountType: foundCoupon.discountType || (foundCoupon.flatAmount ? 'flat' : 'percentage'),
+        discountPercentage: foundCoupon.discountPercentage || 0,
+        flatAmount: foundCoupon.flatAmount || 0,
         discountAmount: calculatedDiscount,
+        description: foundCoupon.description || '',
       });
 
-      addToast(`Coupon ${upper} applied! Saved ₹${calculatedDiscount.toLocaleString('en-IN')}`, 'success');
+      addToast(`Coupon "${upper}" applied! Saved ₹${calculatedDiscount.toLocaleString('en-IN')}`, 'success');
       return { success: true };
     }
 
@@ -866,6 +854,7 @@ export const StoreProvider = ({ children }) => {
     const siteAddress = orderData.siteAddress || addresses[0];
     const orderItems = orderData.items && orderData.items.length > 0 ? orderData.items : [...cart];
     const now = new Date();
+    const deliveryInfo = getDeliverySchedule(now);
 
     const request = {
       items: orderItems.map((item) => ({
@@ -879,10 +868,13 @@ export const StoreProvider = ({ children }) => {
       paymentMethod,
       customerName: user?.name || siteAddress?.recipientName || '',
       customerPhone: user?.phone || siteAddress?.phone || '',
-      deliverySlot: orderData.deliverySlot || 'Express Morning (08:00 AM - 12:00 PM)',
+      deliverySlot: orderData.deliverySlot || (deliveryInfo.isAfter8PM ? 'Next Day Priority Slot' : 'Express Morning (08:00 AM - 12:00 PM)'),
       vehicleAccess: orderData.siteVehicleAccess || 'Heavy 10-Wheeler Truck Access',
       unloadingNotes: orderData.unloadingNotes || '',
-      expectedDelivery: 'Tomorrow, by 12:00 PM',
+      expectedDelivery: deliveryInfo.expectedDelivery,
+      deliveryDate: deliveryInfo.deliveryDate,
+      deliveryMessage: deliveryInfo.deliveryMessage,
+      isAfter8PMOrder: deliveryInfo.isAfter8PM,
       siteAddress,
       shippingAddress: siteAddress,
       date: now.toISOString().split('T')[0],
@@ -1797,35 +1789,96 @@ export const StoreProvider = ({ children }) => {
   };
 
   // 7. COUPONS CRUD
-  const addCoupon = (newCoupon) => {
+  const addCoupon = async (newCoupon) => {
+    const cleanCode = String(newCoupon.code || '').toUpperCase().trim();
+    if (!cleanCode) {
+      addToast('Please enter a valid coupon code', 'warning');
+      return null;
+    }
+
     const created = {
-      isActive: true,
-      usageCount: 0,
+      isActive: newCoupon.isActive !== false,
+      usageCount: Number(newCoupon.usageCount) || 0,
+      discountType: newCoupon.discountType || (newCoupon.flatAmount ? 'flat' : 'percentage'),
+      discountPercentage: Number(newCoupon.discountPercentage) || 0,
+      flatAmount: Number(newCoupon.flatAmount || newCoupon.discountAmount) || 0,
+      minOrderValue: Number(newCoupon.minOrderValue) || 0,
+      maxDiscount: Number(newCoupon.maxDiscount) || 0,
+      description: newCoupon.description || '',
+      badge: newCoupon.badge || '',
+      expiryDate: newCoupon.expiryDate || null,
+      scope: newCoupon.scope || 'All Customers',
       ...newCoupon,
-      code: newCoupon.code.toUpperCase().trim(),
+      code: cleanCode,
     };
-    setCoupons((prev) => [created, ...prev]);
-    addToast(`Coupon "${created.code}" created!`, 'success');
+
+    setCoupons((prev) => {
+      const exists = prev.some((c) => c.code?.toUpperCase() === cleanCode);
+      if (exists) {
+        return prev.map((c) => (c.code?.toUpperCase() === cleanCode ? created : c));
+      }
+      return [created, ...prev];
+    });
+
+    try {
+      await api.createCoupon(created);
+      markSynced('coupons', created);
+      addToast(`Coupon "${created.code}" created and saved to database!`, 'success');
+    } catch (err) {
+      console.warn('Backend createCoupon warning:', err);
+      addToast(`Coupon "${created.code}" created!`, 'success');
+    }
+
     return created;
   };
 
-  const updateCoupon = (code, updatedFields) => {
+  const updateCoupon = async (code, updatedFields) => {
+    const cleanCode = String(code || '').toUpperCase().trim();
+    let updatedDoc = null;
+
     setCoupons((prev) =>
-      prev.map((c) => (c.code.toUpperCase() === code.toUpperCase() ? { ...c, ...updatedFields } : c))
+      prev.map((c) => {
+        if (c.code?.toUpperCase() === cleanCode) {
+          const updated = { ...c, ...updatedFields, code: cleanCode };
+          updatedDoc = updated;
+          return updated;
+        }
+        return c;
+      })
     );
-    addToast(`Coupon "${code}" updated`, 'success');
+
+    if (updatedDoc) {
+      try {
+        await api.updateCoupon(cleanCode, updatedDoc);
+        markSynced('coupons', updatedDoc);
+        addToast(`Coupon "${cleanCode}" updated in database`, 'success');
+      } catch (err) {
+        console.warn('Backend updateCoupon warning:', err);
+        addToast(`Coupon "${cleanCode}" updated`, 'success');
+      }
+    }
   };
 
-  const deleteCoupon = (code) => {
-    setCoupons((prev) => prev.filter((c) => c.code.toUpperCase() !== code.toUpperCase()));
-    addToast(`Coupon "${code}" deleted`, 'info');
+  const deleteCoupon = async (code) => {
+    const cleanCode = String(code || '').toUpperCase().trim();
+    setCoupons((prev) => prev.filter((c) => c.code?.toUpperCase() !== cleanCode));
+
+    try {
+      await api.deleteCoupon(cleanCode);
+      addToast(`Coupon "${cleanCode}" removed from database`, 'info');
+    } catch (err) {
+      console.warn('Backend deleteCoupon warning:', err);
+      addToast(`Coupon "${cleanCode}" deleted`, 'info');
+    }
   };
 
-  const toggleCouponStatus = (code) => {
-    setCoupons((prev) =>
-      prev.map((c) => (c.code.toUpperCase() === code.toUpperCase() ? { ...c, isActive: !c.isActive } : c))
-    );
-    addToast(`Coupon status toggled`, 'success');
+  const toggleCouponStatus = async (code) => {
+    const cleanCode = String(code || '').toUpperCase().trim();
+    const target = coupons.find((c) => c.code?.toUpperCase() === cleanCode);
+    if (!target) return;
+
+    const nextActive = !target.isActive;
+    await updateCoupon(cleanCode, { isActive: nextActive });
   };
 
   // 8. QUOTATIONS CRUD

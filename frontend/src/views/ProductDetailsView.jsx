@@ -481,7 +481,7 @@ export const ProductDetailsView = () => {
                 </span>
               )}
               {currentDiscount && (
-                <span style={{ backgroundColor: '#FEF08A', color: '#854D0E', fontSize: '0.75rem', fontWeight: '800', padding: '2px 8px', borderRadius: '4px' }}>
+                <span style={{ backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', fontSize: '0.78rem', fontWeight: '800', padding: '2px 8px', borderRadius: '4px' }}>
                   {currentDiscount}
                 </span>
               )}

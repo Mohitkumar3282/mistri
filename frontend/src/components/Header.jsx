@@ -91,55 +91,6 @@ export const Header = () => {
 
   return (
     <header className="hide-on-mobile" style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, zIndex: 1000, boxShadow: 'var(--shadow-xs)' }}>
-      {/* 1. Top Construction Utility Bar */}
-      <div style={{ backgroundColor: 'var(--dark-navy)', color: '#FFFFFF', fontSize: '0.78rem', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <div className="container flex justify-between items-center">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2" style={{ color: 'var(--light-orange)' }}>
-              <Truck size={14} color="#F47721" />
-              <span>Direct Site Delivery across MP, Maharashtra & NCR</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted">
-              <ShieldCheck size={14} color="#10b981" />
-              <span>100% Tested Certified Structural Materials (MTC Provided)</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigateTo('admin')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                backgroundColor: 'rgba(241, 90, 36, 0.2)',
-                color: 'var(--primary-orange)',
-                border: '1px solid rgba(241, 90, 36, 0.5)',
-                padding: '3px 10px',
-                borderRadius: '6px',
-                fontSize: '0.75rem',
-                fontWeight: '800',
-                cursor: 'pointer',
-                letterSpacing: '0.04em',
-              }}
-            >
-              <Sliders size={12} />
-              <span>ADMIN PANEL</span>
-            </button>
-            <button
-              onClick={() => navigateTo('help')}
-              style={{ background: 'none', color: '#CBD5E1', cursor: 'pointer', fontSize: '0.78rem' }}
-            >
-              Contractor Support & FAQ
-            </button>
-            <div className="flex items-center gap-2">
-              <Phone size={13} color="#F47721" />
-              <span style={{ fontWeight: '700' }}>Bulk Hotline: {siteSettings?.supportPhone || '+91 98260 11223'}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* 2. Main Header Bar */}
       <div style={{ padding: '12px 0' }}>
         <div className="container flex items-center justify-between gap-6">

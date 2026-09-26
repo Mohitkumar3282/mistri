@@ -3,11 +3,13 @@ import { Truck, Phone, MapPin, CheckCircle2, Clock, ShieldCheck, ArrowLeft, Navi
 import { useStore } from '../context/StoreContext';
 import { MOCK_ORDERS } from '../data/mockData';
 import OrderTimeline from '../components/OrderTimeline';
+import { getDeliverySchedule } from '../utils/deliverySchedule';
 
 export const OrderTrackingView = () => {
   const { viewParams, navigateTo, getOrderById } = useStore();
   const orderId = viewParams?.id || viewParams?.orderId || viewParams?.order?.id || 'MST-100245';
   const order = getOrderById(orderId) || MOCK_ORDERS[0];
+  const deliveryInfo = getDeliverySchedule(order);
 
   const tracking = order.tracking || {
     currentStep: 5,
@@ -35,6 +37,62 @@ export const OrderTrackingView = () => {
         <ArrowLeft size={16} />
         <span>Back to My Orders</span>
       </button>
+
+      {/* Dynamic Delivery Date Notice Banner */}
+      <div
+        style={{
+          backgroundColor: '#EFF6FF',
+          border: '1.5px solid #BFDBFE',
+          borderRadius: '12px',
+          padding: '12px 18px',
+          marginBottom: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '8px',
+              backgroundColor: '#DBEAFE',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#1D4ED8',
+              flexShrink: 0,
+            }}
+          >
+            <Truck size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.94rem', fontWeight: '800', color: '#1E3A8A' }}>
+              Your order will be delivered on {order.deliveryDate || deliveryInfo.deliveryDate}
+            </div>
+            <div style={{ fontSize: '0.76rem', color: '#3B82F6', fontWeight: '500' }}>
+              {deliveryInfo.isAfter8PM
+                ? `Night Order · Scheduled for Next Day Delivery (${order.deliveryDate || deliveryInfo.deliveryDate})`
+                : `Active express delivery assignment`}
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            backgroundColor: '#DBEAFE',
+            color: '#1E40AF',
+            fontSize: '0.74rem',
+            fontWeight: '800',
+            padding: '4px 10px',
+            borderRadius: '6px',
+          }}
+        >
+          {order.deliveryDate || deliveryInfo.deliveryDate}
+        </span>
+      </div>
 
       {/* Header Bar */}
       <div
@@ -67,7 +125,7 @@ export const OrderTrackingView = () => {
         <div style={{ textAlign: 'left' }}>
           <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Estimated Site Arrival:</div>
           <div style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--primary-orange)' }}>
-            {order.expectedDelivery}
+            {order.expectedDelivery || deliveryInfo.expectedDelivery}
           </div>
         </div>
       </div>

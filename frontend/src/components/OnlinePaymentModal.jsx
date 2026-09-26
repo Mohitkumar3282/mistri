@@ -164,6 +164,7 @@ export const OnlinePaymentModal = ({
         quantity: item.quantity,
       })),
       couponCode: couponCode || null,
+      includeUnloading: Boolean(summary?.isUnloadingSelected),
     });
 
   // Development only (VITE_ALLOW_SANDBOX_PAYMENTS=true, and the server must allow it too):

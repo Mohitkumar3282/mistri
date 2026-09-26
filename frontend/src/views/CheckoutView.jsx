@@ -15,6 +15,7 @@ import {
   ChevronUp,
   Navigation,
   X,
+  Truck,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import SlideToOrder from '../components/SlideToOrder';
@@ -22,7 +23,9 @@ import OnlinePaymentModal from '../components/OnlinePaymentModal';
 import BillDetailsCard from '../components/BillDetailsCard';
 import CancellationPolicyCard from '../components/CancellationPolicyCard';
 import UnloadingServiceCard from '../components/UnloadingServiceCard';
-import { getCartItemKey } from '../utils/pricing';
+import { getCartItemKey, couponDiscount } from '../utils/pricing';
+import { getDeliverySchedule } from '../utils/deliverySchedule';
+import { checkDeliveryServiceability } from '../utils/deliveryValidation';
 
 export const CheckoutView = () => {
   const {
@@ -31,6 +34,7 @@ export const CheckoutView = () => {
     updateCartQty,
     cartSubtotal,
     cartItemCount,
+    coupons = [],
     appliedCoupon,
     applyCoupon,
     removeCoupon,
@@ -91,6 +95,14 @@ export const CheckoutView = () => {
     };
 
   const isOnline = paymentMethod === 'online';
+  const deliveryInfo = getDeliverySchedule(new Date());
+
+  // Check if current selected delivery location is serviceable based on Admin settings
+  const serviceability = checkDeliveryServiceability({
+    city: selectedAddress?.city || currentCity,
+    pincode: selectedAddress?.pincode || currentPincode,
+    siteSettings,
+  });
 
   const handleApplyCoupon = (e) => {
     e.preventDefault();
@@ -108,6 +120,15 @@ export const CheckoutView = () => {
 
   // Handle Cash Order Placement
   const handleCashOrderSlide = () => {
+    if (!serviceability.isServiceable) {
+      addToast(
+        serviceability.reason || 'We do not deliver to this location. Please update your delivery address or pincode.',
+        'error',
+        6000
+      );
+      return;
+    }
+
     requireAuth(async () => {
       setIsOrderProcessing(true);
       try {
@@ -130,6 +151,15 @@ export const CheckoutView = () => {
 
   // Handle Online Slide to Pay
   const handleOnlineOrderSlide = () => {
+    if (!serviceability.isServiceable) {
+      addToast(
+        serviceability.reason || 'We do not deliver to this location. Please update your delivery address or pincode.',
+        'error',
+        6000
+      );
+      return;
+    }
+
     requireAuth(() => {
       setIsPaymentModalOpen(true);
     });
@@ -242,6 +272,37 @@ export const CheckoutView = () => {
         </div>
       </div>
 
+      {/* Dynamic Delivery Schedule Top Header Notice Banner */}
+      <div
+        style={{
+          backgroundColor: deliveryInfo.isAfter8PM ? '#FFF7ED' : '#F0FDF4',
+          borderBottom: deliveryInfo.isAfter8PM ? '1.5px solid #FED7AA' : '1px solid #DCFCE7',
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          fontSize: '0.84rem',
+          fontWeight: '700',
+          color: deliveryInfo.isAfter8PM ? '#C2410C' : '#15803D',
+          textAlign: 'center',
+        }}
+      >
+        <Truck size={17} style={{ flexShrink: 0 }} />
+        <span>
+          {deliveryInfo.isAfter8PM ? (
+            <>
+              🌙 <strong>Night Order:</strong> Your order will be delivered on{' '}
+              <strong style={{ textDecoration: 'underline', color: '#9A3412' }}>{deliveryInfo.deliveryDate}</strong> (Orders placed after 8:00 PM are delivered next day)
+            </>
+          ) : (
+            <>
+              ⚡ <strong>Express Daytime Delivery:</strong> Your order will be delivered today ({deliveryInfo.deliveryDate})
+            </>
+          )}
+        </span>
+      </div>
+
       {/* Main Checkout Container */}
       <div
         style={{
@@ -253,6 +314,60 @@ export const CheckoutView = () => {
           gap: '14px',
         }}
       >
+        {/* Delivery Schedule Highlight Box */}
+        <div
+          style={{
+            backgroundColor: deliveryInfo.isAfter8PM ? '#FFFBEB' : '#F8FAFC',
+            border: deliveryInfo.isAfter8PM ? '1.5px solid #FDE68A' : '1px solid #E2E8F0',
+            borderRadius: '12px',
+            padding: '12px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                backgroundColor: deliveryInfo.isAfter8PM ? '#FEF3C7' : '#EFF6FF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: deliveryInfo.isAfter8PM ? '#D97706' : '#2563EB',
+                flexShrink: 0,
+              }}
+            >
+              <Truck size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.86rem', fontWeight: '800', color: '#0F172A' }}>
+                {deliveryInfo.isAfter8PM ? `Scheduled for Tomorrow: ${deliveryInfo.deliveryDate}` : `Same Day Delivery: ${deliveryInfo.deliveryDate}`}
+              </div>
+              <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                {deliveryInfo.isAfter8PM
+                  ? 'Order placed after 8:00 PM cutoff · First slot dispatch tomorrow morning'
+                  : 'Fast dispatch within 60-90 minutes'}
+              </div>
+            </div>
+          </div>
+          <span
+            style={{
+              backgroundColor: deliveryInfo.isAfter8PM ? '#F59E0B' : '#10B981',
+              color: '#FFFFFF',
+              fontSize: '0.7rem',
+              fontWeight: '800',
+              padding: '3px 8px',
+              borderRadius: '6px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {deliveryInfo.isAfter8PM ? 'NEXT DAY' : 'SAME DAY'}
+          </span>
+        </div>
         {/* 2. Delivery Address Card (Exact Reference Image Match) */}
         <div
           style={{
@@ -337,8 +452,82 @@ export const CheckoutView = () => {
                 {selectedAddress.recipientName && <span>{selectedAddress.recipientName}, </span>}
                 {selectedAddress.addressLine}, {selectedAddress.city} - {selectedAddress.pincode}
               </div>
+
+              {/* Serviceability Status Badge */}
+              <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {serviceability.isServiceable ? (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '0.72rem',
+                      fontWeight: '700',
+                      color: '#15803D',
+                      backgroundColor: '#DCFCE7',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    ✓ Serviceable Delivery Area
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '0.72rem',
+                      fontWeight: '700',
+                      color: '#B91C1C',
+                      backgroundColor: '#FEE2E2',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    ✕ Out of Delivery Range / Unserviceable
+                  </span>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Unserviceable Warning Alert Box */}
+          {!serviceability.isServiceable && (
+            <div
+              style={{
+                marginTop: '10px',
+                backgroundColor: '#FFF1F2',
+                border: '1.5px solid #FECDD3',
+                borderRadius: '10px',
+                padding: '10px 12px',
+                fontSize: '0.78rem',
+                color: '#9F1239',
+              }}
+            >
+              <div style={{ fontWeight: '800', marginBottom: '3px' }}>⚠️ Location Not Serviceable</div>
+              <div style={{ lineHeight: 1.4 }}>
+                {serviceability.reason || 'We currently do not accept orders for this pincode / city.'}
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLocationModalOpen(true)}
+                style={{
+                  marginTop: '8px',
+                  backgroundColor: '#E11D48',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '5px 12px',
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                }}
+              >
+                Change Delivery Pincode / City
+              </button>
+            </div>
+          )}
 
           {/* Use Current Location Button with Automatic GPS Fetching */}
           <button
@@ -583,12 +772,17 @@ export const CheckoutView = () => {
           {isCouponsOpen && (
             <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }} onClick={(e) => e.stopPropagation()}>
               {appliedCoupon ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F0FDF4', border: '1px dashed #86EFAC', padding: '8px 12px', borderRadius: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <CheckCircle2 size={16} color="#15803D" />
-                    <span style={{ fontSize: '0.82rem', color: '#15803D', fontWeight: '700' }}>
-                      '{appliedCoupon.code}' Active ({appliedCoupon.discountPercentage}% Discount)
-                    </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F0FDF4', border: '1.5px dashed #86EFAC', padding: '10px 14px', borderRadius: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle2 size={18} color="#15803D" />
+                    <div>
+                      <div style={{ fontSize: '0.86rem', color: '#15803D', fontWeight: '800' }}>
+                        '{appliedCoupon.code}' Applied!
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#166534' }}>
+                        Saved ₹{(discountAmount || appliedCoupon.discountAmount || 0).toLocaleString('en-IN')} on this order
+                      </div>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -599,44 +793,141 @@ export const CheckoutView = () => {
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    placeholder="ENTER COUPON CODE"
-                    value={couponInput}
-                    onChange={(e) => setCouponInput(e.target.value)}
-                    style={{
-                      flex: 1,
-                      height: '38px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      padding: '0 12px',
-                      fontSize: '0.82rem',
-                      textTransform: 'uppercase',
-                      fontWeight: '700',
-                      letterSpacing: '0.5px',
-                    }}
-                  />
-                  <button
-                    type="submit"
-                    style={{
-                      backgroundColor: '#0F172A',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '0 16px',
-                      fontSize: '0.82rem',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Apply
-                  </button>
-                </form>
-              )}
-              {couponError && (
-                <div style={{ color: '#DC2626', fontSize: '0.74rem', marginTop: '6px', fontWeight: '500' }}>
-                  {couponError}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="ENTER COUPON CODE"
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value)}
+                      style={{
+                        flex: 1,
+                        height: '38px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        padding: '0 12px',
+                        fontSize: '0.82rem',
+                        textTransform: 'uppercase',
+                        fontWeight: '700',
+                        letterSpacing: '0.5px',
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      style={{
+                        backgroundColor: '#0F172A',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '0 16px',
+                        fontSize: '0.82rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </form>
+
+                  {couponError && (
+                    <div style={{ color: '#DC2626', fontSize: '0.74rem', fontWeight: '600' }}>
+                      {couponError}
+                    </div>
+                  )}
+
+                  {/* Active Admin Coupons List */}
+                  {coupons.filter((c) => c.isActive !== false).length > 0 && (
+                    <div style={{ marginTop: '4px' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: '800', color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Available Offers & Promo Codes
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {coupons
+                          .filter((c) => c.isActive !== false)
+                          .map((coupon) => {
+                            const { amount: potentialSavings, reason } = couponDiscount(coupon, cartSubtotal);
+                            const isEligible = !reason;
+                            const isFlat = coupon.discountType === 'flat' || (Number(coupon.flatAmount) > 0 && !Number(coupon.discountPercentage));
+                            const discountBadge = isFlat
+                              ? `₹${(coupon.flatAmount || coupon.discountAmount || 0).toLocaleString('en-IN')} FLAT OFF`
+                              : `${coupon.discountPercentage || 0}% OFF`;
+
+                            return (
+                              <div
+                                key={coupon.code}
+                                style={{
+                                  border: `1.5px dashed ${isEligible ? '#86EFAC' : '#CBD5E1'}`,
+                                  backgroundColor: isEligible ? '#F0FDF4' : '#F8FAFC',
+                                  borderRadius: '10px',
+                                  padding: '10px 12px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: '10px',
+                                }}
+                              >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                                    <span
+                                      style={{
+                                        fontWeight: '800',
+                                        fontSize: '0.84rem',
+                                        color: isEligible ? '#15803D' : '#334155',
+                                        backgroundColor: isEligible ? '#DCFCE7' : '#E2E8F0',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        letterSpacing: '0.5px',
+                                      }}
+                                    >
+                                      {coupon.code}
+                                    </span>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#15803D' }}>
+                                      {discountBadge}
+                                    </span>
+                                    {coupon.badge && (
+                                      <span style={{ fontSize: '0.65rem', fontWeight: '800', color: '#C2410C', backgroundColor: '#FFEDD5', padding: '1px 5px', borderRadius: '4px' }}>
+                                        {coupon.badge}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div style={{ fontSize: '0.74rem', color: '#475569', lineHeight: 1.3 }}>
+                                    {coupon.description || `Save ${discountBadge} on orders above ₹${(coupon.minOrderValue || 0).toLocaleString('en-IN')}`}
+                                  </div>
+
+                                  {!isEligible && reason && (
+                                    <div style={{ fontSize: '0.7rem', color: '#D97706', fontWeight: '600', marginTop: '2px' }}>
+                                      • {reason}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  disabled={!isEligible}
+                                  onClick={() => applyCoupon(coupon.code)}
+                                  style={{
+                                    backgroundColor: isEligible ? '#15803D' : '#E2E8F0',
+                                    color: isEligible ? '#FFFFFF' : '#94A3B8',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    padding: '6px 12px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '800',
+                                    cursor: isEligible ? 'pointer' : 'not-allowed',
+                                    whiteSpace: 'nowrap',
+                                    boxShadow: isEligible ? '0 2px 4px rgba(21, 128, 61, 0.2)' : 'none',
+                                  }}
+                                >
+                                  {isEligible ? `APPLY (Save ₹${potentialSavings})` : 'APPLY'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -866,6 +1157,8 @@ export const CheckoutView = () => {
             amount={grandTotal}
             isLoading={isOrderProcessing}
             isSuccess={isOrderSuccess}
+            disabled={!serviceability.isServiceable}
+            disabledMessage={!serviceability.isServiceable ? 'Out of Delivery Range' : ''}
             onSlideComplete={isOnline ? handleOnlineOrderSlide : handleCashOrderSlide}
           />
         </div>
@@ -980,6 +1273,7 @@ export const CheckoutView = () => {
           gstAmount: gstAmount,
           discountAmount: discountAmount,
           grandTotal: grandTotal,
+          isUnloadingSelected: isUnloadingSelected,
         }}
         onPaymentSuccess={handleOnlinePaymentSuccess}
       />

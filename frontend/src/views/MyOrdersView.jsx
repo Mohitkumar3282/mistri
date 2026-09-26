@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import { getDeliverySchedule } from '../utils/deliverySchedule';
 
 export const MyOrdersView = () => {
   const { orders: storeOrders, navigateTo, user, adminUser, openLoginModal } = useStore();
@@ -317,6 +318,7 @@ export const MyOrdersView = () => {
 
               const itemCount = order.items?.reduce((sum, i) => sum + (i.quantity || 1), 0) || 1;
               const paymentMode = order.paymentMode || 'online';
+              const orderDeliveryInfo = getDeliverySchedule(order);
               const formattedPrice = (
                 order.summary?.totalAmount ||
                 order.totalPrice ||
@@ -446,20 +448,21 @@ export const MyOrdersView = () => {
                         {itemSummary}
                       </div>
 
-                      {/* Row 4: Express Delivery Badge + Time */}
+                      {/* Row 4: Express / Scheduled Delivery Badge + Time */}
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
+                          flexWrap: 'wrap',
                           gap: '8px',
                           marginBottom: '12px',
                         }}
                       >
                         <span
                           style={{
-                            backgroundColor: '#FFFBEB',
-                            color: '#D97706',
-                            border: '1px solid #FDE68A',
+                            backgroundColor: orderDeliveryInfo.isAfter8PM ? '#EFF6FF' : '#FFFBEB',
+                            color: orderDeliveryInfo.isAfter8PM ? '#1D4ED8' : '#D97706',
+                            border: orderDeliveryInfo.isAfter8PM ? '1px solid #BFDBFE' : '1px solid #FDE68A',
                             borderRadius: '9999px',
                             fontSize: '0.66rem',
                             fontWeight: '800',
@@ -470,18 +473,18 @@ export const MyOrdersView = () => {
                             gap: '3px',
                           }}
                         >
-                          <Zap size={11} fill="#D97706" />
-                          EXPRESS
+                          <Truck size={11} />
+                          {orderDeliveryInfo.isAfter8PM ? 'NEXT DAY' : 'EXPRESS'}
                         </span>
 
                         <span
                           style={{
                             fontSize: '0.78rem',
-                            color: '#64748B',
-                            fontWeight: '500',
+                            color: '#334155',
+                            fontWeight: '700',
                           }}
                         >
-                          {order.expressTime || '85-90 mins'}
+                          Delivery: {order.deliveryDate || orderDeliveryInfo.deliveryDate}
                         </span>
                       </div>
                     </div>

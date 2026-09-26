@@ -20,6 +20,7 @@ import {
 import { useStore } from '../context/StoreContext';
 import { MOCK_ORDERS } from '../data/mockData';
 import { printTaxInvoice } from '../utils/printInvoice';
+import { getDeliverySchedule } from '../utils/deliverySchedule';
 
 export const OrderDetailsView = () => {
   const { viewParams, navigateTo, addToast, getOrderById, addToCart, siteSettings } = useStore();
@@ -31,6 +32,7 @@ export const OrderDetailsView = () => {
     '89418210';
 
   const order = getOrderById(orderId) || viewParams?.order || MOCK_ORDERS[0];
+  const deliveryInfo = getDeliverySchedule(order);
 
   const handleDownloadInvoice = () => {
     printTaxInvoice(order, siteSettings);
@@ -226,6 +228,62 @@ export const OrderDetailsView = () => {
           </div>
 
           <div>{renderStatusBadge()}</div>
+        </div>
+
+        {/* Dynamic Delivery Date Notice Banner */}
+        <div
+          style={{
+            backgroundColor: '#EFF6FF',
+            border: '1.5px solid #BFDBFE',
+            borderRadius: '14px',
+            padding: '12px 16px',
+            marginBottom: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                backgroundColor: '#DBEAFE',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#1D4ED8',
+                flexShrink: 0,
+              }}
+            >
+              <Truck size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.92rem', fontWeight: '800', color: '#1E3A8A' }}>
+                Your order will be delivered on {order.deliveryDate || deliveryInfo.deliveryDate}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#3B82F6', fontWeight: '500' }}>
+                {deliveryInfo.isAfter8PM
+                  ? `Night Order · Scheduled for next day priority delivery (${order.deliveryDate || deliveryInfo.deliveryDate})`
+                  : `Express daytime delivery active`}
+              </div>
+            </div>
+          </div>
+          <span
+            style={{
+              backgroundColor: '#DBEAFE',
+              color: '#1E40AF',
+              fontSize: '0.72rem',
+              fontWeight: '800',
+              padding: '4px 9px',
+              borderRadius: '6px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {order.deliveryDate || deliveryInfo.deliveryDate}
+          </span>
         </div>
 
         {/* 2. Live Order Tracking Timeline Card */}

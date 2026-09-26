@@ -169,9 +169,16 @@ export const couponDiscount = (coupon, subtotal, now = new Date()) => {
   if (subtotal < minOrder) {
     return { amount: 0, reason: `Minimum order amount of ₹${minOrder.toLocaleString('en-IN')} required` };
   }
-  let amount = Math.round(subtotal * (num(coupon.discountPercentage, 0) / 100));
-  const cap = num(coupon.maxDiscount, 0);
-  if (cap > 0 && amount > cap) amount = cap;
+
+  let amount = 0;
+  const isFlat = coupon.discountType === 'flat' || (num(coupon.flatAmount || coupon.flatDiscountAmount, 0) > 0 && !num(coupon.discountPercentage, 0));
+  if (isFlat) {
+    amount = num(coupon.flatAmount || coupon.flatDiscountAmount || coupon.discountAmount, 0);
+  } else {
+    amount = Math.round(subtotal * (num(coupon.discountPercentage, 0) / 100));
+    const cap = num(coupon.maxDiscount, 0);
+    if (cap > 0 && amount > cap) amount = cap;
+  }
   return { amount: Math.max(0, Math.min(amount, subtotal)), reason: '' };
 };
 
@@ -180,7 +187,7 @@ export const couponDiscount = (coupon, subtotal, now = new Date()) => {
  * @returns {{ subtotal, discount, subtotalAfterDiscount, deliveryFee, deliveryNote,
  *             unloadingCharge, gstAmount, isGstInclusive, deliveryType, grandTotal }}
  */
-export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeUnloading = true }) => {
+export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeUnloading = false }) => {
   const s = { ...DEFAULT_PRICING_SETTINGS, ...(settings || {}) };
   const discount = couponDiscount(coupon, subtotal).amount;
   const subtotalAfterDiscount = Math.max(0, subtotal - discount);

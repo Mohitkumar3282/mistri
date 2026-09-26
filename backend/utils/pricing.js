@@ -154,7 +154,7 @@ export const couponDiscount = (coupon, subtotal, now = new Date()) => {
  * @returns {{ subtotal, discount, subtotalAfterDiscount, deliveryFee, deliveryNote,
  *             unloadingCharge, gstAmount, isGstInclusive, deliveryType, grandTotal }}
  */
-export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeUnloading = true }) => {
+export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeUnloading = false }) => {
   const s = { ...DEFAULT_PRICING_SETTINGS, ...(settings || {}) };
   const discount = couponDiscount(coupon, subtotal).amount;
   const subtotalAfterDiscount = Math.max(0, subtotal - discount);
