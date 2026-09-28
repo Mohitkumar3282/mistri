@@ -697,6 +697,9 @@ export const StoreProvider = ({ children }) => {
     : null;
   const {
     discount: discountAmount,
+    cashbackAmount,
+    cashbackNote,
+    cashbackPercent,
     deliveryFee,
     deliveryNote,
     unloadingCharge,
@@ -2328,6 +2331,9 @@ export const StoreProvider = ({ children }) => {
         applyCoupon,
         removeCoupon,
         discountAmount,
+        cashbackAmount,
+        cashbackNote,
+        cashbackPercent,
         deliveryFee,
         deliveryNote,
         unloadingCharge,

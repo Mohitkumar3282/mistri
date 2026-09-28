@@ -20,6 +20,11 @@ export const DEFAULT_PRICING_SETTINGS = {
   enableUnloadingFee: true,
   unloadingChargeStandard: 199,
   freeUnloadingThreshold: 50000,
+  // Assured cashback: a percentage off the bill once the order reaches the minimum.
+  enableCashback: true,
+  cashbackPercent: 2,
+  cashbackMinOrder: 50000,
+  cashbackMaxAmount: 0, // 0 = no cap
 };
 
 // A number, or the fallback when the value is missing. Unlike `Number(v) || fallback`,
@@ -143,10 +148,50 @@ export const couponDiscount = (coupon, subtotal, now = new Date()) => {
   if (subtotal < minOrder) {
     return { amount: 0, reason: `Minimum order amount of ₹${minOrder.toLocaleString('en-IN')} required` };
   }
-  let amount = Math.round(subtotal * (num(coupon.discountPercentage, 0) / 100));
-  const cap = num(coupon.maxDiscount, 0);
-  if (cap > 0 && amount > cap) amount = cap;
+  let amount = 0;
+  const isFlat = coupon.discountType === 'flat' || (num(coupon.flatAmount || coupon.flatDiscountAmount, 0) > 0 && !num(coupon.discountPercentage, 0));
+  if (isFlat) {
+    amount = num(coupon.flatAmount || coupon.flatDiscountAmount || coupon.discountAmount, 0);
+  } else {
+    amount = Math.round(subtotal * (num(coupon.discountPercentage, 0) / 100));
+    const cap = num(coupon.maxDiscount, 0);
+    if (cap > 0 && amount > cap) amount = cap;
+  }
   return { amount: Math.max(0, Math.min(amount, subtotal)), reason: '' };
+};
+
+/**
+ * The cashback offer as configured in Platform Settings. The badge shown on a product is
+ * built from this, so what is advertised is always what the bill actually gives.
+ */
+export const cashbackOffer = (settings = {}) => {
+  const s = { ...DEFAULT_PRICING_SETTINGS, ...(settings || {}) };
+  const percent = num(s.cashbackPercent, 0);
+  const minOrder = num(s.cashbackMinOrder, 0);
+  return {
+    enabled: Boolean(s.enableCashback) && percent > 0,
+    percent,
+    minOrder,
+    maxAmount: num(s.cashbackMaxAmount, 0),
+    title: `Assured ${percent}% Cashback`,
+    subtitle: minOrder > 0 ? `On purchases above ₹${minOrder.toLocaleString('en-IN')}` : 'On every order',
+  };
+};
+
+/**
+ * Cashback earned on an order subtotal. Returns { amount, reason }, where a non-empty
+ * reason says why it does not apply yet (shown to the customer as "add ₹X more").
+ */
+export const cashbackDiscount = (subtotal, settings = {}) => {
+  const offer = cashbackOffer(settings);
+  if (!offer.enabled) return { amount: 0, reason: '' };
+  if (subtotal < offer.minOrder) {
+    const missing = offer.minOrder - subtotal;
+    return { amount: 0, reason: `Add ₹${missing.toLocaleString('en-IN')} more to get ${offer.percent}% cashback` };
+  }
+  let amount = Math.round(subtotal * (offer.percent / 100));
+  if (offer.maxAmount > 0 && amount > offer.maxAmount) amount = offer.maxAmount;
+  return { amount: Math.max(0, amount), reason: '' };
 };
 
 /**
@@ -157,7 +202,10 @@ export const couponDiscount = (coupon, subtotal, now = new Date()) => {
 export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeUnloading = false }) => {
   const s = { ...DEFAULT_PRICING_SETTINGS, ...(settings || {}) };
   const discount = couponDiscount(coupon, subtotal).amount;
-  const subtotalAfterDiscount = Math.max(0, subtotal - discount);
+  // Assured cashback comes off the bill straight away, like the coupon does.
+  const cashback = cashbackDiscount(subtotal, s);
+  const cashbackAmount = Math.min(cashback.amount, Math.max(0, subtotal - discount));
+  const subtotalAfterDiscount = Math.max(0, subtotal - discount - cashbackAmount);
 
   let deliveryFee = 0;
   let deliveryNote = 'FREE';
@@ -210,6 +258,9 @@ export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeU
   return {
     subtotal,
     discount,
+    cashbackAmount,
+    cashbackNote: cashback.reason,
+    cashbackPercent: cashbackOffer(s).percent,
     subtotalAfterDiscount,
     deliveryFee,
     deliveryNote,

@@ -21,8 +21,6 @@ import {
   ChevronRight,
   ChevronLeft,
   ShoppingCart,
-  Tag,
-  Copy,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import ProductCard from '../components/ProductCard';
@@ -72,7 +70,7 @@ const MISTRI_PROMO_SLIDES = [
 ];
 
 export const HomeView = () => {
-  const { navigateTo, setIsQuotationOpen, products, categories, siteSettings, banners, coupons = [], applyCoupon, addToast } = useStore();
+  const { navigateTo, setIsQuotationOpen, products, categories, siteSettings, banners, addToast } = useStore();
   const [activeSlide, setActiveSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
@@ -394,108 +392,7 @@ export const HomeView = () => {
         </div>
       </section>
 
-      {/* ACTIVE PROMO CODES & CONTRACTOR OFFERS STRIP */}
-      {coupons.filter((c) => c.isActive !== false).length > 0 && (
-        <section style={{ padding: '0.4rem 0 0.8rem 0' }}>
-          <div className="container">
-            <div
-              style={{
-                display: 'flex',
-                gap: '12px',
-                overflowX: 'auto',
-                paddingBottom: '6px',
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none',
-              }}
-            >
-              {coupons
-                .filter((c) => c.isActive !== false)
-                .map((c) => {
-                  const isFlat = c.discountType === 'flat' || (Number(c.flatAmount) > 0 && !Number(c.discountPercentage));
-                  const discountLabel = isFlat
-                    ? `FLAT ₹${(c.flatAmount || c.discountAmount || 0).toLocaleString('en-IN')} OFF`
-                    : `${c.discountPercentage || 0}% OFF`;
 
-                  const handleCopy = (e) => {
-                    e.stopPropagation();
-                    navigator.clipboard?.writeText(c.code);
-                    addToast(`Promo code "${c.code}" copied to clipboard! Apply at cart or checkout.`, 'success');
-                  };
-
-                  return (
-                    <div
-                      key={c.code}
-                      onClick={handleCopy}
-                      style={{
-                        flex: '0 0 auto',
-                        minWidth: '260px',
-                        maxWidth: '320px',
-                        backgroundColor: '#FFFFFF',
-                        border: '1.5px dashed #FDBA74',
-                        borderRadius: '12px',
-                        padding: '10px 14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '10px',
-                        cursor: 'pointer',
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
-                        transition: 'transform 0.15s ease',
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                          <span
-                            style={{
-                              backgroundColor: '#FFF7ED',
-                              color: '#C2410C',
-                              fontWeight: '800',
-                              fontSize: '0.82rem',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              letterSpacing: '0.5px',
-                            }}
-                          >
-                            {c.code}
-                          </span>
-                          <span style={{ fontSize: '0.78rem', fontWeight: '800', color: '#15803D' }}>
-                            {discountLabel}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '0.72rem', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {c.description || `Min order ₹${(c.minOrderValue || 0).toLocaleString('en-IN')}`}
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleCopy}
-                        style={{
-                          backgroundColor: '#EA580C',
-                          color: '#FFFFFF',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '5px 8px',
-                          fontSize: '0.72rem',
-                          fontWeight: '800',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          whiteSpace: 'nowrap',
-                          boxShadow: '0 1px 3px rgba(234, 88, 12, 0.3)',
-                        }}
-                      >
-                        <Copy size={12} />
-                        <span>COPY</span>
-                      </button>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* 2. CATEGORY CATALOG GRID (Exact 4-Column Screenshot 1 Match) */}
       {categoriesList.length > 0 && (

@@ -26,7 +26,7 @@ import {
 import { useStore } from '../context/StoreContext';
 import { PRODUCTS } from '../data/mockData';
 import ProductCard from '../components/ProductCard';
-import { getProductOptions, getCartItemKey } from '../utils/pricing';
+import { getProductOptions, getCartItemKey, cashbackOffer } from '../utils/pricing';
 
 export const ProductDetailsView = () => {
   const {
@@ -42,7 +42,11 @@ export const ProductDetailsView = () => {
     getProductById,
     products,
     isProductsLoaded,
+    siteSettings,
   } = useStore();
+
+  // Cashback wording and rules both come from Platform Settings.
+  const cashback = cashbackOffer(siteSettings);
 
   const productList = products && products.length > 0 ? products : PRODUCTS;
   const productId = viewParams?.id || viewParams?.productId || viewParams?.product?.id || viewParams?.product?._id;
@@ -487,20 +491,19 @@ export const ProductDetailsView = () => {
               )}
             </div>
 
-            {/* Assured 2% Cashback Banner Strip */}
-            <div className="qc-cashback-box">
-              <div className="qc-cashback-icon-circle">
-                <Gift size={16} />
-              </div>
-              <div>
-                <div className="qc-cashback-title">
-                  {product.cashbackTitle || 'Assured 2% Cashback'}
+            {/* Assured Cashback Banner Strip. The wording comes from Platform Settings, the
+                same numbers the bill uses, so it cannot promise something checkout will not give. */}
+            {cashback.enabled && (
+              <div className="qc-cashback-box">
+                <div className="qc-cashback-icon-circle">
+                  <Gift size={16} />
                 </div>
-                <div className="qc-cashback-subtitle">
-                  {product.cashbackSubtitle || 'On purchases above ₹50,000'}
+                <div>
+                  <div className="qc-cashback-title">{cashback.title}</div>
+                  <div className="qc-cashback-subtitle">{cashback.subtitle}</div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* INTERACTIVE MULTI-ATTRIBUTE VARIANT SELECTOR GROUPS (Coil Size, Thickness, Colour, etc.) */}
             {product.variantGroups && product.variantGroups.length > 0 ? (

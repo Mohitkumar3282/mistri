@@ -14,6 +14,8 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 export const BillDetailsCard = ({
   subtotal = 0,
   discount = 0,
+  cashback = 0,
+  cashbackNote = '',
   walletDiscount = 0,
   deliveryFee = 0,
   handlingFee = 0,
@@ -71,6 +73,16 @@ export const BillDetailsCard = ({
                 {discount > 0 ? `-₹${Number(discount).toLocaleString('en-IN')}` : '₹0'}
               </span>
             </div>
+
+            {/* Assured Cashback: shown once the order qualifies, or as how much more is needed */}
+            {(cashback > 0 || cashbackNote) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155', gap: '10px' }}>
+                <span>Assured Cashback</span>
+                <span style={{ fontWeight: '700', color: cashback > 0 ? '#10B981' : '#94A3B8', textAlign: 'right' }}>
+                  {cashback > 0 ? `-₹${Number(cashback).toLocaleString('en-IN')}` : cashbackNote}
+                </span>
+              </div>
+            )}
 
             {/* Wallet */}
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}>

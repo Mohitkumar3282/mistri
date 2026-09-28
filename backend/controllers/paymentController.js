@@ -2,8 +2,16 @@ import PaymentIntent from '../models/PaymentIntent.js';
 import { priceCart } from '../utils/orderPricing.js';
 import { isConfigured, publicKey, sandboxAllowed, createGatewayOrder, confirmPayment } from '../utils/razorpay.js';
 
+// Show enough of the key to spot a wrong or stale one in the logs, without printing it.
+const maskedKey = () => {
+  const key = publicKey();
+  return key ? `${key.slice(0, 12)}…${key.slice(-3)}` : '(not set)';
+};
+
 if (!isConfigured()) {
   console.warn('⚠️ RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are not set - online payments will be rejected.');
+} else {
+  console.log(`💳 Razorpay configured with key ${maskedKey()}${sandboxAllowed() ? ' (ALLOW_SANDBOX_PAYMENTS is ON - turn it off in production)' : ''}`);
 }
 
 /**
@@ -43,9 +51,15 @@ export const createRazorpayOrder = async (req, res) => {
           notes: { userId: String(req.user._id), store: 'Mistri' },
         });
       } catch (err) {
-        if (!sandboxAllowed()) {
-          return res.status(502).json({ success: false, message: `Payment gateway error: ${err.message}` });
-        }
+        // The gateway is configured, so a refusal is a real problem (wrong key, account
+        // not live, gateway down). Never hide it behind a sandbox order - that makes a
+        // broken payment setup look like "online payment is unavailable".
+        console.error(`❌ Razorpay refused to create an order (key ${maskedKey()}): ${err.message}`);
+        return res.status(502).json({
+          success: false,
+          message: `Payment gateway error: ${err.message}`,
+          gatewayMessage: err.message,
+        });
       }
     } else if (!sandboxAllowed()) {
       return res.status(500).json({ success: false, message: 'Payment gateway is not configured on this server' });

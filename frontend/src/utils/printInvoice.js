@@ -1,6 +1,8 @@
+import mistriLogoImg from '../assets/mistri-logo.png';
+
 /**
  * MISTRI – Professional Single-Page Tax Invoice & Delivery Challan Generator
- * Generates an isolated, pixel-perfect A4 printable GST Tax Invoice.
+ * Generates an isolated, pixel-perfect A4 printable Invoice.
  */
 
 // Number to Words converter for Indian Rupee currency
@@ -46,8 +48,6 @@ export function printTaxInvoice(order, siteSettings = {}) {
 
   const paymentMethod = order.payment?.method || order.paymentMethod || 'Cash on Delivery (Pay on Site)';
   const paymentStatus = order.payment?.status || order.paymentStatus || 'Pending (Pay on Site)';
-  const driverName = order.driverName || 'Ramesh Patel (Logistics Lead)';
-  const vehicleNumber = order.vehicleNumber || 'MP-09-TR-4421';
   const grandTotal = Number(order.grandTotal || order.total || order.summary?.totalAmount || 0);
 
   const items = Array.isArray(order.items) && order.items.length > 0 ? order.items : [];
@@ -223,37 +223,37 @@ export function printTaxInvoice(order, siteSettings = {}) {
 </head>
 <body>
   <div class="invoice-wrapper">
-    <!-- Header with Logo and Company Info -->
+    <!-- Header with Exact Home Page Logo and Company Info -->
     <table class="header-table">
       <tr>
-        <td style="width: 55%; vertical-align: middle;">
-          <!-- MASTER BRAND LOGO IMAGE -->
-          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-            <img src="/mistri-logo.jpg" alt="MISTRI - From Foundation to Finish" style="width: 160px; height: 46px; object-fit: contain; display: block;" />
+        <td style="width: 58%; vertical-align: middle;">
+          <!-- EXACT BRAND LOGO IMAGE -->
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+            <img src="${mistriLogoImg || '/mistri-logo.png'}" alt="MISTRI - From Foundation to Finish" style="width: 175px; height: 50px; object-fit: contain; display: block;" />
           </div>
           <div style="font-size: 10px; color: #475569; line-height: 1.35; margin-top: 4px;">
             <strong>MISTRI INFRA & CONSTRUCTION MATERIALS PVT. LTD.</strong><br/>
             Central Logistics Depot #14, Super Corridor Park, Indore, MP - 452005<br/>
-            GSTIN: <strong>23AAECM5541Q1ZG</strong> | Support: ${siteSettings.supportPhone || '+91 98260 11223'}
+            Support: ${siteSettings.supportPhone || '+91 98260 11223'}
           </div>
         </td>
-        <td style="width: 45%; text-align: right; vertical-align: top;">
-          <div class="badge-invoice">GST TAX INVOICE & CHALLAN</div>
+        <td style="width: 42%; text-align: right; vertical-align: top;">
+          <div class="badge-invoice">TAX INVOICE & CHALLAN</div>
           <div style="font-size: 14px; font-weight: 800; color: #08274C; margin-top: 6px;">
             ${orderId}
           </div>
           <div style="font-size: 10.5px; color: #475569; margin-top: 2px;">
             Invoice Date: <strong>${orderDate}</strong><br/>
-            Time: <strong>${orderTime}</strong> | State: <strong>23 (MP)</strong>
+            Time: <strong>${orderTime}</strong>
           </div>
         </td>
       </tr>
     </table>
 
-    <!-- Buyer & Dispatch Logistics Info Grid -->
+    <!-- Buyer & Payment Details Grid -->
     <table class="meta-box">
       <tr>
-        <td style="width: 50%;">
+        <td style="width: 62%;">
           <div class="label">Billed To / Delivery Destination:</div>
           <div class="value" style="font-size: 12px;">${customerName}</div>
           <div style="font-size: 11px; color: #334155; margin-top: 2px;">Phone: <strong>${customerPhone}</strong></div>
@@ -261,19 +261,17 @@ export function printTaxInvoice(order, siteSettings = {}) {
             ${fullAddress}
           </div>
         </td>
-        <td style="width: 25%;">
-          <div class="label">Payment Mode:</div>
-          <div class="value">${paymentMethod}</div>
-          <div style="font-size: 10.5px; color: ${paymentStatus.toLowerCase().includes('paid') ? '#059669' : '#D97706'}; font-weight: 700; margin-top: 2px;">
-            Status: ${paymentStatus}
+        <td style="width: 38%;">
+          <div class="label">Payment & Delivery:</div>
+          <div style="margin-bottom: 4px;">
+            <div style="font-size: 10px; color: #64748B;">Mode: <strong style="color: #0F172A;">${paymentMethod}</strong></div>
+            <div style="font-size: 10.5px; color: ${paymentStatus.toLowerCase().includes('paid') ? '#059669' : '#D97706'}; font-weight: 700; margin-top: 1px;">
+              Status: ${paymentStatus}
+            </div>
           </div>
-        </td>
-        <td style="width: 25%;">
-          <div class="label">Logistics Dispatch:</div>
-          <div class="value">${driverName}</div>
-          <div style="font-size: 10.5px; color: #475569; margin-top: 2px;">
-            Vehicle: <strong>${vehicleNumber}</strong><br/>
-            Slot: <strong>Express Site Delivery</strong>
+          <div style="border-top: 1px dashed #E2E8F0; padding-top: 4px; margin-top: 4px;">
+            <div style="font-size: 10px; color: #64748B;">Delivery Slot:</div>
+            <div class="value" style="font-size: 11px; color: #08274C;">Express Site Delivery</div>
           </div>
         </td>
       </tr>
@@ -305,8 +303,8 @@ export function printTaxInvoice(order, siteSettings = {}) {
             <strong style="color: #08274C; font-size: 11px;">${amountInWords(grandTotal)}</strong>
           </div>
           <div style="font-size: 9.5px; color: #64748B; line-height: 1.4;">
-            • 100% Genuine MTC Certified Quality Material.<br/>
-            • 100% Input Tax Credit (ITC) eligible under GST rules.
+            • 100% Genuine Certified Quality Material direct to site.<br/>
+            • Official Material Receipt & Verified Delivery Challan.
           </div>
         </td>
         <td style="width: 45%; vertical-align: top;">
@@ -336,7 +334,7 @@ export function printTaxInvoice(order, siteSettings = {}) {
             </tr>` : ''}
             ${gstAmount > 0 ? `
             <tr>
-              <td style="padding: 3px 0; color: #475569;">Estimated GST (18% ITC Included):</td>
+              <td style="padding: 3px 0; color: #475569;">Estimated Taxes (Included):</td>
               <td style="padding: 3px 0; text-align: right; font-weight: 600;">₹${gstAmount.toLocaleString('en-IN')}</td>
             </tr>` : ''}
             <tr style="border-top: 1.5px solid #08274C; border-bottom: 1.5px solid #08274C;">
@@ -363,7 +361,7 @@ export function printTaxInvoice(order, siteSettings = {}) {
           <div class="sig-box" style="text-align: right;">
             <div style="font-size: 9.5px; color: #64748B; font-weight: 700; text-transform: uppercase;">For MISTRI Infra & Materials Pvt. Ltd.</div>
             <div style="font-size: 10px; color: #08274C; font-weight: 700; border-top: 1px dashed #CBD5E1; padding-top: 4px;">
-              Authorized Logistics Signatory
+              Authorized Signatory
             </div>
           </div>
         </td>
@@ -371,7 +369,7 @@ export function printTaxInvoice(order, siteSettings = {}) {
     </table>
 
     <div class="footer-note">
-      This is a digitally generated Tax Invoice & Delivery Challan issued by MISTRI Construction Materials System.
+      This is a digitally generated Invoice & Delivery Challan issued by MISTRI Construction Materials System.
     </div>
   </div>
 </body>

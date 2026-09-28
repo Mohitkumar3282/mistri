@@ -39,6 +39,8 @@ export const CheckoutView = () => {
     applyCoupon,
     removeCoupon,
     discountAmount,
+    cashbackAmount,
+    cashbackNote,
     deliveryFee,
     deliveryNote,
     unloadingCharge,
@@ -1109,6 +1111,8 @@ export const CheckoutView = () => {
         <BillDetailsCard
           subtotal={cartSubtotal}
           discount={discountAmount}
+          cashback={cashbackAmount}
+          cashbackNote={cashbackNote}
           walletDiscount={0}
           deliveryFee={deliveryFee}
           handlingFee={isUnloadingSelected ? unloadingCharge : 0}
@@ -1272,6 +1276,7 @@ export const CheckoutView = () => {
           subtotal: cartSubtotal,
           gstAmount: gstAmount,
           discountAmount: discountAmount,
+          cashbackAmount: cashbackAmount,
           grandTotal: grandTotal,
           isUnloadingSelected: isUnloadingSelected,
         }}

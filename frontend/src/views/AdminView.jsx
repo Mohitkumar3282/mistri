@@ -78,6 +78,7 @@ import Logo from '../components/Logo';
 import { uploadCloudFile } from '../services/storageService';
 import { uploadBannerToCloud } from '../services/cloudinaryService';
 import { printTaxInvoice } from '../utils/printInvoice';
+import { cashbackOffer, cashbackDiscount } from '../utils/pricing';
 
 export default function AdminView() {
   const {
@@ -4968,36 +4969,16 @@ export default function AdminView() {
                 {productModalTab === 'badges' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     
-                    {/* Assured Cashback Box */}
-                    <div style={{ backgroundColor: '#FFFDF0', border: '1px solid #FEF3C7', borderLeft: '3.5px solid #F59E0B', borderRadius: '10px', padding: '1rem' }}>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {/* Cashback is one platform-wide offer now, configured in Platform Settings,
+                        so the badge always matches what checkout actually gives. */}
+                    <div style={{ backgroundColor: '#FFFDF0', border: '1px solid #FEF3C7', borderLeft: '3.5px solid #F59E0B', borderRadius: '10px', padding: '0.9rem 1rem' }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Gift size={16} color="#D97706" /> Assured Cashback Banner
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', marginBottom: '4px' }}>
-                            Cashback Title
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Assured 2% Cashback"
-                            value={productFormData.cashbackTitle || ''}
-                            onChange={(e) => setProductFormData({ ...productFormData, cashbackTitle: e.target.value })}
-                            style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', fontWeight: 700 }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', marginBottom: '4px' }}>
-                            Cashback Subtitle / Condition
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. On purchases above ₹50,000"
-                            value={productFormData.cashbackSubtitle || ''}
-                            onChange={(e) => setProductFormData({ ...productFormData, cashbackSubtitle: e.target.value })}
-                            style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.82rem', fontWeight: 600 }}
-                          />
-                        </div>
+                      <div style={{ fontSize: '0.78rem', color: '#92400E' }}>
+                        {cashbackOffer(siteSettings).enabled
+                          ? `Showing "${cashbackOffer(siteSettings).title} - ${cashbackOffer(siteSettings).subtitle}" on every product. Change it in Settings > Assured Cashback Offer.`
+                          : 'Cashback is switched off, so no badge is shown. Turn it on in Settings > Assured Cashback Offer.'}
                       </div>
                     </div>
 
@@ -7020,7 +7001,47 @@ export default function AdminView() {
   // 2. DASHBOARD VIEW (Analytics & KPI Cards)
   // -------------------------------------------------------------
   function renderDashboardView() {
-    const totalRev = orders.reduce((acc, o) => acc + (o.grandTotal || o.total || 0), 0);
+    // Real collection figures, computed live from the orders synced from MongoDB.
+    // A cancelled order was never actually collected, so it is excluded everywhere here.
+    const isCancelled = (o) => o.statusCode === 'cancelled' || String(o.status || '').toLowerCase() === 'cancelled';
+    const orderDate = (o) => {
+      const d = new Date(o.createdAt || o.date || 0);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+    const collectedOrders = orders.filter((o) => !isCancelled(o));
+    const revenueOf = (list) => list.reduce((acc, o) => acc + (o.grandTotal || o.total || 0), 0);
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dayOfWeek = now.getDay(); // 0 = Sunday
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfToday.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)); // Monday start
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastWeek = new Date(startOfWeek);
+    startOfLastWeek.setDate(startOfWeek.getDate() - 7);
+
+    const inRange = (from, to = now) => collectedOrders.filter((o) => {
+      const d = orderDate(o);
+      return d && d >= from && d < to;
+    });
+
+    const todayOrders = inRange(startOfToday);
+    const weekOrders = inRange(startOfWeek);
+    const monthOrders = inRange(startOfMonth);
+    const lastWeekOrders = inRange(startOfLastWeek, startOfWeek);
+
+    const todayCollection = revenueOf(todayOrders);
+    const weekCollection = revenueOf(weekOrders);
+    const monthCollection = revenueOf(monthOrders);
+    const totalCollection = revenueOf(collectedOrders);
+    const lastWeekCollection = revenueOf(lastWeekOrders);
+
+    // Real week-over-week change, only shown when there is a previous week to compare against.
+    const weekChangePercent = lastWeekCollection > 0
+      ? Math.round(((weekCollection - lastWeekCollection) / lastWeekCollection) * 1000) / 10
+      : null;
+
+    const totalRev = totalCollection;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         <div>
@@ -7044,7 +7065,11 @@ export default function AdminView() {
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textMuted }}>Total Material Revenue</div>
               <div style={{ fontSize: '1.35rem', fontWeight: 800, color: theme.textDark, lineHeight: 1.2 }}>₹{totalRev.toLocaleString('en-IN')}</div>
-              <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700, marginTop: '2px' }}>↑ +18.4% this week</div>
+              <div style={{ fontSize: '0.72rem', color: weekChangePercent === null ? theme.textMuted : weekChangePercent >= 0 ? '#10B981' : '#EF4444', fontWeight: 700, marginTop: '2px' }}>
+                {weekChangePercent === null
+                  ? `${collectedOrders.length} orders all-time`
+                  : `${weekChangePercent >= 0 ? '↑ +' : '↓ '}${weekChangePercent}% vs last week`}
+              </div>
             </div>
           </div>
 
@@ -7055,7 +7080,7 @@ export default function AdminView() {
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textMuted }}>Total Orders</div>
               <div style={{ fontSize: '1.35rem', fontWeight: 800, color: theme.textDark, lineHeight: 1.2 }}>{orders.length} Orders</div>
-              <div style={{ fontSize: '0.72rem', color: '#0066FF', fontWeight: 700, marginTop: '2px' }}>60-min express active</div>
+              <div style={{ fontSize: '0.72rem', color: '#0066FF', fontWeight: 700, marginTop: '2px' }}>{monthOrders.length} placed this month</div>
             </div>
           </div>
 
@@ -7079,6 +7104,37 @@ export default function AdminView() {
               <div style={{ fontSize: '1.35rem', fontWeight: 800, color: theme.textDark, lineHeight: 1.2 }}>{usersList.length} Accounts</div>
               <div style={{ fontSize: '0.72rem', color: '#7C3AED', fontWeight: 700, marginTop: '2px' }}>Active accounts</div>
             </div>
+          </div>
+        </div>
+
+        {/* Collection Overview: Today / This Week / This Month / All-Time, computed live from real orders */}
+        <div>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: theme.textDark, margin: '0 0 0.75rem 0' }}>
+            Collection Overview
+          </h3>
+          <div className="admin-kpi-grid">
+            {[
+              { label: 'Today’s Collection', revenue: todayCollection, count: todayOrders.length, color: '#10B981', bg: '#ECFDF5' },
+              { label: 'This Week', revenue: weekCollection, count: weekOrders.length, color: '#0066FF', bg: '#EFF6FF' },
+              { label: 'This Month', revenue: monthCollection, count: monthOrders.length, color: '#FF6B00', bg: '#FFF7ED' },
+              { label: 'Total Collection', revenue: totalCollection, count: collectedOrders.length, color: '#7C3AED', bg: '#F5F3FF' },
+            ].map((card) => (
+              <div
+                key={card.label}
+                style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', border: `1px solid ${theme.cardBorder}`, padding: '1.1rem 1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: card.color }} />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textMuted }}>{card.label}</span>
+                </div>
+                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: theme.textDark, lineHeight: 1.2 }}>
+                  ₹{card.revenue.toLocaleString('en-IN')}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: card.color, fontWeight: 700, marginTop: '2px' }}>
+                  {card.count} order{card.count === 1 ? '' : 's'}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -11521,6 +11577,80 @@ export default function AdminView() {
           ) : (
             <div style={{ backgroundColor: '#F8FAFC', borderRadius: '10px', padding: '12px 14px', fontSize: '0.8rem', color: '#64748B' }}>
               Unloading fee is currently <strong>disabled</strong>. Customer bills will not include any unloading surcharge.
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 3B: Assured Cashback Offer */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            border: `1px solid ${theme.cardBorder}`,
+            padding: '1.5rem',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '1.25rem', paddingBottom: '0.85rem', borderBottom: '1px solid #F1F5F9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706' }}>
+                <Gift size={16} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                  Assured Cashback Offer
+                </h2>
+                <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                  Taken off the bill instantly once the order reaches the minimum. The badge shown on every product uses these numbers.
+                </span>
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: siteSettings.enableCashback !== false ? '#16A34A' : '#64748B' }}>
+                {siteSettings.enableCashback !== false ? 'ENABLED' : 'DISABLED'}
+              </span>
+              <input
+                type="checkbox"
+                checked={siteSettings.enableCashback !== false}
+                onChange={(e) => updateSiteSettings({ enableCashback: e.target.checked })}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+            </label>
+          </div>
+
+          {siteSettings.enableCashback !== false ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                {[
+                  { key: 'cashbackPercent', label: 'Cashback (%)', fallback: 2, hint: 'Percentage taken off the item total.' },
+                  { key: 'cashbackMinOrder', label: 'Minimum Order (₹)', fallback: 50000, hint: 'Orders at or above this amount qualify.' },
+                  { key: 'cashbackMaxAmount', label: 'Maximum Cashback (₹)', fallback: 0, hint: '0 means no upper limit.' },
+                ].map((field) => (
+                  <div key={field.key}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                      {field.label}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step={field.key === 'cashbackPercent' ? '0.5' : '100'}
+                      value={siteSettings[field.key] ?? field.fallback}
+                      onChange={(e) => updateSiteSettings({ [field.key]: Math.max(0, Number(e.target.value)) })}
+                      style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 700 }}
+                    />
+                    <span style={{ fontSize: '0.72rem', color: '#64748B' }}>{field.hint}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: '14px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', padding: '12px 14px', fontSize: '0.82rem', color: '#92400E' }}>
+                Customers see <strong>{cashbackOffer(siteSettings).title}</strong> - {cashbackOffer(siteSettings).subtitle}.
+                An order of ₹{Number(siteSettings.cashbackMinOrder ?? 50000).toLocaleString('en-IN')} gets
+                ₹{cashbackDiscount(Number(siteSettings.cashbackMinOrder ?? 50000), siteSettings).amount.toLocaleString('en-IN')} off.
+              </div>
+            </>
+          ) : (
+            <div style={{ backgroundColor: '#F8FAFC', borderRadius: '10px', padding: '12px 14px', fontSize: '0.8rem', color: '#64748B' }}>
+              Cashback is <strong>disabled</strong>. The cashback badge is hidden from products and no cashback is given.
             </div>
           )}
         </div>

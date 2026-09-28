@@ -38,6 +38,8 @@ export const CartView = () => {
     applyCoupon,
     removeCoupon,
     discountAmount,
+    cashbackAmount,
+    cashbackNote,
     deliveryFee,
     deliveryNote,
     unloadingCharge,
@@ -694,6 +696,8 @@ export const CartView = () => {
         <BillDetailsCard
           subtotal={cartSubtotal}
           discount={discountAmount}
+          cashback={cashbackAmount}
+          cashbackNote={cashbackNote}
           walletDiscount={0}
           deliveryFee={deliveryFee}
           handlingFee={isUnloadingSelected ? unloadingCharge : 0}
