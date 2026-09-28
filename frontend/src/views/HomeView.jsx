@@ -21,6 +21,8 @@ import {
   ChevronRight,
   ChevronLeft,
   ShoppingCart,
+  Tag,
+  Copy,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import ProductCard from '../components/ProductCard';
@@ -391,7 +393,6 @@ export const HomeView = () => {
           </div>
         </div>
       </section>
-
 
 
       {/* 2. CATEGORY CATALOG GRID (Exact 4-Column Screenshot 1 Match) */}
