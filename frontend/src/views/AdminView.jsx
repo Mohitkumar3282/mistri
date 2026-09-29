@@ -170,6 +170,11 @@ export default function AdminView() {
     playOrderNotificationSound,
     requestNotificationPermission,
     getNotificationPermission,
+    isNotificationSupported,
+    registerPushToken,
+    sentNotifications,
+    sendUserNotification,
+    loadSentNotifications,
   } = useStore();
 
   // Sidebar & View state
@@ -182,6 +187,18 @@ export default function AdminView() {
   const [sortBy, setSortBy] = useState('name-asc');
   const [isTreeView, setIsTreeView] = useState(false);
   const [categoryViewMode, setCategoryViewMode] = useState('table'); // 'table' | 'grid'
+
+  // Send Notification composer state
+  const [notifyAudience, setNotifyAudience] = useState('all'); // 'all' | 'user'
+  const [notifyUserId, setNotifyUserId] = useState('');
+  const [notifyUserSearch, setNotifyUserSearch] = useState('');
+  const [notifyTitle, setNotifyTitle] = useState('');
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [isSendingNotification, setIsSendingNotification] = useState(false);
+
+  useEffect(() => {
+    if (adminActiveTab === 'send-notification') loadSentNotifications();
+  }, [adminActiveTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Order Management State & Filters
   const [orderFilterTab, setOrderFilterTab] = useState('all'); // 'all' | 'online' | 'cash' | 'confirmed' | 'in_transit' | 'delivered'
@@ -660,6 +677,7 @@ export default function AdminView() {
       items: [
         { id: 'quotations', label: 'Project Quotes & BOQs', icon: MessageSquareQuote, badge: quotations.filter(q => q.status !== 'Closed').length, badgeStyle: 'blue-pill' },
         { id: 'faqs', label: 'Support & FAQs', icon: HelpCircle },
+        { id: 'send-notification', label: 'Send Notification', icon: Send },
       ],
     },
     {
@@ -2311,6 +2329,33 @@ export default function AdminView() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
+                      {isNotificationSupported() && getNotificationPermission() !== 'granted' && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const result = await requestNotificationPermission();
+                            if (result === 'granted') {
+                              await registerPushToken('admin');
+                              addToast('Device alerts enabled for new orders', 'success');
+                            } else if (result === 'denied') {
+                              addToast('Notifications are blocked for this site in your browser settings', 'warning');
+                            }
+                          }}
+                          title="Show a device notification when a new order comes in, even in another tab"
+                          style={{
+                            background: getNotificationPermission() === 'denied' ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.15)',
+                            border: 'none',
+                            borderRadius: '4px',
+                            color: '#FFFFFF',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {getNotificationPermission() === 'denied' ? '🚫 Alerts Blocked' : '🔔 Enable Alerts'}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={playOrderNotificationSound}
@@ -2579,6 +2624,7 @@ export default function AdminView() {
             {adminActiveTab === 'services' && renderServicesView()}
             {adminActiveTab === 'quotations' && renderQuotationsView()}
             {adminActiveTab === 'faqs' && renderFaqsView()}
+            {adminActiveTab === 'send-notification' && renderSendNotificationView()}
             {adminActiveTab === 'settings' && renderSettingsView()}
             {adminActiveTab === 'admin-users' && renderAdminUsersView()}
             {adminActiveTab === 'system-logs' && renderSystemLogsView()}
@@ -10711,6 +10757,212 @@ export default function AdminView() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+    );
+  }
+
+  function renderSendNotificationView() {
+    const filteredUsers = usersList.filter((u) => {
+      const q = notifyUserSearch.trim().toLowerCase();
+      if (!q) return true;
+      return (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
+    });
+    const selectedUser = usersList.find((u) => u.id === notifyUserId);
+    const canSend =
+      notifyTitle.trim() &&
+      notifyMessage.trim() &&
+      (notifyAudience === 'all' || (notifyAudience === 'user' && notifyUserId)) &&
+      !isSendingNotification;
+
+    const handleSend = async () => {
+      setIsSendingNotification(true);
+      try {
+        await sendUserNotification({
+          audience: notifyAudience,
+          userId: notifyAudience === 'user' ? notifyUserId : undefined,
+          title: notifyTitle.trim(),
+          message: notifyMessage.trim(),
+        });
+        setNotifyTitle('');
+        setNotifyMessage('');
+        setNotifyUserId('');
+        setNotifyUserSearch('');
+      } catch (err) {
+        // sendUserNotification already showed a toast with the reason.
+      } finally {
+        setIsSendingNotification(false);
+      }
+    };
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '900px' }}>
+        <div>
+          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: theme.textDark, margin: '2px 0' }}>
+            Send Notification
+          </h1>
+          <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: 0 }}>
+            Reaches everyone, or one chosen customer - saved in their account and pushed to their device(s) right away.
+          </p>
+        </div>
+
+        {/* Composer */}
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: `1px solid ${theme.cardBorder}`, padding: '1.5rem', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.25rem', paddingBottom: '0.85rem', borderBottom: '1px solid #F1F5F9' }}>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.primaryBlue }}>
+              <Send size={16} />
+            </div>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: theme.textDark, margin: 0 }}>Compose</h2>
+          </div>
+
+          {/* Audience */}
+          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
+            Send to
+          </label>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '1.1rem' }}>
+            {[
+              { id: 'all', label: 'All Users', icon: Users, hint: `Everyone (${usersList.length} account${usersList.length === 1 ? '' : 's'})` },
+              { id: 'user', label: 'Specific User', icon: Search, hint: 'Choose one customer below' },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setNotifyAudience(opt.id)}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '0.85rem 1rem',
+                  borderRadius: '10px',
+                  border: `1.5px solid ${notifyAudience === opt.id ? theme.primaryBlue : '#E2E8F0'}`,
+                  backgroundColor: notifyAudience === opt.id ? '#EFF6FF' : '#FFFFFF',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <opt.icon size={18} color={notifyAudience === opt.id ? theme.primaryBlue : '#94A3B8'} />
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.textDark }}>{opt.label}</div>
+                  <div style={{ fontSize: '0.72rem', color: theme.textMuted }}>{opt.hint}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {notifyAudience === 'user' && (
+            <div style={{ marginBottom: '1.1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                Customer
+              </label>
+              {selectedUser ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.85rem', borderRadius: '8px', border: '1px solid #CBD5E1', backgroundColor: '#F8FAFC' }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.textDark }}>{selectedUser.name}</div>
+                    <div style={{ fontSize: '0.72rem', color: theme.textMuted }}>{selectedUser.email}</div>
+                  </div>
+                  <button type="button" onClick={() => setNotifyUserId('')} className="btn btn-secondary btn-sm">
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Search by name or email..."
+                    value={notifyUserSearch}
+                    onChange={(e) => setNotifyUserSearch(e.target.value)}
+                    style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.85rem', marginBottom: '8px' }}
+                  />
+                  <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                    {filteredUsers.length === 0 ? (
+                      <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.8rem', color: theme.textMuted }}>
+                        No matching customers
+                      </div>
+                    ) : (
+                      filteredUsers.map((u) => (
+                        <div
+                          key={u.id}
+                          onClick={() => setNotifyUserId(u.id)}
+                          style={{ padding: '0.6rem 0.85rem', cursor: 'pointer', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <div>
+                            <div style={{ fontSize: '0.83rem', fontWeight: 700, color: theme.textDark }}>{u.name}</div>
+                            <div style={{ fontSize: '0.72rem', color: theme.textMuted }}>{u.email}</div>
+                          </div>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: theme.primaryBlue }}>{u.role}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Title */}
+          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+            Title
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. Weekend Sale is Live!"
+            value={notifyTitle}
+            onChange={(e) => setNotifyTitle(e.target.value)}
+            maxLength={100}
+            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 600, marginBottom: '1.1rem' }}
+          />
+
+          {/* Message */}
+          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+            Message
+          </label>
+          <textarea
+            placeholder="Write what you want them to see..."
+            value={notifyMessage}
+            onChange={(e) => setNotifyMessage(e.target.value)}
+            maxLength={300}
+            rows={4}
+            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.85rem', resize: 'vertical', fontFamily: 'inherit', marginBottom: '1.25rem' }}
+          />
+
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!canSend}
+            className="btn btn-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', opacity: canSend ? 1 : 0.55, cursor: canSend ? 'pointer' : 'not-allowed' }}
+          >
+            {isSendingNotification ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} />}
+            {isSendingNotification ? 'Sending...' : notifyAudience === 'all' ? 'Send to All Users' : 'Send to Selected User'}
+          </button>
+        </div>
+
+        {/* Recent sends */}
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: `1px solid ${theme.cardBorder}`, padding: '1.5rem', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: theme.textDark, margin: '0 0 1rem 0' }}>Recently Sent</h2>
+          {sentNotifications.length === 0 ? (
+            <div style={{ padding: '1.5rem', textAlign: 'center', fontSize: '0.85rem', color: theme.textMuted }}>
+              Nothing sent yet.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {sentNotifications.map((n) => (
+                <div key={n.id} style={{ padding: '0.75rem 0.9rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.textDark }}>{n.title}</span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: theme.primaryBlue, backgroundColor: '#EFF6FF', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap' }}>
+                      {n.audience === 'all' ? 'All Users' : n.userName || 'Specific User'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: theme.textMuted, margin: '4px 0 0 0' }}>{n.message}</p>
+                  <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>{new Date(n.createdAt).toLocaleString('en-IN')}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );

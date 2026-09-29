@@ -1,5 +1,6 @@
 import express from 'express';
 import { getAdminStats, getUsers, createUser, updateUser, deleteUser, notificationCrud } from '../controllers/adminController.js';
+import { sendNotification, listSentNotifications } from '../controllers/userNotificationController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
 import { adminRouter } from './routeFactory.js';
 
@@ -15,5 +16,8 @@ router.put('/users/:id', updateUser);
 router.patch('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 router.use('/notifications', adminRouter(notificationCrud));
+
+// Notifications the admin sends out to customers (all, or one by name).
+router.route('/send-notification').get(listSentNotifications).post(sendNotification);
 
 export default router;

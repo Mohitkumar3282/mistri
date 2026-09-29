@@ -21,9 +21,13 @@ import {
 import {
   registerServiceWorker,
   sendCustomerOrderNotification,
-  sendAdminNewOrderNotification,
+  sendNativeNotification,
   requestNotificationPermission,
   getNotificationPermission,
+  isNotificationSupported,
+  getFcmToken,
+  listenForForegroundMessages,
+  syncFcmTokenWithBackend,
 } from '../services/pushNotificationService';
 import {
   PRODUCTS as INITIAL_PRODUCTS,
@@ -416,12 +420,21 @@ export const StoreProvider = ({ children }) => {
   const [addresses, setAddresses] = useState(() => getStored('saved_addresses', MOCK_ADDRESSES));
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 
-  // Notifications State (Customer)
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  // Notifications State (Customer): order-confirmation entries created locally, merged
+  // with anything the admin has sent (see the sync effect further down). Cached under a
+  // single shared localStorage key, so it is tagged with the account it belongs to - a
+  // fresh load for a different (or no) account must not show it what was cached.
+  const [notifications, setNotifications] = useState(() => {
+    const cachedOwner = getStored('notifications_owner', null);
+    return cachedOwner === (user?.id || null) ? getStored('notifications', MOCK_NOTIFICATIONS) : MOCK_NOTIFICATIONS;
+  });
 
   // Admin Real-time Notifications State
   const INITIAL_ADMIN_NOTIFICATIONS = [];
   const [adminNotifications, setAdminNotifications] = useState(() => getStored('admin_notifications', INITIAL_ADMIN_NOTIFICATIONS));
+
+  // Notifications the admin has sent out to customers (recent-send history for the composer)
+  const [sentNotifications, setSentNotifications] = useState([]);
 
   // Web Audio Synthesizer for instant Order Alert Chime
   const playOrderNotificationSound = () => {
@@ -453,6 +466,22 @@ export const StoreProvider = ({ children }) => {
       });
     } catch (e) {
       console.log('Audio chime error:', e);
+    }
+  };
+
+  // Fetches this device's real FCM token and registers it with the server, so the
+  // server can push to it later even when nobody has a tab open. Silently does nothing
+  // if permission isn't granted, VAPID key is missing, or the browser lacks support -
+  // the local, same-tab notification still works either way.
+  const registerPushToken = async (kind = 'user') => {
+    try {
+      const fcmToken = await getFcmToken();
+      if (!fcmToken) return null;
+      const authToken = localStorage.getItem(kind === 'admin' ? 'mistri_admin_token' : 'mistri_token');
+      return await syncFcmTokenWithBackend(fcmToken, authToken);
+    } catch (err) {
+      console.debug('registerPushToken note:', err);
+      return null;
     }
   };
 
@@ -489,6 +518,10 @@ export const StoreProvider = ({ children }) => {
   useEffect(() => { setStored('current_user', user); }, [user]);
   useEffect(() => { setStored('admin_user', adminUser); }, [adminUser]);
   useEffect(() => { setStored('admin_notifications', adminNotifications); }, [adminNotifications]);
+  useEffect(() => {
+    setStored('notifications', notifications);
+    setStored('notifications_owner', user?.id || null);
+  }, [notifications, user?.id]);
   useEffect(() => { setStored('cart', cart); }, [cart]);
   useEffect(() => { setStored('applied_coupon', appliedCoupon); }, [appliedCoupon]);
   useEffect(() => { setStored('wishlist', wishlist); }, [wishlist]);
@@ -545,9 +578,30 @@ export const StoreProvider = ({ children }) => {
       userKey: user?.id || user?.email || '',
     },
     onError: (message) => addToast(message, 'error', 6000),
-    onNewItems: (name) => {
-      // A customer placed something while the admin panel was open.
-      if (name === 'adminNotifications') playOrderNotificationSound();
+    onNewItems: (name, items) => {
+      // A customer placed something while the admin panel was open. This fires in the
+      // admin's own browser, so it is the one place a device notification for the admin
+      // can actually reach them - a previous attempt tried to fire this from the
+      // customer's browser instead, which could never reach the admin's device.
+      if (name !== 'adminNotifications') return;
+      playOrderNotificationSound();
+      (getNotificationPermission() === 'default' ? requestNotificationPermission() : Promise.resolve())
+        .then((result) => {
+          if (result === 'granted' || getNotificationPermission() === 'granted') registerPushToken('admin');
+        })
+        .then(() =>
+          Promise.all(
+            items.map((n) =>
+              sendNativeNotification(n.title || 'New order received', {
+                body: n.message || '',
+                tag: `admin-${n.id || n.orderId || Date.now()}`,
+                vibrate: [350, 120, 350, 120, 350],
+                data: { url: `${window.location.origin}/admin?tab=orders`, orderId: n.orderId },
+              })
+            )
+          )
+        )
+        .catch((err) => console.debug('Admin push notification note:', err));
     },
     onLoaded: (name, items) => {
       if (name === 'products') {
@@ -557,6 +611,45 @@ export const StoreProvider = ({ children }) => {
     },
     onAuthError: (err, kind) => endExpiredSession(kind),
   });
+
+  // Notifications the admin has sent (broadcasts, or one addressed to this account) are
+  // merged into the existing local list rather than replacing it, since that list also
+  // holds order-confirmation entries created client-side with no server record. Already
+  //-seen notifications keep whatever read state the customer gave them; only genuinely
+  // new ones are added, marked unread.
+  const fetchAndMergeNotifications = async () => {
+    try {
+      const res = await api.getMyNotifications();
+      const fromServer = res?.data || [];
+      if (!fromServer.length) return;
+      setNotifications((prev) => {
+        const known = new Set(prev.map((n) => n.id));
+        const fresh = fromServer
+          .filter((n) => !known.has(n.id))
+          .map((n) => ({ ...n, unread: true, time: 'Just now' }));
+        return fresh.length ? [...fresh, ...prev] : prev;
+      });
+    } catch (err) {
+      // Not signed in, or offline - the locally cached list is still shown.
+    }
+  };
+
+  // Notifications persist in localStorage under one shared key, not scoped per account -
+  // if a different person signs in on the same browser, clear the previous account's
+  // notifications first so they never leak into the new session.
+  const lastNotificationsOwner = useRef(undefined);
+  useEffect(() => {
+    const owner = user?.id || null;
+    if (lastNotificationsOwner.current !== undefined && lastNotificationsOwner.current !== owner) {
+      setNotifications([]);
+    }
+    lastNotificationsOwner.current = owner;
+
+    if (!user || !hasToken('mistri_token')) return undefined;
+    fetchAndMergeNotifications();
+    const timer = setInterval(fetchAndMergeNotifications, 30000);
+    return () => clearInterval(timer);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep the cart and wishlist in step with the live catalogue: products the admin
   // deleted (or marked out of stock) leave the cart, and prices follow the latest ones.
@@ -658,6 +751,12 @@ export const StoreProvider = ({ children }) => {
     window.addEventListener('popstate', handleLocationChange);
     // Initialize push notification service worker
     registerServiceWorker();
+    listenForForegroundMessages();
+    // A returning visitor who already granted permission needs their token registered
+    // again on load - FCM tokens can rotate, and this device may not have synced one yet.
+    if (getNotificationPermission() === 'granted') {
+      registerPushToken(adminUser ? 'admin' : 'user');
+    }
 
     return () => {
       window.removeEventListener('popstate', handleLocationChange);
@@ -745,10 +844,6 @@ export const StoreProvider = ({ children }) => {
     });
 
     trackAddToCart(product, quantity);
-    const displayName = product.selectedVariant
-      ? `${product.name} (${product.selectedVariant})`
-      : product.name;
-    addToast(`Added ${quantity}x ${displayName} to Cart`, 'success');
   };
 
   const removeFromCart = (targetId) => {
@@ -923,15 +1018,24 @@ export const StoreProvider = ({ children }) => {
     };
     setNotifications((prev) => [customerNotification, ...prev]);
 
-    // The admin notification is created by the server (see backend notificationHooks).
+    // The admin notification is created by the server (see backend notificationHooks) and
+    // reaches the admin's own browser via useServerSync's polling, which is also where a
+    // real device notification for the admin is triggered (see onNewItems below) - not
+    // here, since this code runs in the CUSTOMER's browser and could never reach the admin.
 
-    // Trigger Native Device & Browser Push Notifications (Customer & Admin)
-    sendCustomerOrderNotification(newOrder).catch((err) =>
-      console.debug('Customer push notification note:', err)
-    );
-    sendAdminNewOrderNotification(newOrder).catch((err) =>
-      console.debug('Admin push notification note:', err)
-    );
+    // "Place Order" is a real click, so this is a valid moment to ask for notification
+    // permission if the browser hasn't been asked yet. Asking silently on page load (the
+    // old behavior) gets ignored or auto-blocked by most browsers, which is why the
+    // customer never saw this confirmation before.
+    // The server already sent a real push for this order (see orderController.js) based
+    // on whatever token was registered before checkout started. Registering here is too
+    // late for this order but sets things up for the next one.
+    (getNotificationPermission() === 'default' ? requestNotificationPermission() : Promise.resolve())
+      .then((result) => {
+        if (result === 'granted' || getNotificationPermission() === 'granted') registerPushToken('user');
+        return sendCustomerOrderNotification(newOrder);
+      })
+      .catch((err) => console.debug('Customer push notification note:', err));
 
     clearCart();
 
@@ -1792,6 +1896,35 @@ export const StoreProvider = ({ children }) => {
   };
 
   // 7. COUPONS CRUD
+  // Send a notification to everyone, or to one named customer. Persisted on the server
+  // (so it is there next time that person opens the app) and pushed to their device(s)
+  // right away if they have push enabled.
+  const sendUserNotification = async ({ audience, userId, title, message }) => {
+    try {
+      const res = await api.sendUserNotification({ audience, userId, title, message });
+      setSentNotifications((prev) => [res.data, ...prev]);
+      const who = audience === 'all' ? 'everyone' : res.data.userName || 'the selected user';
+      const devices = res.recipientDevices || 0;
+      addToast(
+        `Sent to ${who}${devices ? ` - reached ${devices} device${devices === 1 ? '' : 's'} instantly` : ' - saved, will show next time they open the app'}`,
+        'success'
+      );
+      return res.data;
+    } catch (err) {
+      addToast(err.message || 'Could not send the notification', 'error');
+      throw err;
+    }
+  };
+
+  const loadSentNotifications = async () => {
+    try {
+      const res = await api.getSentNotifications();
+      setSentNotifications(res?.data || []);
+    } catch (err) {
+      // Admin panel just shows an empty history; not worth surfacing.
+    }
+  };
+
   const addCoupon = async (newCoupon) => {
     const cleanCode = String(newCoupon.code || '').toUpperCase().trim();
     if (!cleanCode) {
@@ -2359,12 +2492,17 @@ export const StoreProvider = ({ children }) => {
         setNotifications,
         adminNotifications,
         setAdminNotifications,
+        sentNotifications,
+        sendUserNotification,
+        loadSentNotifications,
         markAdminNotificationRead,
         markAllAdminNotificationsRead,
         clearAdminNotifications,
         playOrderNotificationSound,
         requestNotificationPermission,
         getNotificationPermission,
+        isNotificationSupported,
+        registerPushToken,
 
         // Toast
         toasts,

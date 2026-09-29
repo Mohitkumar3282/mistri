@@ -3,6 +3,7 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics, isSupported as isAnalyticsSupported } from 'firebase/analytics';
+import { getMessaging, isSupported as isMessagingSupported } from 'firebase/messaging';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -43,5 +44,17 @@ if (typeof window !== 'undefined') {
       console.warn('Firebase Analytics check note:', err.message || err);
     });
 }
+
+// Initialize Firebase Cloud Messaging safely (not supported in every browser)
+export let messaging = null;
+export const messagingReady =
+  typeof window !== 'undefined'
+    ? isMessagingSupported()
+        .then((supported) => {
+          if (supported) messaging = getMessaging(app);
+          return supported;
+        })
+        .catch(() => false)
+    : Promise.resolve(false);
 
 export default app;

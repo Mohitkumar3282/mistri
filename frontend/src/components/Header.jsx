@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Clock,
   X,
+  Bell,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import Logo from './Logo';
@@ -35,7 +36,26 @@ export const Header = () => {
     products,
     categories,
     siteSettings,
+    notifications,
+    getNotificationPermission,
+    requestNotificationPermission,
+    registerPushToken,
   } = useStore();
+
+  const unreadNotifCount = (notifications || []).filter((n) => n.unread).length;
+
+  // A definite click, so this is a good moment to ask for push permission if the
+  // browser hasn't been asked yet - it never hurts to ask again here since we only do
+  // it once per undecided state, and going to the bell is exactly what someone wanting
+  // alerts would do anyway.
+  const handleBellClick = () => {
+    if (user && getNotificationPermission() === 'default') {
+      requestNotificationPermission().then((result) => {
+        if (result === 'granted') registerPushToken('user');
+      });
+    }
+    navigateTo('notifications');
+  };
 
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -320,8 +340,52 @@ export const Header = () => {
             )}
           </div>
 
-          {/* Quick Action Icons: Wishlist, My Orders, Cart, Account */}
+          {/* Quick Action Icons: Notifications, Wishlist, My Orders, Cart, Account */}
           <div className="flex items-center gap-4">
+            {/* Notifications */}
+            {user && (
+              <button
+                onClick={handleBellClick}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '2px',
+                  background: 'none',
+                  cursor: 'pointer',
+                  color: currentView === 'notifications' ? 'var(--primary-orange)' : 'var(--text-primary)',
+                  position: 'relative',
+                  padding: '4px 8px',
+                }}
+              >
+                <div style={{ position: 'relative' }}>
+                  <Bell size={22} fill={unreadNotifCount > 0 ? '#F47721' : 'none'} color={unreadNotifCount > 0 ? '#F47721' : 'currentColor'} />
+                  {unreadNotifCount > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '-6px',
+                        right: '-8px',
+                        backgroundColor: 'var(--primary-orange)',
+                        color: '#FFFFFF',
+                        fontSize: '0.65rem',
+                        fontWeight: '800',
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: '0.72rem', fontWeight: '600' }}>Alerts</span>
+              </button>
+            )}
+
             {/* Wishlist */}
             <button
               onClick={() => navigateTo('wishlist')}

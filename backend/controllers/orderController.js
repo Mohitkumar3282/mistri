@@ -5,6 +5,7 @@ import buildCrud from './crudFactory.js';
 import { notifyNewOrder } from './notificationHooks.js';
 import { priceCart } from '../utils/orderPricing.js';
 import { confirmPayment, sandboxAllowed } from '../utils/razorpay.js';
+import { sendPushToOwner } from '../utils/push.js';
 
 /**
  * Material orders
@@ -37,6 +38,7 @@ const CUSTOMER_FIELDS = [
 ];
 
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
+const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
 const newOrderId = async () => {
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -207,6 +209,13 @@ export const placeOrder = async (req, res) => {
       ).catch(() => {});
     }
     notifyNewOrder(saved).catch((err) => console.warn('Order notification failed:', err.message));
+    // Real device push to whoever placed the order, so they know it went through even
+    // if they close the tab right after checking out.
+    sendPushToOwner(userId, {
+      title: `Order Placed Successfully (${saved.id})`,
+      body: `Your order for ${inr(saved.grandTotal)} is confirmed. Expected delivery: ${saved.expectedDelivery || 'soon'}.`,
+      data: { url: `/order-details?id=${saved.id}`, orderId: saved.id },
+    }).catch((err) => console.warn('Customer push send failed:', err.message));
 
     res.status(201).json({ success: true, data: saved });
   } catch (error) {

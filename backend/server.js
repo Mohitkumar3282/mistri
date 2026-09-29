@@ -16,6 +16,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import categorySectionRoutes from './routes/categorySectionRoutes.js';
+import notificationsRoutes from './routes/notificationsRoutes.js';
 import {
   couponRoutes,
   settingsRoutes,
@@ -81,6 +82,7 @@ app.get(['/', '/api'], (req, res) => {
       cities: '/api/cities',
       settings: '/api/settings',
       supportMessages: '/api/support-messages',
+      notifications: '/api/notifications',
       admin: '/api/admin',
       payments: '/api/payments',
       upload: '/api/upload',
@@ -104,6 +106,7 @@ app.use('/api/faqs', faqRoutes);
 app.use('/api/cities', cityRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/support-messages', supportMessageRoutes);
+app.use('/api/notifications', notificationsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/upload', uploadRoutes);

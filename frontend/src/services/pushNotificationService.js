@@ -2,6 +2,8 @@
  * Push Notification Service for Mistri Platform
  * Dispatches native browser & mobile web push notifications for Customers and Admins.
  */
+import { getToken, onMessage } from 'firebase/messaging';
+import { messaging, messagingReady } from '../config/firebase';
 
 let swRegistration = null;
 
@@ -168,6 +170,56 @@ export const sendAdminNewOrderNotification = async (order) => {
 };
 
 /**
+ * Get this device's real FCM registration token, so the server can push to it even
+ * when the site is closed. Requires notification permission to already be granted and
+ * VITE_FIREBASE_VAPID_KEY to be set (Firebase Console > Project Settings > Cloud
+ * Messaging > Web Push certificates). Reuses the same service worker registered by
+ * registerServiceWorker() rather than a separate Firebase-only one.
+ */
+export const getFcmToken = async () => {
+  try {
+    const supported = await messagingReady;
+    if (!supported || !messaging) return null;
+    if (Notification.permission !== 'granted') return null;
+
+    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+    if (!vapidKey) {
+      console.warn('VITE_FIREBASE_VAPID_KEY is not set - cannot register for push.');
+      return null;
+    }
+
+    const registration = swRegistration || (await navigator.serviceWorker.ready.catch(() => null));
+    const token = await getToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration: registration || undefined,
+    });
+    return token || null;
+  } catch (err) {
+    console.warn('Could not get FCM token:', err.message || err);
+    return null;
+  }
+};
+
+/**
+ * Show incoming pushes while the tab is open. FCM only delivers to the service worker
+ * (in the background) unless a foreground listener like this is attached.
+ */
+export const listenForForegroundMessages = async () => {
+  const supported = await messagingReady;
+  if (!supported || !messaging) return;
+  onMessage(messaging, (payload) => {
+    // Sent as a data-only FCM message (see backend/utils/push.js) so title/body live
+    // under payload.data, not payload.notification.
+    const d = payload.data || {};
+    sendNativeNotification(d.title || 'Mistri', {
+      body: d.body || '',
+      data: d,
+      tag: d.orderId ? `order-${d.orderId}` : undefined,
+    });
+  });
+};
+
+/**
  * Sync FCM Token with Mistri Backend
  * @param {string} fcmToken - The Firebase Cloud Messaging device registration token
  * @param {string} authToken - Optional Bearer JWT token of the user
@@ -208,6 +260,8 @@ export default {
   sendNativeNotification,
   sendCustomerOrderNotification,
   sendAdminNewOrderNotification,
+  getFcmToken,
+  listenForForegroundMessages,
   syncFcmTokenWithBackend,
 };
 

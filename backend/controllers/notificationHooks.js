@@ -1,14 +1,24 @@
 import Notification from '../models/Notification.js';
+import { sendPushToAdmin } from '../utils/push.js';
 
 const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
-const record = (fields) =>
-  Notification.create({
+// Saves the in-app admin notification (always) and, if the admin has registered a
+// device, a real push so it reaches them even without the admin panel open.
+const record = async (fields) => {
+  const doc = await Notification.create({
     unread: true,
     time: 'Just now',
     createdAt: new Date().toISOString(),
     ...fields,
   });
+  sendPushToAdmin({
+    title: fields.title,
+    body: fields.message,
+    data: { url: '/admin?tab=orders', orderId: fields.orderId, bookingId: fields.bookingId },
+  }).catch((err) => console.warn('Admin push send failed:', err.message));
+  return doc;
+};
 
 // Each hook runs after a customer-facing record is first created.
 

@@ -13,6 +13,9 @@ export default defineConfig({
   server: {
     port: 5173,
     cors: true,
+    // Only relevant for local dev - lets a temporary HTTPS tunnel (e.g. localtunnel/ngrok)
+    // reach this dev server for testing push notifications on a real phone.
+    allowedHosts: true,
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Content-Security-Policy': "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' blob:; style-src * 'unsafe-inline'; font-src * data: https:; img-src * data: blob: https:; connect-src * ws: wss: http: https:; frame-src *; object-src 'none';",

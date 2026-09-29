@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import User from '../models/User.js';
 import generateToken from '../utils/generateToken.js';
+import { saveDeviceToken, ADMIN_OWNER_ID } from '../utils/push.js';
 
 // In-memory fallback users for instant testing without requiring MongoDB
 let mockUsers = [
@@ -287,8 +288,12 @@ export const updateFcmToken = async (req, res, next) => {
 
     const targetUserId = req.user?._id || userId;
     let updatedUser = null;
+    let ownerId = null;
+    let ownerRole = 'customer';
 
     if (targetUserId) {
+      ownerId = String(targetUserId);
+      ownerRole = req.user?.role || (ownerId === ADMIN_OWNER_ID ? 'admin' : 'customer');
       try {
         updatedUser = await User.findByIdAndUpdate(
           targetUserId,
@@ -296,7 +301,7 @@ export const updateFcmToken = async (req, res, next) => {
           { new: true }
         ).select('-password');
       } catch (dbErr) {
-        // Fallback for mock users
+        // Fallback for mock users, and for the built-in admin (which has no User document)
         const mock = mockUsers.find((u) => u._id === targetUserId);
         if (mock) {
           mock.fcmToken = receivedToken;
@@ -310,7 +315,19 @@ export const updateFcmToken = async (req, res, next) => {
           { fcmToken: receivedToken },
           { new: true }
         ).select('-password');
+        if (updatedUser) {
+          ownerId = String(updatedUser._id);
+          ownerRole = updatedUser.role || 'customer';
+        }
       } catch (dbErr) {}
+    }
+
+    // The real source of truth for sending pushes - supports several devices per person,
+    // unlike the single User.fcmToken field above.
+    if (ownerId) {
+      await saveDeviceToken(receivedToken, ownerId, ownerRole).catch((err) =>
+        console.warn('Could not save device token:', err.message)
+      );
     }
 
     return res.status(200).json({

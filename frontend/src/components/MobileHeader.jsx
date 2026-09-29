@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, ShoppingCart, Wallet, X } from 'lucide-react';
+import { Search, ChevronDown, ShoppingCart, Wallet, X, Bell } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import Logo from './Logo';
 
@@ -10,7 +10,25 @@ export const MobileHeader = () => {
     currentCity,
     currentPincode,
     setIsLocationModalOpen,
+    user,
+    notifications,
+    getNotificationPermission,
+    requestNotificationPermission,
+    registerPushToken,
   } = useStore();
+
+  const unreadNotifCount = (notifications || []).filter((n) => n.unread).length;
+
+  // A definite tap, so this is a good moment to ask for push permission if the browser
+  // hasn't been asked yet - tapping the bell is exactly what someone wanting alerts does.
+  const handleBellTap = () => {
+    if (user && getNotificationPermission() === 'default') {
+      requestNotificationPermission().then((result) => {
+        if (result === 'granted') registerPushToken('user');
+      });
+    }
+    navigateTo('notifications');
+  };
 
   const [searchTerm, setSearchTerm] = useState('');
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
@@ -104,9 +122,55 @@ export const MobileHeader = () => {
           </div>
         </div>
 
-        {/* Right: Dark Cart Icon */}
+        {/* Right: Notification Bell + Dark Cart Icon */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
 
+          {user && (
+            <button
+              onClick={handleBellTap}
+              style={{
+                position: 'relative',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                backgroundColor: '#1E293B',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#FFFFFF',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 2px 5px rgba(0,0,0,0.12)',
+                flexShrink: 0,
+              }}
+            >
+              <Bell size={15} />
+              {unreadNotifCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-4px',
+                    backgroundColor: 'var(--primary-orange)',
+                    color: '#FFFFFF',
+                    fontSize: '0.58rem',
+                    fontWeight: '900',
+                    minWidth: '16px',
+                    height: '16px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1.5px solid #FFFFFF',
+                    lineHeight: 1,
+                    padding: '1px',
+                  }}
+                >
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Dark Cart Circle Button with Bright Green Notification Badge (Exact Screenshot 1) */}
           <button

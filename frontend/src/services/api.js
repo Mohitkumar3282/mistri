@@ -146,6 +146,11 @@ export const api = {
   createAdminUser: (data) => request('/admin/users', json('POST', data, { auth: 'admin' })),
   updateAdminUser: (id, data) => request(`/admin/users/${encodeURIComponent(id)}`, json('PUT', data, { auth: 'admin' })),
   deleteAdminUser: (id) => request(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE', auth: 'admin' }),
+  sendUserNotification: (data) => request('/admin/send-notification', json('POST', data, { auth: 'admin' })),
+  getSentNotifications: () => request('/admin/send-notification', { auth: 'admin' }),
+
+  // The signed-in person's own notification feed (broadcasts + anything sent to them by name)
+  getMyNotifications: () => request('/notifications', { auth: 'user', quiet: true }),
 
   // Payments
   getPaymentKey: () => request('/payments/key'),

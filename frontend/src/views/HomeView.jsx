@@ -193,8 +193,8 @@ export const HomeView = () => {
     }
   };
 
-  const categoriesList = categories && categories.length > 0 ? categories : CATEGORIES;
-  const currentProducts = products && products.length > 0 ? products : PRODUCTS;
+  const categoriesList = categories || [];
+  const currentProducts = products || [];
   const featuredMaterials = currentProducts.filter((p) => p.isFeatured !== false);
   const shelfProducts = featuredMaterials.length > 0 ? featuredMaterials : currentProducts;
   const popularMaterials = (products || []).filter((p) => p.isPopular).length > 0 ? (products || []).filter((p) => p.isPopular) : (products || []).slice(0, 10);
