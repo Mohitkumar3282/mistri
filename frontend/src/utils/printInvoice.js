@@ -235,7 +235,6 @@ export function printTaxInvoice(order, siteSettings = {}) {
           </div>
           <div style="font-size: 10px; color: #475569; line-height: 1.35; margin-top: 4px;">
             <strong>MISTRI INFRA & CONSTRUCTION MATERIALS PVT. LTD.</strong><br/>
-            Central Logistics Depot #14, Super Corridor Park, Indore, MP - 452005<br/>
             Support: ${siteSettings.supportPhone || '+91 98260 11223'}
           </div>
         </td>
