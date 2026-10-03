@@ -131,14 +131,63 @@ export const HomeView = () => {
     return MISTRI_PROMO_SLIDES;
   }, [banners]);
 
-  // Auto slide Hero Banner every 5 seconds
+  // Auto slide Hero Banner every 5 seconds (paused while the user is dragging/swiping it)
+  const [isHeroPaused, setIsHeroPaused] = useState(false);
   useEffect(() => {
-    if (heroBanners.length <= 1) return;
+    if (heroBanners.length <= 1 || isHeroPaused) return;
     const timer = setInterval(() => {
       setActiveSlide((prev) => (prev + 1) % heroBanners.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, [heroBanners.length]);
+  }, [heroBanners.length, isHeroPaused]);
+
+  // Hero Banner swipe/drag - a real sliding track (not just a hard cut), follows the
+  // finger/mouse live and snaps to the nearest slide on release. Works for touch and mouse.
+  const heroViewportRef = useRef(null);
+  const [heroViewportWidth, setHeroViewportWidth] = useState(0);
+  const [isHeroDragging, setIsHeroDragging] = useState(false);
+  const [heroDragOffset, setHeroDragOffset] = useState(0);
+  const heroDragStartXRef = useRef(0);
+  const heroDragMovedRef = useRef(false);
+
+  useEffect(() => {
+    const el = heroViewportRef.current;
+    if (!el) return;
+    const measure = () => setHeroViewportWidth(el.offsetWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const heroSlideCount = heroBanners.length;
+  const clampHeroIndex = (i) => ((i % heroSlideCount) + heroSlideCount) % heroSlideCount;
+
+  const handleHeroDragStart = (clientX) => {
+    if (heroSlideCount <= 1) return;
+    setIsHeroPaused(true);
+    setIsHeroDragging(true);
+    heroDragMovedRef.current = false;
+    heroDragStartXRef.current = clientX;
+  };
+  const handleHeroDragMove = (clientX) => {
+    const delta = clientX - heroDragStartXRef.current;
+    if (Math.abs(delta) > 5) heroDragMovedRef.current = true;
+    setHeroDragOffset(delta);
+  };
+  const handleHeroDragEnd = () => {
+    setIsHeroDragging((wasDragging) => {
+      if (!wasDragging) return false;
+      setHeroDragOffset((offset) => {
+        const threshold = Math.max(40, heroViewportWidth * 0.15);
+        if (offset > threshold) setActiveSlide((prev) => clampHeroIndex(prev - 1));
+        else if (offset < -threshold) setActiveSlide((prev) => clampHeroIndex(prev + 1));
+        return 0;
+      });
+      return false;
+    });
+    setIsHeroPaused(false);
+  };
 
   // Compact Mistri Promo Banner Slider State
   const [promoIndex, setPromoIndex] = useState(0);
@@ -221,6 +270,14 @@ export const HomeView = () => {
       <section style={{ padding: '0.65rem 0 0.5rem 0' }}>
         <div className="container">
           <div
+            ref={heroViewportRef}
+            onTouchStart={(e) => handleHeroDragStart(e.targetTouches[0].clientX)}
+            onTouchMove={(e) => handleHeroDragMove(e.targetTouches[0].clientX)}
+            onTouchEnd={handleHeroDragEnd}
+            onMouseDown={(e) => { e.preventDefault(); handleHeroDragStart(e.clientX); }}
+            onMouseMove={(e) => { if (isHeroDragging) handleHeroDragMove(e.clientX); }}
+            onMouseUp={handleHeroDragEnd}
+            onMouseLeave={() => { if (isHeroDragging) handleHeroDragEnd(); }}
             style={{
               position: 'relative',
               borderRadius: 'var(--radius-lg)',
@@ -228,10 +285,19 @@ export const HomeView = () => {
               backgroundColor: '#FFFFFF',
               boxShadow: 'var(--shadow-card)',
               border: '1px solid var(--border-subtle)',
+              touchAction: 'pan-y',
+              cursor: heroSlideCount > 1 ? (isHeroDragging ? 'grabbing' : 'grab') : 'default',
+            }}
+          >
+          <div
+            style={{
+              display: 'flex',
+              width: '100%',
+              transform: `translateX(${-clampHeroIndex(activeSlide) * heroViewportWidth + heroDragOffset}px)`,
+              transition: isHeroDragging ? 'none' : 'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             {heroBanners.map((slide, idx) => {
-              if (idx !== activeSlide % heroBanners.length) return null;
               const imageUrl = typeof slide.image === 'object' ? slide.image?.url : slide.image;
               const hasFullImage = Boolean(imageUrl);
 
@@ -262,10 +328,11 @@ export const HomeView = () => {
               return (
                 <div
                   key={slide.id || idx}
-                  onClick={handleBannerClick}
+                  onClick={() => { if (heroDragMovedRef.current) return; handleBannerClick(); }}
                   style={{
                     position: 'relative',
                     width: '100%',
+                    flex: '0 0 100%',
                     minHeight: isMobile ? '175px' : '240px',
                     height: isMobile ? '175px' : 'clamp(230px, 24vw, 320px)',
                     backgroundColor: '#0B2947',
@@ -279,6 +346,8 @@ export const HomeView = () => {
                     <img
                       src={imageUrl}
                       alt={slide.title || 'Banner'}
+                      draggable={false}
+                      onDragStart={(e) => e.preventDefault()}
                       style={{
                         position: 'absolute',
                         top: 0,
@@ -365,6 +434,7 @@ export const HomeView = () => {
                 </div>
               );
             })}
+          </div>
 
             {/* Carousel Navigation Indicators */}
             {heroBanners.length > 1 && (
