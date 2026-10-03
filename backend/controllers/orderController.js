@@ -6,6 +6,7 @@ import { notifyNewOrder } from './notificationHooks.js';
 import { priceCart } from '../utils/orderPricing.js';
 import { confirmPayment, sandboxAllowed } from '../utils/razorpay.js';
 import { sendPushToOwner } from '../utils/push.js';
+import { nextSequence } from '../utils/counters.js';
 
 /**
  * Material orders
@@ -40,13 +41,9 @@ const CUSTOMER_FIELDS = [
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
 const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
-const newOrderId = async () => {
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const id = `MST-${Math.floor(100000 + Math.random() * 900000)}`;
-    if (!(await Order.exists({ id }))) return id;
-  }
-  return `MST-${Date.now()}`;
-};
+// Sequential and short (MST-1, MST-2, ...) rather than a random 6-digit id, so order
+// numbers are easy to read out over the phone and reference in invoices.
+const newOrderId = async () => `MST-${await nextSequence('orderNumber')}`;
 
 const initialTracking = (body) => ({
   currentStep: 2,
