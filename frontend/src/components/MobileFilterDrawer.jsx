@@ -1,6 +1,5 @@
 import React from 'react';
 import { X, Filter, RotateCcw, Check } from 'lucide-react';
-import { CATEGORIES } from '../data/mockData';
 
 export const MobileFilterDrawer = ({
   isOpen,
@@ -19,7 +18,7 @@ export const MobileFilterDrawer = ({
   maxPriceLimit = 70000,
 }) => {
   if (!isOpen) return null;
-  const categoryList = categories && categories.length > 0 ? categories : CATEGORIES;
+  const categoryList = categories || [];
 
   return (
     <div className="bottom-sheet-overlay" onClick={onClose}>

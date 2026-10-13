@@ -1,6 +1,5 @@
 import React from 'react';
 import { Filter, RotateCcw, Check, Star } from 'lucide-react';
-import { CATEGORIES } from '../data/mockData';
 
 export const FilterSidebar = ({
   selectedCategory,
@@ -16,7 +15,7 @@ export const FilterSidebar = ({
   categories = [],
   maxPriceLimit = 70000,
 }) => {
-  const categoryList = categories && categories.length > 0 ? categories : CATEGORIES;
+  const categoryList = categories || [];
 
   return (
     <aside style={{ width: '260px', flexShrink: 0 }} className="hide-on-mobile">

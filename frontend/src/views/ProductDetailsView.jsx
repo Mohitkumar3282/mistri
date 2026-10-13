@@ -24,7 +24,6 @@ import {
   Gift,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { PRODUCTS } from '../data/mockData';
 import ProductCard from '../components/ProductCard';
 import { getProductOptions, getCartItemKey, cashbackOffer } from '../utils/pricing';
 
@@ -48,7 +47,7 @@ export const ProductDetailsView = () => {
   // Cashback wording and rules both come from Platform Settings.
   const cashback = cashbackOffer(siteSettings);
 
-  const productList = products && products.length > 0 ? products : PRODUCTS;
+  const productList = products || [];
   const productId = viewParams?.id || viewParams?.productId || viewParams?.product?.id || viewParams?.product?._id;
   // Always show the live catalogue entry, so edits appear and a deleted product is not
   // shown from the copy passed in when the customer tapped it.

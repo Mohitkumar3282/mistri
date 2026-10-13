@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Filter, RotateCcw, Sparkles } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { PRODUCTS } from '../data/mockData';
 import ProductCard from '../components/ProductCard';
 
 export const SearchResultsView = () => {
@@ -9,7 +8,7 @@ export const SearchResultsView = () => {
   const initialQuery = viewParams?.query || viewParams?.q || '';
   const [query, setQuery] = useState(initialQuery);
 
-  const productList = products && products.length > 0 ? products : PRODUCTS;
+  const productList = products || [];
 
   useEffect(() => {
     if (viewParams?.query !== undefined || viewParams?.q !== undefined) {

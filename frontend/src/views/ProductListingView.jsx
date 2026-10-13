@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Filter, ArrowUpDown, Layers, SlidersHorizontal, ChevronRight, RotateCcw } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { CATEGORIES as INITIAL_CATEGORIES, PRODUCTS as INITIAL_PRODUCTS } from '../data/mockData';
 import ProductCard from '../components/ProductCard';
 import FilterSidebar from '../components/FilterSidebar';
 import MobileFilterDrawer from '../components/MobileFilterDrawer';
@@ -10,8 +9,8 @@ export const ProductListingView = () => {
   const { viewParams, navigateTo, products, categories } = useStore();
   const initialSlug = viewParams?.slug || 'all';
 
-  const productList = products && products.length > 0 ? products : INITIAL_PRODUCTS;
-  const categoryList = categories && categories.length > 0 ? categories : INITIAL_CATEGORIES;
+  const productList = products || [];
+  const categoryList = categories || [];
 
   // Calculate max price limit across products
   const maxPriceLimit = useMemo(() => {

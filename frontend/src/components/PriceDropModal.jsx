@@ -1,15 +1,14 @@
 import React from 'react';
 import { X, Flame, TrendingDown, Clock, ArrowRight, ShieldCheck, ShoppingCart } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { PRODUCTS } from '../data/mockData';
 
 export const PriceDropModal = () => {
-  const { isPriceDropOpen, setIsPriceDropOpen, navigateTo, addToCart } = useStore();
+  const { isPriceDropOpen, setIsPriceDropOpen, navigateTo, addToCart, products } = useStore();
 
   if (!isPriceDropOpen) return null;
 
   // Filter products with 20%+ discount
-  const priceDropItems = PRODUCTS.filter((p) => (p.discountPercent || 0) >= 20 || parseInt(p.discount || '0') >= 20);
+  const priceDropItems = (products || []).filter((p) => (p.discountPercent || 0) >= 20 || parseInt(p.discount || '0') >= 20);
 
   return (
     <div className="modal-overlay" onClick={() => setIsPriceDropOpen(false)}>

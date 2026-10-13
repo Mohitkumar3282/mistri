@@ -28,49 +28,6 @@ import { useStore } from '../context/StoreContext';
 import ProductCard from '../components/ProductCard';
 import CategoryCard from '../components/CategoryCard';
 
-const MISTRI_PROMO_SLIDES = [
-  {
-    icon: Truck,
-    badge: '60-MIN EXPRESS',
-    title: 'Site Delivery in 60 Mins',
-    desc: 'Cement, TMT steel, sand & bricks direct to your plot',
-    cta: 'Order Now',
-    target: 'products',
-    gradient: 'linear-gradient(135deg, #0B2947 0%, #163E68 60%, #0F172A 100%)',
-    accent: '#F59E0B',
-  },
-  {
-    icon: HardHat,
-    badge: 'VERIFIED EXPERTS',
-    title: 'Book Verified Mistri & Masons',
-    desc: 'Expert masons, plumbers, electricians & carpenters near you',
-    cta: 'Book Mistri',
-    target: 'mistris',
-    gradient: 'linear-gradient(135deg, #064E3B 0%, #065F46 60%, #022C22 100%)',
-    accent: '#34D399',
-  },
-  {
-    icon: ShieldCheck,
-    badge: 'DEPOT DIRECT',
-    title: '100% Genuine Materials',
-    desc: 'Factory certified (MTC) with automated GST input tax credit',
-    cta: 'View Brands',
-    target: 'products',
-    gradient: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 60%, #0F172A 100%)',
-    accent: '#FACC15',
-  },
-  {
-    icon: Zap,
-    badge: 'BULK WHOLESALE',
-    title: 'Contractor Bulk Discounts',
-    desc: 'Special depot rates for 500+ cement bags & bulk steel orders',
-    cta: 'Get Quote',
-    target: 'contact',
-    gradient: 'linear-gradient(135deg, #78350F 0%, #92400E 60%, #451A03 100%)',
-    accent: '#FBBF24',
-  },
-];
-
 export const HomeView = () => {
   const { navigateTo, setIsQuotationOpen, products, categories, siteSettings, banners, addToast } = useStore();
   const [activeSlide, setActiveSlide] = useState(0);
@@ -86,50 +43,16 @@ export const HomeView = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Filter Active Admin Banners or fallback to defaults
-  const heroBanners = useMemo(() => {
-    const activeHero = (banners || []).filter(
-      (b) => b.isActive !== false && (b.position === 'hero' || !b.position)
-    );
-    return activeHero;
-    return [
-      {
-        id: 'default_hero_1',
-        title: 'Original Plywood & MDF',
-        subtitle: '100% Genuine Certified Quality with Wholesale Factory Pricing Direct to Site.',
-        badge: 'WHOLESALE PRICES',
-        ctaText: 'ORDER NOW',
-        target: 'plywood-mdf-hdhmr',
-        image: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
-      },
-      {
-        id: 'default_hero_2',
-        title: 'UltraTech Cement & TMT Steel',
-        subtitle: 'Direct Depot Rates • ₹410/Bag with Express 60-Minute Site Delivery.',
-        badge: '60 MINUTE EXPRESS SITE DELIVERY',
-        ctaText: 'ORDER CEMENT',
-        target: 'cement',
-        image: 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400',
-      },
-      {
-        id: 'default_hero_3',
-        title: 'Havells & Finolex FR Wires',
-        subtitle: '100% Pure Bare Copper • 25+ Gauge & Color Options with Bulk Discounts.',
-        badge: 'UP TO 43% OFF WIRES',
-        ctaText: 'GET BULK QUOTE',
-        target: 'contact',
-        image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=400',
-      },
-    ];
-  }, [banners]);
+  // Only banners the admin actually created and marked active - no placeholder/mock data.
+  const heroBanners = useMemo(
+    () => (banners || []).filter((b) => b.isActive !== false && (b.position === 'hero' || !b.position)),
+    [banners]
+  );
 
-  const bottomBanners = useMemo(() => {
-    const activeBottom = (banners || []).filter(
-      (b) => b.isActive !== false && b.position === 'bottom'
-    );
-    if (activeBottom.length > 0) return activeBottom;
-    return MISTRI_PROMO_SLIDES;
-  }, [banners]);
+  const bottomBanners = useMemo(
+    () => (banners || []).filter((b) => b.isActive !== false && b.position === 'bottom'),
+    [banners]
+  );
 
   // Auto slide Hero Banner every 5 seconds (paused while the user is dragging/swiping it)
   const [isHeroPaused, setIsHeroPaused] = useState(false);
@@ -267,6 +190,7 @@ export const HomeView = () => {
   return (
     <div style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh', paddingBottom: '2rem' }}>
       {/* 1. HERO PROMO BANNER CAROUSEL */}
+      {heroBanners.length > 0 && (
       <section style={{ padding: '0.65rem 0 0.5rem 0' }}>
         <div className="container">
           <div
@@ -463,7 +387,7 @@ export const HomeView = () => {
           </div>
         </div>
       </section>
-
+      )}
 
       {/* 2. CATEGORY CATALOG GRID (Exact 4-Column Screenshot 1 Match) */}
       {categoriesList.length > 0 && (
@@ -712,6 +636,7 @@ export const HomeView = () => {
       </section>
 
       {/* 5. SIMPLE COMPACT BOTTOM PROMO BANNER (Mobile-Responsive & Slideable) */}
+      {bottomBanners.length > 0 && (
       <section style={{ padding: '0.65rem 0 1.25rem 0' }}>
         <div className="container">
           <div
@@ -910,7 +835,7 @@ export const HomeView = () => {
                 pointerEvents: 'none',
               }}
             >
-              {MISTRI_PROMO_SLIDES.map((_, dotIdx) => (
+              {bottomBanners.map((_, dotIdx) => (
                 <div
                   key={dotIdx}
                   style={{
@@ -926,6 +851,7 @@ export const HomeView = () => {
           </div>
         </div>
       </section>
+      )}
 
       {/* 6. B2B / CONTRACTOR BULK PROCUREMENT PROMO */}
       <section className="hide-on-mobile" style={{ padding: '0.75rem 0 1.5rem 0' }}>
