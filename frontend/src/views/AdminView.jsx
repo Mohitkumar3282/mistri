@@ -1276,8 +1276,6 @@ export default function AdminView() {
       gallery: [],
       variants: [],
       variantGroups: [],
-      cashbackTitle: 'Assured 2% Cashback',
-      cashbackSubtitle: 'On purchases above ₹50,000',
       trustBadge1Title: '100%',
       trustBadge1Sub: 'Genuine',
       returnPolicyTitle: 'Non',
@@ -1314,8 +1312,6 @@ export default function AdminView() {
       gallery: Array.isArray(prod.gallery) ? prod.gallery : [],
       variants: Array.isArray(prod.variants) ? prod.variants : [],
       variantGroups: Array.isArray(prod.variantGroups) ? prod.variantGroups : [],
-      cashbackTitle: prod.cashbackTitle || 'Assured 2% Cashback',
-      cashbackSubtitle: prod.cashbackSubtitle || 'On purchases above ₹50,000',
       trustBadge1Title: prod.trustBadge1Title || '100%',
       trustBadge1Sub: prod.trustBadge1Sub || 'Genuine',
       returnPolicyTitle: prod.returnPolicyTitle || (prod.isReturnable ? '7 Days' : 'Non'),
@@ -4234,44 +4230,46 @@ export default function AdminView() {
                 gap: '0.5rem',
                 flexShrink: 0,
               }}>
-                {[
-                  { id: 'general', label: 'General Info', icon: Tag },
-                  { id: 'categories', label: 'Categories', icon: Layers },
-                  { id: 'variants', label: 'Variants & pricing', icon: FileText },
-                  { id: 'badges', label: 'Offers & Badges', icon: Gift },
-                  { id: 'photos', label: 'Photos', icon: ImageIcon },
-                ].map((t) => {
-                  const Icon = t.icon;
-                  const isTabActive = productModalTab === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setProductModalTab(t.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '0.65rem 0.85rem',
-                        borderRadius: '8px',
-                        border: 'none',
-                        backgroundColor: isTabActive ? '#FFFFFF' : 'transparent',
-                        color: isTabActive ? '#EF4444' : '#475569',
-                        fontWeight: isTabActive ? 800 : 600,
-                        fontSize: '0.82rem',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        boxShadow: isTabActive ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <Icon size={16} color={isTabActive ? '#EF4444' : '#64748B'} />
-                      <span>{t.label}</span>
-                    </button>
-                  );
-                })}
+                <div className="admin-product-modal-tablist" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {[
+                    { id: 'general', label: 'General Info', icon: Tag },
+                    { id: 'categories', label: 'Categories', icon: Layers },
+                    { id: 'variants', label: 'Variants & pricing', icon: FileText },
+                    { id: 'badges', label: 'Offers & Badges', icon: Gift },
+                    { id: 'photos', label: 'Photos', icon: ImageIcon },
+                  ].map((t) => {
+                    const Icon = t.icon;
+                    const isTabActive = productModalTab === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setProductModalTab(t.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: isTabActive ? '#FFFFFF' : 'transparent',
+                          color: isTabActive ? '#EF4444' : '#475569',
+                          fontWeight: isTabActive ? 800 : 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          boxShadow: isTabActive ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Icon size={16} color={isTabActive ? '#EF4444' : '#64748B'} />
+                        <span>{t.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-                <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingTop: '1rem', borderTop: '1px solid #E2E8F0' }}>
+                <div className="admin-product-modal-sidebar-extras" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingTop: '1rem', borderTop: '1px solid #E2E8F0' }}>
                   {/* Status Dropdown */}
                   <div>
                     <label style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
@@ -4322,7 +4320,7 @@ export default function AdminView() {
               </div>
 
               {/* Right Content Form Area */}
-              <div style={{ flex: 1, padding: '1.5rem', overflowY: 'auto' }}>
+              <div className="admin-product-modal-content" style={{ flex: 1, padding: '1.5rem', overflowY: 'auto' }}>
                 {/* 1. General Info Tab */}
                 {productModalTab === 'general' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -5314,7 +5312,7 @@ export default function AdminView() {
             </div>
 
             {/* Modal Footer Actions */}
-            <div style={{
+            <div className="admin-product-modal-footer" style={{
               padding: '0.85rem 1.5rem',
               borderTop: '1px solid #E2E8F0',
               display: 'flex',
@@ -5322,6 +5320,7 @@ export default function AdminView() {
               justifyContent: 'flex-end',
               gap: '12px',
               backgroundColor: '#FFFFFF',
+              flexShrink: 0,
             }}>
               <button
                 type="button"
@@ -5588,7 +5587,9 @@ export default function AdminView() {
             height: 60px !important;
             background-color: #FFFFFF !important;
             border-top: 1px solid #D6E4F0 !important;
-            z-index: 9990 !important;
+            /* Below every modal (they all use zIndex: 1000) so an open modal's dimmed
+               backdrop actually covers this bar instead of it floating on top. */
+            z-index: 500 !important;
             align-items: center !important;
             justify-content: space-around !important;
             padding: 4px 6px max(4px, env(safe-area-inset-bottom, 4px)) 6px !important;
@@ -5660,23 +5661,40 @@ export default function AdminView() {
           }
           .admin-product-modal-body {
             flex-direction: column !important;
+            min-height: 0 !important;
             max-height: none !important;
             overflow-y: auto !important;
           }
           .admin-product-modal-tabs {
             width: 100% !important;
-            flex-direction: row !important;
-            overflow-x: auto !important;
-            white-space: nowrap !important;
+            flex-direction: column !important;
             border-right: none !important;
             border-bottom: 1px solid #E2E8F0 !important;
             padding: 0.5rem 0.75rem !important;
-            gap: 6px !important;
+            gap: 0 !important;
           }
-          .admin-product-modal-tabs button {
+          /* The tab buttons scroll horizontally, separate from the Status/Featured
+             controls below - they used to share one row and got squeezed off-screen. */
+          .admin-product-modal-tablist {
+            flex-direction: row !important;
+            overflow-x: auto !important;
+            white-space: nowrap !important;
+            gap: 6px !important;
+            padding-bottom: 2px !important;
+          }
+          .admin-product-modal-tablist button {
             flex-shrink: 0 !important;
             padding: 0.45rem 0.75rem !important;
             font-size: 0.75rem !important;
+          }
+          .admin-product-modal-sidebar-extras {
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            margin-top: 0.65rem !important;
+            padding-top: 0.65rem !important;
+          }
+          .admin-product-modal-sidebar-extras > * {
+            flex: 1 1 140px !important;
           }
           .admin-product-quick-strip {
             grid-template-columns: repeat(2, 1fr) !important;
@@ -11874,9 +11892,8 @@ export default function AdminView() {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
                 {[
-                  { key: 'cashbackPercent', label: 'Cashback (%)', fallback: 2, hint: 'Percentage taken off the item total.' },
+                  { key: 'cashbackAmount', label: 'Cashback Amount (₹)', fallback: 500, hint: 'Flat amount given on a qualifying order - you decide the number.' },
                   { key: 'cashbackMinOrder', label: 'Minimum Order (₹)', fallback: 50000, hint: 'Orders at or above this amount qualify.' },
-                  { key: 'cashbackMaxAmount', label: 'Maximum Cashback (₹)', fallback: 0, hint: '0 means no upper limit.' },
                 ].map((field) => (
                   <div key={field.key}>
                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
@@ -11885,7 +11902,7 @@ export default function AdminView() {
                     <input
                       type="number"
                       min="0"
-                      step={field.key === 'cashbackPercent' ? '0.5' : '100'}
+                      step="100"
                       value={siteSettings[field.key] ?? field.fallback}
                       onChange={(e) => updateSiteSettings({ [field.key]: Math.max(0, Number(e.target.value)) })}
                       style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 700 }}

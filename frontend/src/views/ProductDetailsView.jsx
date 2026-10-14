@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Star,
   Heart,
@@ -55,6 +55,25 @@ export const ProductDetailsView = () => {
 
   // Active Gallery Image Index
   const [activeImgIdx, setActiveImgIdx] = useState(0);
+
+  // Gallery swipe/drag - mirrors the home page hero banner carousel: follows the
+  // finger/mouse live, then snaps to the nearest image on release.
+  const galleryViewportRef = useRef(null);
+  const [galleryViewportWidth, setGalleryViewportWidth] = useState(0);
+  const [isGalleryDragging, setIsGalleryDragging] = useState(false);
+  const [galleryDragOffset, setGalleryDragOffset] = useState(0);
+  const galleryDragStartXRef = useRef(0);
+  const galleryDragMovedRef = useRef(false);
+
+  useEffect(() => {
+    const el = galleryViewportRef.current;
+    if (!el) return;
+    const measure = () => setGalleryViewportWidth(el.offsetWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Variant Groups Management
   const [selectedVariants, setSelectedVariants] = useState({});
@@ -236,6 +255,32 @@ export const ProductDetailsView = () => {
 
   const isFavorite = isInWishlist(product.id);
   const galleryImages = product.gallery && product.gallery.length > 0 ? product.gallery : [product.image];
+  const galleryCount = galleryImages.length;
+  const clampGalleryIndex = (i) => ((i % galleryCount) + galleryCount) % galleryCount;
+
+  const handleGalleryDragStart = (clientX) => {
+    if (galleryCount <= 1) return;
+    setIsGalleryDragging(true);
+    galleryDragMovedRef.current = false;
+    galleryDragStartXRef.current = clientX;
+  };
+  const handleGalleryDragMove = (clientX) => {
+    const delta = clientX - galleryDragStartXRef.current;
+    if (Math.abs(delta) > 5) galleryDragMovedRef.current = true;
+    setGalleryDragOffset(delta);
+  };
+  const handleGalleryDragEnd = () => {
+    setIsGalleryDragging((wasDragging) => {
+      if (!wasDragging) return false;
+      setGalleryDragOffset((offset) => {
+        const threshold = Math.max(40, galleryViewportWidth * 0.15);
+        if (offset > threshold) setActiveImgIdx((prev) => clampGalleryIndex(prev - 1));
+        else if (offset < -threshold) setActiveImgIdx((prev) => clampGalleryIndex(prev + 1));
+        return 0;
+      });
+      return false;
+    });
+  };
 
   const handleAdd = () => {
     const itemToAdd = {
@@ -365,31 +410,65 @@ export const ProductDetailsView = () => {
           {/* LEFT: PRODUCT IMAGE & PAGINATION DOTS */}
           <div>
             <div
+              ref={galleryViewportRef}
+              onTouchStart={(e) => handleGalleryDragStart(e.targetTouches[0].clientX)}
+              onTouchMove={(e) => handleGalleryDragMove(e.targetTouches[0].clientX)}
+              onTouchEnd={handleGalleryDragEnd}
+              onMouseDown={(e) => { e.preventDefault(); handleGalleryDragStart(e.clientX); }}
+              onMouseMove={(e) => { if (isGalleryDragging) handleGalleryDragMove(e.clientX); }}
+              onMouseUp={handleGalleryDragEnd}
+              onMouseLeave={() => { if (isGalleryDragging) handleGalleryDragEnd(); }}
               style={{
                 position: 'relative',
                 backgroundColor: '#FFFFFF',
                 borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--border-subtle)',
                 overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 height: 'clamp(280px, 68vw, 420px)',
-                padding: '1rem',
                 boxShadow: '0 2px 10px rgba(8, 39, 76, 0.04)',
+                touchAction: 'pan-y',
+                cursor: galleryCount > 1 ? (isGalleryDragging ? 'grabbing' : 'grab') : 'default',
               }}
             >
-              {/* Product Image */}
-              <img
-                src={galleryImages[activeImgIdx]}
-                alt={product.name}
+              {/* Sliding Image Track */}
+              <div
                 style={{
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  objectFit: 'contain',
-                  transition: 'transform 0.3s ease',
+                  display: 'flex',
+                  width: '100%',
+                  height: '100%',
+                  transform: `translateX(${-clampGalleryIndex(activeImgIdx) * galleryViewportWidth + galleryDragOffset}px)`,
+                  transition: isGalleryDragging ? 'none' : 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)',
                 }}
-              />
+              >
+                {galleryImages.map((img, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      flex: '0 0 100%',
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '1rem',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <img
+                      src={img}
+                      alt={`${product.name} ${idx + 1}`}
+                      draggable={false}
+                      onDragStart={(e) => e.preventDefault()}
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        objectFit: 'contain',
+                        userSelect: 'none',
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
 
               {/* Warranty / Quality Badge Overlay */}
               {product.warrantyBadge && (

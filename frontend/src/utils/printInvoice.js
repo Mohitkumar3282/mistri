@@ -85,7 +85,6 @@ export function printTaxInvoice(order, siteSettings = {}) {
   const deliveryCharge = Number(order.summary?.deliveryCharge || order.summary?.deliveryFee || 0);
   const discount = Number(order.summary?.bulkDiscount || order.summary?.discount || 0);
   const cashbackAmount = Number(order.summary?.cashbackAmount || 0);
-  const cashbackPercent = Number(order.summary?.cashbackPercent || 0);
   const gstAmount = Number(order.summary?.gstAmount || 0);
 
   const invoiceHtml = `
@@ -335,7 +334,7 @@ export function printTaxInvoice(order, siteSettings = {}) {
             </tr>` : ''}
             ${cashbackAmount > 0 ? `
             <tr>
-              <td style="padding: 3px 0; color: #059669;">Assured Cashback${cashbackPercent ? ` (${cashbackPercent}%)` : ''}:</td>
+              <td style="padding: 3px 0; color: #059669;">Assured Cashback:</td>
               <td style="padding: 3px 0; text-align: right; font-weight: 700; color: #059669;">-₹${cashbackAmount.toLocaleString('en-IN')}</td>
             </tr>` : ''}
             ${gstAmount > 0 ? `
