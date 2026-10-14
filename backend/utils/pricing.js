@@ -20,11 +20,11 @@ export const DEFAULT_PRICING_SETTINGS = {
   enableUnloadingFee: true,
   unloadingChargeStandard: 199,
   freeUnloadingThreshold: 50000,
-  // Assured cashback: a percentage off the bill once the order reaches the minimum.
+  // Assured cashback: a flat rupee amount the admin sets, taken off the bill once the
+  // order reaches the minimum.
   enableCashback: true,
-  cashbackPercent: 2,
+  cashbackAmount: 500,
   cashbackMinOrder: 50000,
-  cashbackMaxAmount: 0, // 0 = no cap
 };
 
 // A number, or the fallback when the value is missing. Unlike `Number(v) || fallback`,
@@ -166,14 +166,13 @@ export const couponDiscount = (coupon, subtotal, now = new Date()) => {
  */
 export const cashbackOffer = (settings = {}) => {
   const s = { ...DEFAULT_PRICING_SETTINGS, ...(settings || {}) };
-  const percent = num(s.cashbackPercent, 0);
+  const amount = num(s.cashbackAmount, 0);
   const minOrder = num(s.cashbackMinOrder, 0);
   return {
-    enabled: Boolean(s.enableCashback) && percent > 0,
-    percent,
+    enabled: Boolean(s.enableCashback) && amount > 0,
+    amount,
     minOrder,
-    maxAmount: num(s.cashbackMaxAmount, 0),
-    title: `Assured ${percent}% Cashback`,
+    title: `Assured ₹${amount.toLocaleString('en-IN')} Cashback`,
     subtitle: minOrder > 0 ? `On purchases above ₹${minOrder.toLocaleString('en-IN')}` : 'On every order',
   };
 };
@@ -187,11 +186,9 @@ export const cashbackDiscount = (subtotal, settings = {}) => {
   if (!offer.enabled) return { amount: 0, reason: '' };
   if (subtotal < offer.minOrder) {
     const missing = offer.minOrder - subtotal;
-    return { amount: 0, reason: `Add ₹${missing.toLocaleString('en-IN')} more to get ${offer.percent}% cashback` };
+    return { amount: 0, reason: `Add ₹${missing.toLocaleString('en-IN')} more to get ₹${offer.amount.toLocaleString('en-IN')} cashback` };
   }
-  let amount = Math.round(subtotal * (offer.percent / 100));
-  if (offer.maxAmount > 0 && amount > offer.maxAmount) amount = offer.maxAmount;
-  return { amount: Math.max(0, amount), reason: '' };
+  return { amount: Math.max(0, offer.amount), reason: '' };
 };
 
 /**
@@ -260,7 +257,6 @@ export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeU
     discount,
     cashbackAmount,
     cashbackNote: cashback.reason,
-    cashbackPercent: cashbackOffer(s).percent,
     subtotalAfterDiscount,
     deliveryFee,
     deliveryNote,

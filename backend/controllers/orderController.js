@@ -166,7 +166,6 @@ export const placeOrder = async (req, res) => {
         subtotal: totals.subtotal,
         bulkDiscount: totals.discount,
         cashbackAmount: totals.cashbackAmount,
-        cashbackPercent: totals.cashbackPercent,
         unloadingCharge: totals.unloadingCharge,
         gstAmount: totals.gstAmount,
         deliveryCharge: totals.deliveryFee,
