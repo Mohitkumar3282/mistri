@@ -705,7 +705,9 @@ export default function AdminView() {
     const [showPresets, setShowPresets] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const [localPreview, setPreviewOnly] = useState(null);
     const fileInputRef = React.useRef(null);
+    const displayValue = localPreview || value;
 
     const handleUploadProcess = async (file) => {
       if (!file) return;
@@ -717,14 +719,14 @@ export default function AdminView() {
       setIsUploading(true);
       setUploadProgress(10);
 
-      // Instant local preview for immediate responsive feedback
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        if (!value) {
-          onChange(uploadEvent.target.result);
-        }
+      // Instant local preview only - never the value that gets saved. A raw photo can be
+      // several MB; saving it directly instead of a Cloudinary URL bloats every page that
+      // lists these records (one real incident: a 12.6MB response that took 148s to load).
+      const previewReader = new FileReader();
+      previewReader.onload = (uploadEvent) => {
+        if (!value) setPreviewOnly(uploadEvent.target.result);
       };
-      reader.readAsDataURL(file);
+      previewReader.readAsDataURL(file);
 
       try {
         const result = await uploadCloudFile(file, `mistri/admin/${file.name}`, (p) => {
@@ -732,13 +734,14 @@ export default function AdminView() {
         });
         if (result && result.downloadURL) {
           onChange(result.downloadURL);
+          setPreviewOnly(null);
+        } else {
+          throw new Error('Upload did not return a URL');
         }
       } catch (uploadErr) {
-        console.warn('Cloud direct upload failed, fallback to local FileReader:', uploadErr);
-        reader.onload = (uploadEvent) => {
-          onChange(uploadEvent.target.result);
-        };
-        reader.readAsDataURL(file);
+        console.warn('Cloud upload failed:', uploadErr);
+        setPreviewOnly(null);
+        addToast?.('Image upload failed - please check your connection and try again.', 'error');
       } finally {
         setIsUploading(false);
         setUploadProgress(0);
@@ -843,7 +846,7 @@ export default function AdminView() {
         />
 
         {/* Main Upload / Preview Area */}
-        {value ? (
+        {displayValue ? (
           /* STATE 1: IMAGE SELECTED - PREVIEW & ACTIONS */
           <div
             style={{
@@ -859,7 +862,7 @@ export default function AdminView() {
           >
             <div style={{ position: 'relative', width: '100%', height: '180px', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#0F172A', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <img
-                src={value}
+                src={displayValue}
                 alt="Category Preview"
                 style={{ maxWidth: '100%', maxHeight: '180px', width: '100%', height: '100%', objectFit: 'contain' }}
               />
@@ -3008,7 +3011,10 @@ export default function AdminView() {
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      // Local preview
+                      const previousImage = modalFormData.image;
+                      // Local preview only - a failed upload must never leave the raw photo
+                      // as the saved value (it can be several MB and bloats every page that
+                      // lists categories; a real incident: 12.6MB taking 148s to load).
                       const reader = new FileReader();
                       reader.onload = (uploadEv) => {
                         setModalFormData((prev) => ({ ...prev, image: uploadEv.target.result }));
@@ -3019,9 +3025,13 @@ export default function AdminView() {
                         const res = await uploadCloudFile(file, `mistri/categories/${file.name}`);
                         if (res && res.downloadURL) {
                           setModalFormData((prev) => ({ ...prev, image: res.downloadURL }));
+                        } else {
+                          throw new Error('Upload did not return a URL');
                         }
                       } catch (err) {
-                        console.warn('Cloud upload fallback to local preview:', err);
+                        console.warn('Cloud upload failed:', err);
+                        setModalFormData((prev) => ({ ...prev, image: previousImage }));
+                        addToast('Image upload failed - please check your connection and try again.', 'error');
                       }
                     }}
                     style={{ display: 'none' }}
@@ -3291,7 +3301,10 @@ export default function AdminView() {
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      // Local preview
+                      const previousImage = modalFormData.image;
+                      // Local preview only - a failed upload must never leave the raw photo
+                      // as the saved value (it can be several MB and bloats every page that
+                      // lists categories; a real incident: 12.6MB taking 148s to load).
                       const reader = new FileReader();
                       reader.onload = (uploadEv) => {
                         setModalFormData((prev) => ({ ...prev, image: uploadEv.target.result }));
@@ -3302,9 +3315,13 @@ export default function AdminView() {
                         const res = await uploadCloudFile(file, `mistri/categories/${file.name}`);
                         if (res && res.downloadURL) {
                           setModalFormData((prev) => ({ ...prev, image: res.downloadURL }));
+                        } else {
+                          throw new Error('Upload did not return a URL');
                         }
                       } catch (err) {
-                        console.warn('Cloud upload fallback to local preview:', err);
+                        console.warn('Cloud upload failed:', err);
+                        setModalFormData((prev) => ({ ...prev, image: previousImage }));
+                        addToast('Image upload failed - please check your connection and try again.', 'error');
                       }
                     }}
                     style={{ display: 'none' }}
@@ -3567,7 +3584,10 @@ export default function AdminView() {
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      // Local preview
+                      const previousImage = modalFormData.image;
+                      // Local preview only - a failed upload must never leave the raw photo
+                      // as the saved value (it can be several MB and bloats every page that
+                      // lists categories; a real incident: 12.6MB taking 148s to load).
                       const reader = new FileReader();
                       reader.onload = (uploadEv) => {
                         setModalFormData((prev) => ({ ...prev, image: uploadEv.target.result }));
@@ -3578,9 +3598,13 @@ export default function AdminView() {
                         const res = await uploadCloudFile(file, `mistri/subcategories/${file.name}`);
                         if (res && res.downloadURL) {
                           setModalFormData((prev) => ({ ...prev, image: res.downloadURL }));
+                        } else {
+                          throw new Error('Upload did not return a URL');
                         }
                       } catch (err) {
-                        console.warn('Cloud upload fallback to local preview:', err);
+                        console.warn('Cloud upload failed:', err);
+                        setModalFormData((prev) => ({ ...prev, image: previousImage }));
+                        addToast('Image upload failed - please check your connection and try again.', 'error');
                       }
                     }}
                     style={{ display: 'none' }}
@@ -3875,7 +3899,10 @@ export default function AdminView() {
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      // Local preview
+                      const previousImage = modalFormData.image;
+                      // Local preview only - a failed upload must never leave the raw photo
+                      // as the saved value (it can be several MB and bloats every page that
+                      // lists categories; a real incident: 12.6MB taking 148s to load).
                       const reader = new FileReader();
                       reader.onload = (uploadEv) => {
                         setModalFormData((prev) => ({ ...prev, image: uploadEv.target.result }));
@@ -3886,9 +3913,13 @@ export default function AdminView() {
                         const res = await uploadCloudFile(file, `mistri/subcategories/${file.name}`);
                         if (res && res.downloadURL) {
                           setModalFormData((prev) => ({ ...prev, image: res.downloadURL }));
+                        } else {
+                          throw new Error('Upload did not return a URL');
                         }
                       } catch (err) {
-                        console.warn('Cloud upload fallback to local preview:', err);
+                        console.warn('Cloud upload failed:', err);
+                        setModalFormData((prev) => ({ ...prev, image: previousImage }));
+                        addToast('Image upload failed - please check your connection and try again.', 'error');
                       }
                     }}
                     style={{ display: 'none' }}
@@ -5159,28 +5190,26 @@ export default function AdminView() {
                                 addToast(`"${file.name}" exceeds 10MB limit, skipped.`, 'warning');
                                 continue;
                               }
+                              // A failed upload must never leave the raw photo in the gallery
+                              // - it can be several MB and bloats every page that lists
+                              // products (a real incident: a 12.6MB category payload took
+                              // 148s to load because of exactly this fallback).
                               try {
                                 const result = await uploadCloudFile(file, `mistri/products/${Date.now()}_${file.name}`);
                                 if (result && result.downloadURL) {
                                   newGallery.push(result.downloadURL);
                                 } else {
-                                  // fallback to base64 preview
-                                  await new Promise((resolve) => {
-                                    const reader = new FileReader();
-                                    reader.onload = (ev) => { newGallery.push(ev.target.result); resolve(); };
-                                    reader.readAsDataURL(file);
-                                  });
+                                  throw new Error('Upload did not return a URL');
                                 }
-                              } catch {
-                                await new Promise((resolve) => {
-                                  const reader = new FileReader();
-                                  reader.onload = (ev) => { newGallery.push(ev.target.result); resolve(); };
-                                  reader.readAsDataURL(file);
-                                });
+                              } catch (err) {
+                                console.warn('Cloud upload failed:', err);
+                                addToast(`"${file.name}" failed to upload - skipped. Check your connection and try again.`, 'error');
                               }
                             }
                             setProductFormData({ ...productFormData, gallery: newGallery });
-                            addToast(`${files.length} photo(s) added to gallery`, 'success');
+                            if (newGallery.length > (productFormData.gallery || []).length) {
+                              addToast(`${newGallery.length - (productFormData.gallery || []).length} photo(s) added to gallery`, 'success');
+                            }
                             e.target.value = '';
                           }}
                         />
