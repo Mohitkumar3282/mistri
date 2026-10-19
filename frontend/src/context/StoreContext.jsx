@@ -1421,6 +1421,11 @@ export const StoreProvider = ({ children }) => {
       console.warn('Backend category save warning:', err);
       if (err?.status === 401 || err?.status === 403) {
         addToast(`Category created locally, but admin token is missing or expired. Please re-login as Admin.`, 'warning', 7000);
+      } else {
+        // Any other failure (validation, network, server error) must surface too - it was
+        // silently swallowed before, so the category looked saved until a refresh revealed
+        // it never actually reached the database.
+        addToast(`Category NOT saved to database: ${err?.message || 'unknown error'}. It will disappear on refresh.`, 'error', 9000);
       }
     }
 
