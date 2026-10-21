@@ -1368,7 +1368,14 @@ export const StoreProvider = ({ children }) => {
         addToast('Product updated successfully in database', 'success');
       } catch (err) {
         console.warn('Backend product update warning:', err);
-        addToast('Product updated locally', 'info');
+        if (err?.status === 401 || err?.status === 403) {
+          addToast('Change NOT saved - admin token is missing or expired. Please re-login as Admin.', 'error', 8000);
+        } else {
+          // This must look like a failure, not a success - it previously showed a
+          // reassuring "updated locally" message on ANY error, so a failed save was
+          // indistinguishable from a real one until the change reverted on refresh.
+          addToast(`Change NOT saved to database: ${err?.message || 'unknown error'}. It will revert on refresh.`, 'error', 9000);
+        }
       }
     }
   };
@@ -1380,7 +1387,11 @@ export const StoreProvider = ({ children }) => {
       addToast('Product removed from catalog and database', 'info');
     } catch (err) {
       console.warn('Backend product delete warning:', err);
-      addToast('Product removed locally', 'info');
+      if (err?.status === 401 || err?.status === 403) {
+        addToast('NOT deleted from the database - admin token is missing or expired. It will reappear on refresh.', 'error', 8000);
+      } else {
+        addToast(`NOT deleted from the database: ${err?.message || 'unknown error'}. It will reappear on refresh.`, 'error', 9000);
+      }
     }
   };
 

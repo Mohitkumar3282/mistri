@@ -381,7 +381,24 @@ export function printTaxInvoice(order, siteSettings = {}) {
 </html>
   `;
 
-  // Print using hidden iframe to guarantee exact 1-page output without touching parent DOM
+  // Print via a real new window/tab, not a hidden iframe: most mobile browsers don't
+  // scope iframe.contentWindow.print() to just the iframe's content the way desktop
+  // browsers do, and instead print the whole underlying page (header, nav, everything).
+  // A genuine new window has no such scoping ambiguity on any platform.
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(invoiceHtml);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 350);
+    return;
+  }
+
+  // Fallback if a popup blocker prevented the new window (e.g. not triggered directly
+  // by a click): the hidden-iframe approach, which at least works on desktop browsers.
   let printFrame = document.getElementById('mistri-invoice-print-frame');
   if (!printFrame) {
     printFrame = document.createElement('iframe');

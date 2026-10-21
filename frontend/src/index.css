@@ -111,6 +111,7 @@ html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
   touch-action: pan-x pan-y;
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -125,6 +126,7 @@ body {
   touch-action: pan-x pan-y;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior-y: contain;
+  overscroll-behavior-x: none;
 }
 
 #root {

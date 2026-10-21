@@ -701,6 +701,8 @@ export const CartView = () => {
           walletDiscount={0}
           deliveryFee={deliveryFee}
           handlingFee={isUnloadingSelected ? unloadingCharge : 0}
+          gstAmount={gstAmount}
+          isGstInclusive={isGstInclusive}
           total={grandTotal}
         />
 

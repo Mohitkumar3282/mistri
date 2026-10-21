@@ -19,6 +19,8 @@ export const BillDetailsCard = ({
   walletDiscount = 0,
   deliveryFee = 0,
   handlingFee = 0,
+  gstAmount = 0,
+  isGstInclusive = false,
   total = 0,
   title = 'Bill Details',
 }) => {
@@ -58,9 +60,10 @@ export const BillDetailsCard = ({
           <div style={{ borderTop: '1px solid #F1F5F9', marginBottom: '12px' }} />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.92rem' }}>
-            {/* Sub Total */}
+            {/* Sub Total - the label only claims GST is included when it actually is,
+                matching Settings > GST Tax & Pricing Inclusivity Rules. */}
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}>
-              <span>Sub Total (Inclusive of GST)</span>
+              <span>Sub Total{isGstInclusive ? ' (Inclusive of GST)' : ''}</span>
               <span style={{ fontWeight: '700', color: '#0F172A' }}>
                 ₹{Number(subtotal || 0).toLocaleString('en-IN')}
               </span>
@@ -104,6 +107,18 @@ export const BillDetailsCard = ({
                 {deliveryFee === 0 ? 'FREE' : `₹${Number(deliveryFee).toLocaleString('en-IN')}`}
               </span>
             </div>
+
+            {/* GST - only shown as its own line when it's actually being added on top of
+                the subtotal (exclusive mode). When isGstInclusive is true, it's already
+                baked into the subtotal above, so showing it again here would double it. */}
+            {!isGstInclusive && gstAmount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}>
+                <span>GST</span>
+                <span style={{ fontWeight: '700', color: '#0F172A' }}>
+                  ₹{Number(gstAmount).toLocaleString('en-IN')}
+                </span>
+              </div>
+            )}
 
             {/* Handling Charge */}
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}>
