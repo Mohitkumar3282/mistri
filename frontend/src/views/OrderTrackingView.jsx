@@ -6,25 +6,31 @@ import OrderTimeline from '../components/OrderTimeline';
 import { getDeliverySchedule } from '../utils/deliverySchedule';
 
 export const OrderTrackingView = () => {
-  const { viewParams, navigateTo, getOrderById } = useStore();
+  const { viewParams, navigateTo, getOrderById, siteSettings } = useStore();
   const orderId = viewParams?.id || viewParams?.orderId || viewParams?.order?.id || 'MST-100245';
   const order = getOrderById(orderId) || MOCK_ORDERS[0];
   const deliveryInfo = getDeliverySchedule(order);
 
-  const tracking = order.tracking || {
-    currentStep: 5,
-    driverName: 'Suresh Gurjar',
-    driverPhone: '+91 97555 43210',
-    vehicleNumber: 'MP 09 GH 4512 (Eicher Pro 12T)',
-    liveEtaMinutes: 35,
-    steps: [
-      { title: 'Order Placed', time: '10 Sep, 11:30 AM', done: true, desc: 'Material order verified & invoice generated' },
-      { title: 'Order Confirmed', time: '10 Sep, 11:45 AM', done: true, desc: 'Confirmed by MISTRI Central Logistics Hub' },
-      { title: 'Warehouse Dispatch', time: '10 Sep, 01:15 PM', done: true, desc: 'Loaded onto 12T crane-assist truck' },
-      { title: 'In Transit', time: '10 Sep, 02:00 PM', done: true, desc: 'En route via Super Corridor Bypass' },
-      { title: 'Out for Delivery', time: '10 Sep, 02:45 PM', done: true, desc: 'Driver 4.2 km away from construction site' },
-      { title: 'Delivered & Unloaded', time: 'Estimated 03:45 PM', done: false, desc: 'Pending on-site delivery verification' },
-    ],
+  // The 4-step timeline is driven directly by the admin's order status (set via the
+  // dropdown in Admin > Orders), not a separate stored snapshot - so it always reflects
+  // where the admin has actually moved the order, live.
+  const STATUS_STEP_INDEX = { confirmed: 1, 'out-for-delivery': 2, delivered: 3 };
+  const currentStepIndex = order.statusCode === 'cancelled' ? 0 : (STATUS_STEP_INDEX[order.statusCode] ?? 1);
+  const steps = [
+    { title: 'Order Placed', time: order.date && order.time ? `${order.date}, ${order.time}` : 'Just now', done: true, desc: 'Material order verified & invoice generated' },
+    { title: 'Order Confirmed', time: currentStepIndex >= 1 ? 'Confirmed' : 'Pending', done: currentStepIndex >= 1, desc: 'Confirmed by MISTRI Central Logistics Hub' },
+    { title: 'Out for Delivery', time: currentStepIndex === 2 ? 'In Progress' : currentStepIndex > 2 ? 'Completed' : 'Pending', done: currentStepIndex >= 2, desc: 'En route to construction site' },
+    { title: 'Delivered', time: currentStepIndex >= 3 ? 'Delivered' : 'Pending', done: currentStepIndex >= 3, desc: 'Site delivery & unload verification' },
+  ];
+  // The one logistics partner the admin set once in Settings, shown the same way on
+  // every order, rather than a per-order driver.
+  const tracking = {
+    currentStep: currentStepIndex + 1,
+    steps,
+    liveEtaMinutes: order.tracking?.liveEtaMinutes ?? 35,
+    driverName: siteSettings.defaultDriverName || '',
+    driverPhone: siteSettings.defaultDriverPhone || '',
+    vehicleNumber: siteSettings.defaultVehicleNumber || '',
   };
 
   return (

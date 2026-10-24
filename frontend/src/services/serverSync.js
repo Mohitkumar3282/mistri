@@ -15,13 +15,19 @@ import api from './api';
  *   write: 'admin'  - admins only     'owner' - shoppers create their own, admins manage all
  *          'public' - anyone creates, admins manage all      'none' - never written from the app
  */
+// `critical: true` collections are what the home page actually needs for first paint
+// (products, categories, banners, ...). They're requested immediately. Everything else
+// is requested a beat later (see DEFERRED_LOAD_DELAY_MS below) so it doesn't compete with
+// them for the browser's ~6 concurrent-connections-per-origin limit - without this, a
+// fresh visitor's /products request was queued behind admin-only endpoints like
+// /admin/users or /orders that they don't even have permission to read yet.
 export const SYNC_COLLECTIONS = [
-  { name: 'products', path: '/products', key: 'id', read: 'public', write: 'admin' },
-  { name: 'categories', path: '/categories', key: 'id', read: 'public', write: 'admin' },
-  { name: 'categorySections', path: '/category-sections', key: 'id', read: 'public', write: 'admin' },
+  { name: 'products', path: '/products', key: 'id', read: 'public', write: 'admin', critical: true },
+  { name: 'categories', path: '/categories', key: 'id', read: 'public', write: 'admin', critical: true },
+  { name: 'categorySections', path: '/category-sections', key: 'id', read: 'public', write: 'admin', critical: true },
+  { name: 'banners', path: '/banners', key: 'id', read: 'public', write: 'admin', critical: true },
   { name: 'services', path: '/services', key: 'id', read: 'public', write: 'admin' },
   { name: 'mistris', path: '/mistris', key: 'id', read: 'public', write: 'admin' },
-  { name: 'banners', path: '/banners', key: 'id', read: 'public', write: 'admin' },
   { name: 'faqs', path: '/faqs', key: 'category', read: 'public', write: 'admin' },
   { name: 'coupons', path: '/coupons', key: 'code', read: 'public', write: 'admin' },
   {
@@ -44,6 +50,7 @@ export const SYNC_COLLECTIONS = [
 ];
 
 const PUSH_DELAY_MS = 400;
+const DEFERRED_LOAD_DELAY_MS = 250;
 const POLL_INTERVAL_MS = 30000;
 // How often every visitor re-reads the public catalogue (products, categories, ...), so
 // what an admin adds or deletes reaches open storefronts without a reload.
@@ -211,7 +218,15 @@ export const useServerSync = ({ collections, settings, account, session, onError
     try {
       await api.updateSettings(latest.current.__settings);
       settingsSnapshot.current = stableStringify(latest.current.__settings);
+      callbacks.current.onSettingsSaved?.();
     } catch (err) {
+      // Unlike background catalogue reads, this is an admin actively editing contact
+      // info/settings and waiting for it to take effect, so a server-unreachable error
+      // is surfaced too instead of staying quiet (reportError's default for status 0).
+      if (err?.status === 0) {
+        callbacks.current.onError?.('Settings NOT saved - server unreachable. Your change will revert on refresh.');
+        return;
+      }
       reportError('settings', err);
     }
   };
@@ -393,15 +408,23 @@ export const useServerSync = ({ collections, settings, account, session, onError
   // Lifecycle
   // ---------------------------------------------------------------------------
 
-  // Load everything on start and whenever someone signs in or out.
+  // Load everything on start and whenever someone signs in or out. Critical collections
+  // (what the home page needs for first paint) go out immediately; everything else is
+  // held back briefly so it doesn't steal connection slots from them (see SYNC_COLLECTIONS).
   useEffect(() => {
     Object.values(timers.current).forEach(clearTimeout);
     generation.current += 1;
     hydrated.current = {};
     pending.current = {};
-    SYNC_COLLECTIONS.forEach((cfg) => loadCollection(cfg, { initial: true }));
+    const gen = generation.current;
+    SYNC_COLLECTIONS.filter((cfg) => cfg.critical).forEach((cfg) => loadCollection(cfg, { initial: true }));
     loadSettings();
-    loadAccount();
+    const deferredTimer = setTimeout(() => {
+      if (gen !== generation.current) return;
+      SYNC_COLLECTIONS.filter((cfg) => !cfg.critical).forEach((cfg) => loadCollection(cfg, { initial: true }));
+      loadAccount();
+    }, DEFERRED_LOAD_DELAY_MS);
+    return () => clearTimeout(deferredTimer);
   }, [session.userKey, session.isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Administrators see new orders, messages and notifications without reloading.

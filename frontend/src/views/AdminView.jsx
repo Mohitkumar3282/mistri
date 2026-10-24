@@ -204,8 +204,6 @@ export default function AdminView() {
   const [orderFilterTab, setOrderFilterTab] = useState('all'); // 'all' | 'online' | 'cash' | 'confirmed' | 'in_transit' | 'delivered'
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [selectedOrderDetailsModal, setSelectedOrderDetailsModal] = useState(null);
-  const [assignDriverModalOrder, setAssignDriverModalOrder] = useState(null);
-  const [driverInput, setDriverInput] = useState({ name: '', phone: '', vehicle: '' });
 
   // Settings Delivery & Price Simulator State
   const [simCartSubtotal, setSimCartSubtotal] = useState(555);
@@ -8097,7 +8095,7 @@ export default function AdminView() {
       if (orderFilterTab === 'online' && !isOnline) return false;
       if (orderFilterTab === 'cash' && !isCOD) return false;
       if (orderFilterTab === 'confirmed' && o.status !== 'Confirmed') return false;
-      if (orderFilterTab === 'in_transit' && !['In Transit', 'Warehouse Dispatch', 'Out for Delivery'].includes(o.status)) return false;
+      if (orderFilterTab === 'in_transit' && o.status !== 'Out for Delivery') return false;
       if (orderFilterTab === 'delivered' && o.status !== 'Delivered' && o.status !== 'Delivered & Unloaded') return false;
 
       if (orderSearchQuery.trim()) {
@@ -8243,7 +8241,7 @@ export default function AdminView() {
               <span>Active Dispatches</span>
             </div>
             <div style={{ fontSize: '1.7rem', fontWeight: 900, color: '#2563EB', marginTop: '4px' }}>
-              {orders.filter((o) => ['Confirmed', 'In Transit', 'Warehouse Dispatch', 'Out for Delivery'].includes(o.status)).length}
+              {orders.filter((o) => ['Confirmed', 'Out for Delivery'].includes(o.status)).length}
             </div>
             <div style={{ fontSize: '0.75rem', color: theme.textMuted, marginTop: '4px' }}>GPS tracked fleet vehicles</div>
           </div>
@@ -8270,7 +8268,7 @@ export default function AdminView() {
               { id: 'online', label: `💳 Online Paid (${onlineOrdersCount})` },
               { id: 'cash', label: `💵 Cash / COD (${codOrdersCount})` },
               { id: 'confirmed', label: 'Confirmed' },
-              { id: 'in_transit', label: 'In Transit' },
+              { id: 'in_transit', label: 'Out for Delivery' },
               { id: 'delivered', label: 'Delivered' },
             ].map((tab) => (
               <button
@@ -8454,19 +8452,17 @@ export default function AdminView() {
                               cursor: 'pointer',
                             }}
                           >
-                            <option value="Confirmed">Confirmed</option>
-                            <option value="Warehouse Dispatch">Warehouse Dispatch</option>
-                            <option value="In Transit">In Transit</option>
+                            <option value="Confirmed">Order Confirmed</option>
                             <option value="Out for Delivery">Out for Delivery</option>
-                            <option value="Delivered">Delivered & Unloaded</option>
+                            <option value="Delivered">Order Delivered</option>
                             <option value="Cancelled">Cancelled</option>
                           </select>
                         </td>
 
-                        {/* Driver */}
+                        {/* Driver - one logistics partner, set once in Settings, shown on every order */}
                         <td style={{ padding: '0.85rem 1rem', fontSize: '0.75rem' }}>
-                          <div><strong>{o.driverName || o.tracking?.driverName || 'Ramesh Patel'}</strong></div>
-                          <div style={{ color: theme.textMuted }}>{o.vehicleNumber || o.tracking?.vehicleNumber || 'MP-09-TR-4421'}</div>
+                          <div><strong>{siteSettings.defaultDriverName || 'Not set'}</strong></div>
+                          <div style={{ color: theme.textMuted }}>{siteSettings.defaultVehicleNumber || '—'}</div>
                         </td>
 
                         {/* Actions */}
@@ -8636,10 +8632,10 @@ export default function AdminView() {
                   <div style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 700 }}>Logistics Driver</div>
                     <div style={{ fontWeight: 800, color: '#071E3D', marginTop: '2px' }}>
-                      {selectedOrderDetailsModal.driverName || 'Ramesh Patel (Driver)'}
+                      {siteSettings.defaultDriverName || 'Not set'}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px' }}>
-                      Truck: {selectedOrderDetailsModal.vehicleNumber || 'MP-09-TR-4421'}
+                      Truck: {siteSettings.defaultVehicleNumber || '—'}
                     </div>
                   </div>
                 </div>
@@ -8722,6 +8718,7 @@ export default function AdminView() {
             </div>
           </div>
         )}
+
       </div>
     );
   }
@@ -12620,6 +12617,70 @@ export default function AdminView() {
             <p style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px' }}>
               Enter each policy rule on a new line. These will immediately appear in the customer's Cart, Checkout, and Order Details screens.
             </p>
+          </div>
+        </div>
+
+        {/* SECTION 7: Logistics Partner - set once, shown on every order */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            border: `1px solid ${theme.cardBorder}`,
+            padding: '1.5rem',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.25rem', paddingBottom: '0.85rem', borderBottom: '1px solid #F1F5F9' }}>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
+              <Truck size={16} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                Logistics Partner
+              </h2>
+              <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                Set once here - shown as the assigned driver on every customer's order tracking & details page.
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                Driver Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Vishal Patidar"
+                value={siteSettings.defaultDriverName || ''}
+                onChange={(e) => updateSiteSettings({ defaultDriverName: e.target.value })}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                Driver Phone
+              </label>
+              <input
+                type="tel"
+                placeholder="+91 98260 00000"
+                value={siteSettings.defaultDriverPhone || ''}
+                onChange={(e) => updateSiteSettings({ defaultDriverPhone: e.target.value })}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                Vehicle Number
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. MP-09-TR-4421"
+                value={siteSettings.defaultVehicleNumber || ''}
+                onChange={(e) => updateSiteSettings({ defaultVehicleNumber: e.target.value.toUpperCase() })}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+              />
+            </div>
           </div>
         </div>
       </div>
