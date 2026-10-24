@@ -193,6 +193,11 @@ const INITIAL_SETTINGS = {
   freeUnloadingThreshold: 50000,
   tickerMessage: '🚚 EXPRESS SITE DISPATCH IN 60 MINS • OFFICIAL MTC LAB TEST CERTIFICATES INCLUDED WITH EVERY STEEL & CEMENT ORDER • GST 100% ITC COMPLIANT',
   isMaintenanceMode: false,
+  // One logistics partner, set once by the admin, shown on every order's tracking/details
+  // page - not assigned per order.
+  defaultDriverName: 'Vishal Patidar',
+  defaultDriverPhone: '',
+  defaultVehicleNumber: '',
   cancellationPolicy: [
     'Orders cannot be modified once packed.',
     'Delivery location of an Order cannot be changed. INR 249 additional charges in unavoidable cases.',
@@ -578,6 +583,7 @@ export const StoreProvider = ({ children }) => {
       userKey: user?.id || user?.email || '',
     },
     onError: (message) => addToast(message, 'error', 6000),
+    onSettingsSaved: () => addToast('Settings saved', 'success', 2500),
     onNewItems: (name, items) => {
       // A customer placed something while the admin panel was open. This fires in the
       // admin's own browser, so it is the one place a device notification for the admin
@@ -976,9 +982,6 @@ export const StoreProvider = ({ children }) => {
       shippingAddress: siteAddress,
       date: now.toISOString().split('T')[0],
       time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      driverName: 'Ramesh Patel',
-      driverPhone: '+91 98260 99881',
-      vehicleNumber: 'MP-09-TR-4421',
       ...(isOnline
         ? {
             payment: {
@@ -2165,9 +2168,12 @@ export const StoreProvider = ({ children }) => {
   };
 
   // 12. STORE SETTINGS & RESET TO FACTORY DEFAULTS
+  // Only updates local state here - the actual "saved" confirmation (or a failure
+  // toast) comes from useServerSync's onSettingsSaved/onError once the debounced push
+  // to the database actually completes, so typing one field doesn't fire a premature
+  // "saved" toast per keystroke while lying about whether it reached the server.
   const updateSiteSettings = (newSettings) => {
     setSiteSettings((prev) => ({ ...prev, ...newSettings }));
-    addToast('Platform settings saved successfully!', 'success');
   };
 
   const addCity = (newCity) => {

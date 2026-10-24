@@ -65,16 +65,16 @@ export function printTaxInvoice(order, siteSettings = {}) {
 
     return `
       <tr>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #E2E8F0; text-align: center; color: #64748B; font-size: 11px;">${idx + 1}</td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #E2E8F0; font-size: 11.5px; font-weight: 600; color: #0F172A;">
+        <td style="padding: 9px 13px; border-bottom: 1px solid #E2E8F0; text-align: center; color: #64748B; font-size: 14px;">${idx + 1}</td>
+        <td style="padding: 9px 13px; border-bottom: 1px solid #E2E8F0; font-size: 14.5px; font-weight: 600; color: #0F172A;">
           ${itemName}
         </td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #E2E8F0; text-align: center; color: #64748B; font-size: 11px; font-family: monospace;">${hsn}</td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #E2E8F0; text-align: center; font-size: 11.5px; font-weight: 700; color: #0F172A;">
+        <td style="padding: 9px 13px; border-bottom: 1px solid #E2E8F0; text-align: center; color: #64748B; font-size: 14px; font-family: monospace;">${hsn}</td>
+        <td style="padding: 9px 13px; border-bottom: 1px solid #E2E8F0; text-align: center; font-size: 14.5px; font-weight: 700; color: #0F172A;">
           ${qty}${unit ? ' ' + unit : ''}
         </td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #E2E8F0; text-align: right; font-size: 11px; color: #334155;">₹${price.toLocaleString('en-IN')}</td>
-        <td style="padding: 7px 10px; border-bottom: 1px solid #E2E8F0; text-align: right; font-size: 11.5px; font-weight: 700; color: #08274C;">₹${lineTotal.toLocaleString('en-IN')}</td>
+        <td style="padding: 9px 13px; border-bottom: 1px solid #E2E8F0; text-align: right; font-size: 14px; color: #334155;">₹${price.toLocaleString('en-IN')}</td>
+        <td style="padding: 9px 13px; border-bottom: 1px solid #E2E8F0; text-align: right; font-size: 14.5px; font-weight: 700; color: #08274C;">₹${lineTotal.toLocaleString('en-IN')}</td>
       </tr>
     `;
   }).join('');
@@ -107,46 +107,46 @@ export function printTaxInvoice(order, siteSettings = {}) {
     body {
       background-color: #FFFFFF;
       color: #0F172A;
-      font-size: 11.5px;
+      font-size: 15px;
       line-height: 1.4;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     .invoice-wrapper {
-      max-width: 800px;
+      max-width: 100%;
       margin: 0 auto;
-      border: 1.5px solid #08274C;
-      padding: 16px 20px;
+      border: 2px solid #08274C;
+      padding: 22px 26px;
       background: #FFFFFF;
     }
     .header-table {
       width: 100%;
       border-collapse: collapse;
-      border-bottom: 2px solid #08274C;
-      padding-bottom: 10px;
-      margin-bottom: 12px;
+      border-bottom: 2.5px solid #08274C;
+      padding-bottom: 14px;
+      margin-bottom: 16px;
     }
     .badge-invoice {
       display: inline-block;
       background-color: #08274C;
       color: #FFFFFF;
-      font-size: 11px;
+      font-size: 14px;
       font-weight: 800;
       letter-spacing: 0.1em;
-      padding: 4px 10px;
+      padding: 6px 14px;
       border-radius: 4px;
       text-transform: uppercase;
     }
     .meta-box {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
       border: 1px solid #CBD5E1;
       border-radius: 6px;
       overflow: hidden;
     }
     .meta-box td {
-      padding: 8px 12px;
+      padding: 11px 16px;
       vertical-align: top;
       border-right: 1px solid #CBD5E1;
     }
@@ -154,71 +154,71 @@ export function printTaxInvoice(order, siteSettings = {}) {
       border-right: none;
     }
     .label {
-      font-size: 9.5px;
+      font-size: 12px;
       font-weight: 700;
       color: #64748B;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      margin-bottom: 2px;
+      margin-bottom: 3px;
     }
     .value {
-      font-size: 11.5px;
+      font-size: 15px;
       font-weight: 700;
       color: #0F172A;
     }
     .items-table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
       border: 1px solid #CBD5E1;
     }
     .items-table th {
       background-color: #F1F5F9;
       color: #08274C;
-      font-size: 10px;
+      font-size: 13px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      padding: 7px 10px;
+      padding: 10px 13px;
       border-bottom: 1.5px solid #CBD5E1;
     }
     .totals-table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
     }
     .totals-table td {
-      padding: 4px 8px;
+      padding: 6px 10px;
     }
     .amount-words-box {
       background-color: #F8FAFC;
       border: 1px dashed #CBD5E1;
-      padding: 8px 12px;
+      padding: 11px 16px;
       border-radius: 4px;
-      font-size: 11px;
-      margin-bottom: 12px;
+      font-size: 14px;
+      margin-bottom: 16px;
     }
     .signatures-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 14px;
+      margin-top: 18px;
     }
     .sig-box {
       border: 1px solid #CBD5E1;
       border-radius: 6px;
-      height: 75px;
-      padding: 6px 10px;
+      height: 95px;
+      padding: 8px 13px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
     }
     .footer-note {
-      font-size: 9px;
+      font-size: 11px;
       color: #64748B;
       text-align: center;
-      margin-top: 10px;
+      margin-top: 13px;
       border-top: 1px solid #E2E8F0;
-      padding-top: 6px;
+      padding-top: 8px;
     }
   </style>
 </head>
@@ -229,20 +229,20 @@ export function printTaxInvoice(order, siteSettings = {}) {
       <tr>
         <td style="width: 58%; vertical-align: middle;">
           <!-- EXACT BRAND LOGO IMAGE -->
-          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-            <img src="${mistriLogoImg || '/mistri-logo.png'}" alt="MISTRI - From Foundation to Finish" style="width: 175px; height: 50px; object-fit: contain; display: block;" />
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <img src="${mistriLogoImg || '/mistri-logo.png'}" alt="MISTRI - From Foundation to Finish" style="width: 220px; height: 63px; object-fit: contain; display: block;" />
           </div>
-          <div style="font-size: 10px; color: #475569; line-height: 1.35; margin-top: 4px;">
+          <div style="font-size: 13px; color: #475569; line-height: 1.35; margin-top: 5px;">
             <strong>MISTRI INFRA & CONSTRUCTION MATERIALS PVT. LTD.</strong><br/>
             Support: ${siteSettings.supportPhone || '+91 98260 11223'}
           </div>
         </td>
         <td style="width: 42%; text-align: right; vertical-align: top;">
           <div class="badge-invoice">TAX INVOICE & CHALLAN</div>
-          <div style="font-size: 14px; font-weight: 800; color: #08274C; margin-top: 6px;">
+          <div style="font-size: 18px; font-weight: 800; color: #08274C; margin-top: 8px;">
             ${orderId}
           </div>
-          <div style="font-size: 10.5px; color: #475569; margin-top: 2px;">
+          <div style="font-size: 13px; color: #475569; margin-top: 3px;">
             Invoice Date: <strong>${orderDate}</strong><br/>
             Time: <strong>${orderTime}</strong>
           </div>
@@ -255,23 +255,23 @@ export function printTaxInvoice(order, siteSettings = {}) {
       <tr>
         <td style="width: 62%;">
           <div class="label">Billed To / Delivery Destination:</div>
-          <div class="value" style="font-size: 12px;">${customerName}</div>
-          <div style="font-size: 11px; color: #334155; margin-top: 2px;">Phone: <strong>${customerPhone}</strong></div>
-          <div style="font-size: 10.5px; color: #475569; margin-top: 3px; line-height: 1.3;">
+          <div class="value" style="font-size: 15.5px;">${customerName}</div>
+          <div style="font-size: 14px; color: #334155; margin-top: 3px;">Phone: <strong>${customerPhone}</strong></div>
+          <div style="font-size: 13px; color: #475569; margin-top: 4px; line-height: 1.3;">
             ${fullAddress}
           </div>
         </td>
         <td style="width: 38%;">
           <div class="label">Payment & Delivery:</div>
-          <div style="margin-bottom: 4px;">
-            <div style="font-size: 10px; color: #64748B;">Mode: <strong style="color: #0F172A;">${paymentMethod}</strong></div>
-            <div style="font-size: 10.5px; color: ${paymentStatus.toLowerCase().includes('paid') ? '#059669' : '#D97706'}; font-weight: 700; margin-top: 1px;">
+          <div style="margin-bottom: 5px;">
+            <div style="font-size: 13px; color: #64748B;">Mode: <strong style="color: #0F172A;">${paymentMethod}</strong></div>
+            <div style="font-size: 13px; color: ${paymentStatus.toLowerCase().includes('paid') ? '#059669' : '#D97706'}; font-weight: 700; margin-top: 2px;">
               Status: ${paymentStatus}
             </div>
           </div>
-          <div style="border-top: 1px dashed #E2E8F0; padding-top: 4px; margin-top: 4px;">
-            <div style="font-size: 10px; color: #64748B;">Delivery Slot:</div>
-            <div class="value" style="font-size: 11px; color: #08274C;">Express Site Delivery</div>
+          <div style="border-top: 1px dashed #E2E8F0; padding-top: 5px; margin-top: 5px;">
+            <div style="font-size: 13px; color: #64748B;">Delivery Slot:</div>
+            <div class="value" style="font-size: 14px; color: #08274C;">Express Site Delivery</div>
           </div>
         </td>
       </tr>
@@ -281,12 +281,12 @@ export function printTaxInvoice(order, siteSettings = {}) {
     <table class="items-table">
       <thead>
         <tr>
-          <th style="width: 6%; text-align: center;">#</th>
-          <th style="width: 48%; text-align: left;">Material Description & Specifications</th>
-          <th style="width: 12%; text-align: center;">HSN Code</th>
-          <th style="width: 10%; text-align: center;">Qty</th>
-          <th style="width: 12%; text-align: right;">Rate (₹)</th>
-          <th style="width: 12%; text-align: right;">Amount (₹)</th>
+          <th style="width: 6%; text-align: center; padding: 10px 6px;">#</th>
+          <th style="width: 48%; text-align: left; padding: 10px 13px;">Material Description & Specifications</th>
+          <th style="width: 12%; text-align: center; padding: 10px 13px;">HSN Code</th>
+          <th style="width: 10%; text-align: center; padding: 10px 13px;">Qty</th>
+          <th style="width: 12%; text-align: right; padding: 10px 13px;">Rate (₹)</th>
+          <th style="width: 12%; text-align: right; padding: 10px 13px;">Amount (₹)</th>
         </tr>
       </thead>
       <tbody>
@@ -299,52 +299,52 @@ export function printTaxInvoice(order, siteSettings = {}) {
       <tr>
         <td style="width: 55%; vertical-align: top; padding-right: 15px;">
           <div class="amount-words-box">
-            <span style="font-weight: 700; color: #475569; font-size: 9.5px; text-transform: uppercase;">Amount in Words:</span><br/>
-            <strong style="color: #08274C; font-size: 11px;">${amountInWords(grandTotal)}</strong>
+            <span style="font-weight: 700; color: #475569; font-size: 12px; text-transform: uppercase;">Amount in Words:</span><br/>
+            <strong style="color: #08274C; font-size: 14px;">${amountInWords(grandTotal)}</strong>
           </div>
-          <div style="font-size: 9.5px; color: #64748B; line-height: 1.4;">
+          <div style="font-size: 12px; color: #64748B; line-height: 1.4;">
             • 100% Genuine Certified Quality Material direct to site.<br/>
             • Official Material Receipt & Verified Delivery Challan.
           </div>
         </td>
         <td style="width: 45%; vertical-align: top;">
-          <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
+          <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
             <tr>
-              <td style="padding: 3px 0; color: #475569;">Materials Subtotal:</td>
-              <td style="padding: 3px 0; text-align: right; font-weight: 600;">₹${subtotal.toLocaleString('en-IN')}</td>
+              <td style="padding: 5px 0; color: #475569;">Materials Subtotal:</td>
+              <td style="padding: 5px 0; text-align: right; font-weight: 600;">₹${subtotal.toLocaleString('en-IN')}</td>
             </tr>
             ${unloadingCharge > 0 ? `
             <tr>
-              <td style="padding: 3px 0; color: #475569;">Site Unloading & Crane Handling:</td>
-              <td style="padding: 3px 0; text-align: right; font-weight: 600;">₹${unloadingCharge.toLocaleString('en-IN')}</td>
+              <td style="padding: 5px 0; color: #475569;">Site Unloading & Crane Handling:</td>
+              <td style="padding: 5px 0; text-align: right; font-weight: 600;">₹${unloadingCharge.toLocaleString('en-IN')}</td>
             </tr>` : ''}
             ${deliveryCharge > 0 ? `
             <tr>
-              <td style="padding: 3px 0; color: #475569;">Site Delivery & Freight:</td>
-              <td style="padding: 3px 0; text-align: right; font-weight: 600;">₹${deliveryCharge.toLocaleString('en-IN')}</td>
+              <td style="padding: 5px 0; color: #475569;">Site Delivery & Freight:</td>
+              <td style="padding: 5px 0; text-align: right; font-weight: 600;">₹${deliveryCharge.toLocaleString('en-IN')}</td>
             </tr>` : `
             <tr>
-              <td style="padding: 3px 0; color: #475569;">Site Delivery & Freight:</td>
-              <td style="padding: 3px 0; text-align: right; font-weight: 700; color: #059669;">FREE</td>
+              <td style="padding: 5px 0; color: #475569;">Site Delivery & Freight:</td>
+              <td style="padding: 5px 0; text-align: right; font-weight: 700; color: #059669;">FREE</td>
             </tr>`}
             ${discount > 0 ? `
             <tr>
-              <td style="padding: 3px 0; color: #059669;">Bulk / Coupon Discount:</td>
-              <td style="padding: 3px 0; text-align: right; font-weight: 700; color: #059669;">-₹${discount.toLocaleString('en-IN')}</td>
+              <td style="padding: 5px 0; color: #059669;">Bulk / Coupon Discount:</td>
+              <td style="padding: 5px 0; text-align: right; font-weight: 700; color: #059669;">-₹${discount.toLocaleString('en-IN')}</td>
             </tr>` : ''}
             ${cashbackAmount > 0 ? `
             <tr>
-              <td style="padding: 3px 0; color: #059669;">Assured Cashback:</td>
-              <td style="padding: 3px 0; text-align: right; font-weight: 700; color: #059669;">-₹${cashbackAmount.toLocaleString('en-IN')}</td>
+              <td style="padding: 5px 0; color: #059669;">Assured Cashback:</td>
+              <td style="padding: 5px 0; text-align: right; font-weight: 700; color: #059669;">-₹${cashbackAmount.toLocaleString('en-IN')}</td>
             </tr>` : ''}
             ${gstAmount > 0 ? `
             <tr>
-              <td style="padding: 3px 0; color: #475569;">Estimated Taxes (Included):</td>
-              <td style="padding: 3px 0; text-align: right; font-weight: 600;">₹${gstAmount.toLocaleString('en-IN')}</td>
+              <td style="padding: 5px 0; color: #475569;">Estimated Taxes (Included):</td>
+              <td style="padding: 5px 0; text-align: right; font-weight: 600;">₹${gstAmount.toLocaleString('en-IN')}</td>
             </tr>` : ''}
             <tr style="border-top: 1.5px solid #08274C; border-bottom: 1.5px solid #08274C;">
-              <td style="padding: 6px 0; font-size: 13px; font-weight: 800; color: #08274C;">Grand Total (INR):</td>
-              <td style="padding: 6px 0; text-align: right; font-size: 15px; font-weight: 900; color: #08274C;">₹${grandTotal.toLocaleString('en-IN')}</td>
+              <td style="padding: 8px 0; font-size: 16px; font-weight: 800; color: #08274C;">Grand Total (INR):</td>
+              <td style="padding: 8px 0; text-align: right; font-size: 19px; font-weight: 900; color: #08274C;">₹${grandTotal.toLocaleString('en-IN')}</td>
             </tr>
           </table>
         </td>
@@ -356,16 +356,16 @@ export function printTaxInvoice(order, siteSettings = {}) {
       <tr>
         <td style="width: 50%; padding-right: 10px;">
           <div class="sig-box">
-            <div style="font-size: 9.5px; color: #64748B; font-weight: 700; text-transform: uppercase;">Customer / Site Receiver Acknowledgment</div>
-            <div style="font-size: 10px; color: #94A3B8; border-top: 1px dashed #CBD5E1; padding-top: 4px;">
+            <div style="font-size: 12px; color: #64748B; font-weight: 700; text-transform: uppercase;">Customer / Site Receiver Acknowledgment</div>
+            <div style="font-size: 13px; color: #94A3B8; border-top: 1px dashed #CBD5E1; padding-top: 5px;">
               Signature & Date (Received in Good Condition)
             </div>
           </div>
         </td>
         <td style="width: 50%; padding-left: 10px;">
           <div class="sig-box" style="text-align: right;">
-            <div style="font-size: 9.5px; color: #64748B; font-weight: 700; text-transform: uppercase;">For MISTRI Infra & Materials Pvt. Ltd.</div>
-            <div style="font-size: 10px; color: #08274C; font-weight: 700; border-top: 1px dashed #CBD5E1; padding-top: 4px;">
+            <div style="font-size: 12px; color: #64748B; font-weight: 700; text-transform: uppercase;">For MISTRI Infra & Materials Pvt. Ltd.</div>
+            <div style="font-size: 13px; color: #08274C; font-weight: 700; border-top: 1px dashed #CBD5E1; padding-top: 5px;">
               Authorized Signatory
             </div>
           </div>

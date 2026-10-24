@@ -154,12 +154,16 @@ export const OrderDetailsView = () => {
     );
   };
 
-  const steps = order.tracking?.steps || [
+  // The 4-step progress timeline is driven directly by the admin's order status
+  // (set via the dropdown in Admin > Orders), not a separate stored snapshot - so it
+  // always reflects where the admin has actually moved the order, live.
+  const STATUS_STEP_INDEX = { confirmed: 1, 'out-for-delivery': 2, delivered: 3 };
+  const currentStepIndex = order.statusCode === 'cancelled' ? 0 : (STATUS_STEP_INDEX[order.statusCode] ?? 1);
+  const steps = [
     { title: 'Order Placed', time: `${order.date} · ${order.time}`, done: true, desc: 'Order verified & invoice generated' },
-    { title: 'Order Confirmed', time: 'Express Depot Verified', done: true, desc: 'Stock allocated at central hub' },
-    { title: 'Packing & Loading', time: order.statusCode === 'delivered' ? 'Completed' : 'In Progress', done: order.statusCode === 'delivered' || order.statusCode === 'out_for_delivery', desc: 'Loaded with tamper-evident seal' },
-    { title: 'Out for Delivery', time: order.statusCode === 'delivered' ? 'Completed' : 'Expected soon', done: order.statusCode === 'delivered' || order.statusCode === 'out_for_delivery', desc: 'En route to site' },
-    { title: 'Delivered', time: order.statusCode === 'delivered' ? `Delivered at ${order.time}` : 'Pending handover', done: order.statusCode === 'delivered', desc: 'Direct site handover with OTP verification' },
+    { title: 'Order Confirmed', time: currentStepIndex >= 1 ? 'Confirmed' : 'Pending', done: currentStepIndex >= 1, desc: 'Stock allocated at central hub' },
+    { title: 'Out for Delivery', time: currentStepIndex === 2 ? 'In Progress' : currentStepIndex > 2 ? 'Completed' : 'Pending', done: currentStepIndex >= 2, desc: 'En route to site' },
+    { title: 'Delivered', time: currentStepIndex >= 3 ? `Delivered at ${order.time}` : 'Pending handover', done: currentStepIndex >= 3, desc: 'Direct site handover with OTP verification' },
   ];
 
   return (
@@ -439,8 +443,9 @@ export const OrderDetailsView = () => {
             })}
           </div>
 
-          {/* Assigned Driver Box (if active) */}
-          {order.tracking?.driverName && (
+          {/* Assigned Driver Box - the one logistics partner the admin set in Settings,
+              shown the same way on every order. */}
+          {siteSettings.defaultDriverName && (
             <div
               style={{
                 marginTop: '14px',
@@ -460,13 +465,13 @@ export const OrderDetailsView = () => {
                   Assigned Logistics Partner
                 </span>
                 <div style={{ fontSize: '0.84rem', fontWeight: '700', color: '#0F172A' }}>
-                  {order.tracking.driverName} • {order.tracking.vehicleNumber}
+                  {siteSettings.defaultDriverName}{siteSettings.defaultVehicleNumber ? ` • ${siteSettings.defaultVehicleNumber}` : ''}
                 </div>
               </div>
 
-              {order.tracking.driverPhone && (
+              {siteSettings.defaultDriverPhone && (
                 <a
-                  href={`tel:${order.tracking.driverPhone}`}
+                  href={`tel:${siteSettings.defaultDriverPhone}`}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
