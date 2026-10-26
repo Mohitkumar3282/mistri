@@ -1323,6 +1323,7 @@ export default function AdminView() {
       highlights: prod.highlights || '',
       status: prod.status || (prod.inStock ? 'PUBLISHED' : 'OUT_OF_STOCK'),
       isFeatured: prod.isFeatured !== undefined ? prod.isFeatured : true,
+      order: prod.order !== undefined && prod.order !== null ? prod.order : '',
     });
     setProductModalTab('general');
     setActiveModal('edit-product');
@@ -1367,6 +1368,7 @@ export default function AdminView() {
       inStock,
       category,
       categorySlug,
+      order: productFormData.order === '' || productFormData.order === undefined ? null : Number(productFormData.order),
       section: foundCat?.section || foundCat?.sectionName || productFormData.section || 'Civil & Interiors',
       brand: productFormData.brand || 'UltraTech',
       unit: firstVariant ? (firstVariant.unit || productFormData.unit || 'Standard Unit') : (productFormData.unit || 'Standard Unit'),
@@ -4383,6 +4385,32 @@ export default function AdminView() {
                       />
                       <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: '4px' }}>
                         Slug is auto-generated from the product name on save.
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: '#64748B', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
+                        DISPLAY ORDER
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 1 - leave blank for default order"
+                        value={productFormData.order ?? ''}
+                        onChange={(e) => setProductFormData({ ...productFormData, order: e.target.value === '' ? '' : Number(e.target.value) })}
+                        style={{
+                          width: '100%',
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '8px',
+                          border: '1px solid #E2E8F0',
+                          backgroundColor: '#F8FAFC',
+                          fontSize: '0.88rem',
+                          fontWeight: 600,
+                          color: '#0F172A',
+                          outline: 'none',
+                        }}
+                      />
+                      <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: '4px' }}>
+                        Lower numbers show first in listings. Product "1" appears before product "2".
                       </div>
                     </div>
 

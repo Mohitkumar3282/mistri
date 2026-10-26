@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import api from '../services/api';
 import { useServerSync } from '../services/serverSync';
 import { computeTotals, couponDiscount, resolveVariantOptions, unitPrice, getCartItemKey } from '../utils/pricing';
@@ -2409,6 +2409,26 @@ export const StoreProvider = ({ children }) => {
     addToast('Settings reset to system defaults', 'info');
   };
 
+  // Admin sets an "order" number on a category/product (1 shows first, 2 second, ...).
+  // Items with no number set keep their original relative order and sort after every
+  // item that does have one. Everything that reads `categories`/`products` from the
+  // store automatically gets this order - the sort happens once, here.
+  const sortByOrder = (items) =>
+    [...items]
+      .map((item, index) => ({ item, index }))
+      .sort((a, b) => {
+        const aHas = a.item.order !== undefined && a.item.order !== null && a.item.order !== '';
+        const bHas = b.item.order !== undefined && b.item.order !== null && b.item.order !== '';
+        if (aHas && bHas) return Number(a.item.order) - Number(b.item.order) || a.index - b.index;
+        if (aHas) return -1;
+        if (bHas) return 1;
+        return a.index - b.index;
+      })
+      .map(({ item }) => item);
+
+  const sortedCategories = useMemo(() => sortByOrder(categories), [categories]);
+  const sortedProducts = useMemo(() => sortByOrder(products), [products]);
+
   return (
     <StoreContext.Provider
       value={{
@@ -2528,7 +2548,7 @@ export const StoreProvider = ({ children }) => {
         removeToast,
 
         // DYNAMIC PLATFORM DATA & ADMIN CRUD OPERATIONS
-        products,
+        products: sortedProducts,
         isProductsLoaded,
         addProduct,
         updateProduct,
@@ -2537,7 +2557,7 @@ export const StoreProvider = ({ children }) => {
         toggleProductFeatured,
         getProductById,
 
-        categories,
+        categories: sortedCategories,
         categorySections,
         addCategory,
         updateCategory,
