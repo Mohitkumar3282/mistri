@@ -631,6 +631,16 @@ export const Header = () => {
         </div>
       </div>
 
+      {/* Announcement Ticker (admin-set in Settings > Store Identity) - below the search bar */}
+      {siteSettings.tickerMessage && (
+        <div className="qc-ticker-strip" style={{ backgroundColor: 'var(--primary-navy)', borderColor: 'var(--primary-navy)' }}>
+          <div className="qc-ticker-content" style={{ color: '#FFFFFF', fontSize: '0.8rem', fontWeight: '700' }}>
+            <span>{siteSettings.tickerMessage}</span>
+            <span>{siteSettings.tickerMessage}</span>
+          </div>
+        </div>
+      )}
+
       {/* 3. Mega Category Bar */}
       <nav style={{ backgroundColor: 'var(--primary-navy)', color: '#FFFFFF' }}>
         <div className="container" style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', scrollbarWidth: 'none' }}>

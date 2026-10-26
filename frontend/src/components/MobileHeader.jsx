@@ -15,6 +15,7 @@ export const MobileHeader = () => {
     getNotificationPermission,
     requestNotificationPermission,
     registerPushToken,
+    siteSettings,
   } = useStore();
 
   const unreadNotifCount = (notifications || []).filter((n) => n.unread).length;
@@ -271,6 +272,16 @@ export const MobileHeader = () => {
           )}
         </form>
       </div>
+
+      {/* Announcement Ticker (admin-set in Settings > Store Identity) - below the search bar */}
+      {siteSettings.tickerMessage && (
+        <div className="qc-ticker-strip" style={{ backgroundColor: 'var(--primary-navy)', borderColor: 'var(--primary-navy)', padding: '5px 0' }}>
+          <div className="qc-ticker-content" style={{ color: '#FFFFFF', fontSize: '0.68rem', fontWeight: '700' }}>
+            <span>{siteSettings.tickerMessage}</span>
+            <span>{siteSettings.tickerMessage}</span>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
