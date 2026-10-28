@@ -33,33 +33,7 @@ export const MobileHeader = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [isScrolled, setIsScrolled] = useState(false);
-
-  // Scroll listener: when user scrolls upward (into content), collapse header so search bar is at top
-  useEffect(() => {
-    let lastScrollY = window.scrollY || document.documentElement.scrollTop;
-
-    const handleScroll = () => {
-      const scrollY = Math.max(0, window.scrollY || document.documentElement.scrollTop);
-
-      if (scrollY <= 20) {
-        // At or near top: always show full header
-        setIsScrolled(false);
-      } else if (scrollY > lastScrollY + 4) {
-        // Scrolling upward (page content moves up / user scrolling down into feed) -> hide header
-        setIsScrolled(true);
-      } else if (scrollY < lastScrollY - 12) {
-        // Scrolling downward (swiping down / user scrolling back up) -> reveal header
-        setIsScrolled(false);
-      }
-
-      lastScrollY = scrollY;
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
+  const [isScrolled, setIsScrolled] = useState(() => window.scrollY > 20);
   const searchPlaceholders = [
     'Search for Fevicol',
     'Search for Cement',
@@ -76,6 +50,15 @@ export const MobileHeader = () => {
       setPlaceholderIndex((prev) => (prev + 1) % searchPlaceholders.length);
     }, 2800);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const nextIsScrolled = window.scrollY > 20;
+      setIsScrolled((current) => current === nextIsScrolled ? current : nextIsScrolled);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const handleSearchSubmit = (e) => {
@@ -99,19 +82,15 @@ export const MobileHeader = () => {
         transition: 'box-shadow 0.25s ease',
       }}
     >
-      {/* Row 1: Left (Logo + Location Pill), Right (Notification Bell + Cart Icon) — Collapses on Scroll */}
+      {/* Row 1: Left (Logo + Location Pill), Right (Notification Bell + Cart Icon) */}
       <div
         style={{
-          maxHeight: isScrolled ? '0px' : '56px',
-          opacity: isScrolled ? 0 : 1,
-          overflow: 'hidden',
-          padding: isScrolled ? '0 12px' : '8px 12px 6px 12px',
+          minHeight: '56px',
+          padding: '8px 12px 6px 12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '8px',
-          transition: 'max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease, padding 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-          pointerEvents: isScrolled ? 'none' : 'auto',
         }}
       >
         {/* Left: Brand Logo + Location Pincode Pill */}
@@ -240,11 +219,10 @@ export const MobileHeader = () => {
         </div>
       </div>
 
-      {/* Row 2: Search Bar — Sticks at Top when Scrolled */}
+      {/* Row 2: Search Bar */}
       <div
         style={{
-          padding: isScrolled ? '8px 12px 8px 12px' : '0 12px 8px 12px',
-          transition: 'padding 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+          padding: '0 12px 8px 12px',
           backgroundColor: '#FFFFFF',
         }}
       >
@@ -292,19 +270,15 @@ export const MobileHeader = () => {
         </form>
       </div>
 
-      {/* Announcement Ticker (admin-set in Settings > Store Identity) — Collapses on Scroll */}
+      {/* Announcement Ticker (admin-set in Settings > Store Identity) */}
       {siteSettings?.tickerMessage && (
         <div
           className="qc-ticker-strip"
           style={{
             backgroundColor: 'var(--primary-navy)',
             borderColor: 'var(--primary-navy)',
-            maxHeight: isScrolled ? '0px' : '32px',
-            opacity: isScrolled ? 0 : 1,
-            overflow: 'hidden',
-            padding: isScrolled ? '0' : '5px 0',
-            transition: 'max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease, padding 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-            pointerEvents: isScrolled ? 'none' : 'auto',
+            minHeight: '32px',
+            padding: '5px 0',
           }}
         >
           <div className="qc-ticker-content" style={{ color: '#FFFFFF', fontSize: '0.68rem', fontWeight: '700' }}>
