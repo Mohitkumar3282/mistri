@@ -81,22 +81,39 @@ export const uploadBannerToCloud = async (file) => {
  * @param {object} options - Transformation options { width, height, crop, quality, format }
  */
 export const getOptimizedImageUrl = (url, options = {}) => {
-  if (!url || typeof url !== 'string' || !url.includes('res.cloudinary.com')) {
-    return url;
+  if (!url || typeof url !== 'string') {
+    return url || '';
   }
 
-  const { width, height, crop = 'fill', quality = 'auto', format = 'auto' } = options;
-  const parts = [];
-  if (width) parts.push(`w_${width}`);
-  if (height) parts.push(`h_${height}`);
-  if (crop && (width || height)) parts.push(`c_${crop}`);
-  if (quality) parts.push(`q_${quality}`);
-  if (format) parts.push(`f_${format}`);
+  // Handle Unsplash images
+  if (url.includes('images.unsplash.com')) {
+    const width = options.width || 300;
+    if (url.includes('w=')) {
+      return url.replace(/w=\d+/, `w=${width}`);
+    }
+    return `${url}${url.includes('?') ? '&' : '?'}auto=format&fit=crop&q=80&w=${width}`;
+  }
 
-  if (parts.length === 0) return url;
+  // Handle Cloudinary images
+  if (url.includes('res.cloudinary.com')) {
+    // Avoid double transformation if already present
+    if (url.includes('/image/upload/f_auto') || url.includes('/image/upload/w_') || url.includes('/image/upload/q_auto')) {
+      return url;
+    }
 
-  const transformString = parts.join(',');
-  return url.replace('/image/upload/', `/image/upload/${transformString}/`);
+    const { width = 240, height = 240, crop = 'limit', quality = 'auto', format = 'auto' } = options;
+    const parts = [];
+    if (format) parts.push(`f_${format}`);
+    if (quality) parts.push(`q_${quality}`);
+    if (width) parts.push(`w_${width}`);
+    if (height) parts.push(`h_${height}`);
+    if (crop) parts.push(`c_${crop}`);
+
+    const transformString = parts.join(',');
+    return url.replace('/image/upload/', `/image/upload/${transformString}/`);
+  }
+
+  return url;
 };
 
 export default {

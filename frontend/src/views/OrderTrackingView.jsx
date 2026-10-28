@@ -9,7 +9,7 @@ export const OrderTrackingView = () => {
   const { viewParams, navigateTo, getOrderById, siteSettings } = useStore();
   const orderId = viewParams?.id || viewParams?.orderId || viewParams?.order?.id || 'MST-100245';
   const order = getOrderById(orderId) || MOCK_ORDERS[0];
-  const deliveryInfo = getDeliverySchedule(order);
+  const deliveryInfo = getDeliverySchedule(order, siteSettings);
 
   // The 4-step timeline is driven directly by the admin's order status (set via the
   // dropdown in Admin > Orders), not a separate stored snapshot - so it always reflects
@@ -82,7 +82,9 @@ export const OrderTrackingView = () => {
             <div style={{ fontSize: '0.76rem', color: '#3B82F6', fontWeight: '500' }}>
               {deliveryInfo.isAfter8PM
                 ? `Night Order · Scheduled for Next Day Delivery (${order.deliveryDate || deliveryInfo.deliveryDate})`
-                : `Active express delivery assignment`}
+                : deliveryInfo.expressEnabled
+                ? `Active express delivery assignment`
+                : `Active delivery assignment`}
             </div>
           </div>
         </div>

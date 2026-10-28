@@ -2,6 +2,7 @@ import React from 'react';
 import { Truck, Plus, Minus } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { getProductOptions } from '../utils/pricing';
+import { getOptimizedImageUrl } from '../services/cloudinaryService';
 
 /**
  * Quick Commerce Product Card (Compact & Mobile Responsive)
@@ -87,10 +88,11 @@ export const ProductCard = ({ product }) => {
 
           {/* Product Image */}
           <img
-            src={product.image || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400'}
+            src={getOptimizedImageUrl(product.image, { width: 360, height: 360, crop: 'limit' }) || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400'}
             alt={product.name || 'Product'}
             className="qc-product-img"
             loading="lazy"
+            decoding="async"
             onError={(e) => {
               e.currentTarget.onerror = null;
               e.currentTarget.src = 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=400';

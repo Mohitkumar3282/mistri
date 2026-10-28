@@ -80,6 +80,18 @@ import { uploadBannerToCloud } from '../services/cloudinaryService';
 import { printTaxInvoice } from '../utils/printInvoice';
 import { cashbackOffer, cashbackDiscount } from '../utils/pricing';
 
+const DEFAULT_CATEGORY_IMAGE = 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=300';
+// A category's image upload shows a local base64 preview immediately, then replaces it
+// with the real Cloudinary URL once the upload finishes - but nothing stopped someone
+// from hitting Save in that gap, saving the raw (sometimes multi-MB) preview as the
+// permanent value. That alone made every category list load take 50-70s. This is the
+// last line of defense: a save can never persist raw image data past a small size.
+const MAX_INLINE_IMAGE_CHARS = 50000;
+const safeCategoryImage = (value) =>
+  typeof value === 'string' && value.startsWith('data:') && value.length > MAX_INLINE_IMAGE_CHARS
+    ? null
+    : (value || DEFAULT_CATEGORY_IMAGE);
+
 export default function AdminView() {
   const {
     adminActiveTab,
@@ -2965,12 +2977,13 @@ export default function AdminView() {
                 e.preventDefault();
                 const title = (modalFormData.title || modalFormData.name || '').trim();
                 if (!title) return;
+                const safeImage = safeCategoryImage(modalFormData.image);
                 const newParent = {
                   id: `cat_${Date.now()}`,
                   name: title,
                   slug: modalFormData.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
                   description: modalFormData.description || `Primary category for ${title}`,
-                  image: modalFormData.image || '',
+                  image: safeImage || DEFAULT_CATEGORY_IMAGE,
                   order: modalFormData.order !== undefined && modalFormData.order !== '' ? Number(modalFormData.order) : 0,
                   isActive: modalFormData.isActive !== undefined ? modalFormData.isActive : true,
                   subcategories: [],
@@ -2978,7 +2991,11 @@ export default function AdminView() {
                   lastUpdated: 'Just now',
                 };
                 addCategory(newParent);
-                addToast(`Category "${title}" created successfully`, 'success');
+                if (safeImage === null) {
+                  addToast('Category created, but the image upload hadn\'t finished yet so a default image was used - edit the category to re-upload it.', 'warning', 8000);
+                } else {
+                  addToast(`Category "${title}" created successfully`, 'success');
+                }
                 setActiveModal(null);
                 setModalFormData({});
               }}
@@ -3259,16 +3276,22 @@ export default function AdminView() {
                 const title = (modalFormData.name || modalFormData.title || '').trim();
                 if (!title) return;
                 const catId = modalFormData.id || modalFormData.slug;
+                const existingCat = categories.find((c) => (c.id || c.slug) === catId);
+                const safeImage = safeCategoryImage(modalFormData.image);
                 updateCategory(catId, {
                   name: title,
                   slug: modalFormData.slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
                   description: modalFormData.description || '',
-                  image: modalFormData.image || '',
+                  image: safeImage || existingCat?.image || DEFAULT_CATEGORY_IMAGE,
                   order: modalFormData.order !== undefined && modalFormData.order !== '' ? Number(modalFormData.order) : 0,
                   isActive: modalFormData.isActive !== undefined ? modalFormData.isActive : true,
                   lastUpdated: 'Just now',
                 });
-                addToast(`Category "${title}" updated successfully`, 'success');
+                if (safeImage === null) {
+                  addToast('Category updated, but the new image upload hadn\'t finished yet so the previous image was kept - try uploading it again.', 'warning', 8000);
+                } else {
+                  addToast(`Category "${title}" updated successfully`, 'success');
+                }
                 setActiveModal(null);
                 setModalFormData({});
               }}
@@ -12710,6 +12733,115 @@ export default function AdminView() {
               />
             </div>
           </div>
+        </div>
+
+        {/* SECTION 8: Express Delivery */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            border: `1px solid ${theme.cardBorder}`,
+            padding: '1.5rem',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.25rem', paddingBottom: '0.85rem', borderBottom: '1px solid #F1F5F9' }}>
+            <div style={{ width: '28px', height: '28px', borderRadius: '8px', backgroundColor: '#FFFBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706' }}>
+              <Zap size={16} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                Shop Hours & Express Delivery
+              </h2>
+              <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                Orders placed within shop hours get same-day/express handling; outside them, next-day.
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px', marginBottom: '18px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                Opening Time
+              </label>
+              <input
+                type="time"
+                value={siteSettings.shopOpeningTime || '06:00'}
+                onChange={(e) => updateSiteSettings({ shopOpeningTime: e.target.value })}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                Closing Time
+              </label>
+              <input
+                type="time"
+                value={siteSettings.shopClosingTime || '20:00'}
+                onChange={(e) => updateSiteSettings({ shopClosingTime: e.target.value })}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: siteSettings.expressDeliveryEnabled !== false ? '14px' : 0 }}>
+            <div>
+              <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0F172A' }}>Enable Express Delivery</div>
+              <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '2px' }}>
+                When off, same-day orders show as regular delivery with no "Express" badge or time promise.
+              </div>
+            </div>
+            <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', flexShrink: 0 }}>
+              <input
+                type="checkbox"
+                checked={siteSettings.expressDeliveryEnabled !== false}
+                onChange={(e) => updateSiteSettings({ expressDeliveryEnabled: e.target.checked })}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span
+                style={{
+                  position: 'absolute',
+                  cursor: 'pointer',
+                  inset: 0,
+                  backgroundColor: siteSettings.expressDeliveryEnabled !== false ? '#10B981' : '#CBD5E1',
+                  borderRadius: '9999px',
+                  transition: 'background-color 0.15s ease',
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    height: '18px',
+                    width: '18px',
+                    left: siteSettings.expressDeliveryEnabled !== false ? '23px' : '3px',
+                    bottom: '3px',
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '50%',
+                    transition: 'left 0.15s ease',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                  }}
+                />
+              </span>
+            </label>
+          </div>
+
+          {siteSettings.expressDeliveryEnabled !== false && (
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                Delivery Time Estimate
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 60-90 Mins"
+                value={siteSettings.expressDeliveryEstimate || ''}
+                onChange={(e) => updateSiteSettings({ expressDeliveryEstimate: e.target.value })}
+                style={{ width: '100%', maxWidth: '280px', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+              />
+              <p style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px' }}>
+                Shown to customers as "Today, Express in {siteSettings.expressDeliveryEstimate || '60-90 Mins'}".
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );

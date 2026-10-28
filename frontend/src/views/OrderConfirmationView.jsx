@@ -8,7 +8,7 @@ import { getDeliverySchedule } from '../utils/deliverySchedule';
 export const OrderConfirmationView = () => {
   const { viewParams, navigateTo, addToast, siteSettings } = useStore();
   const order = viewParams?.order || MOCK_ORDERS[0];
-  const deliveryInfo = getDeliverySchedule(order);
+  const deliveryInfo = getDeliverySchedule(order, siteSettings);
 
   const handleDownloadInvoice = () => {
     printTaxInvoice(order, siteSettings);
@@ -114,7 +114,7 @@ export const OrderConfirmationView = () => {
               </div>
               <div style={{ fontSize: '0.82rem', color: '#3B82F6', marginTop: '2px', fontWeight: '600' }}>
                 {deliveryInfo.isAfter8PM
-                  ? `Placed after 8:00 PM (${order.date || deliveryInfo.orderDate}) · Scheduled for priority delivery tomorrow.`
+                  ? `Placed after ${deliveryInfo.closingTimeLabel} (${order.date || deliveryInfo.orderDate}) · Scheduled for priority delivery tomorrow.`
                   : `Dispatched from nearest hub for same-day delivery today.`}
               </div>
             </div>

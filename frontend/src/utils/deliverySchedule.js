@@ -1,7 +1,19 @@
 /**
- * Utility functions for calculating delivery schedules and after-8 PM cutoff notices.
- * Cutoff: Orders placed at or after 8:00 PM (20:00) are scheduled for Next Day delivery.
+ * Utility functions for calculating delivery schedules and after-closing-time cutoff
+ * notices. The cutoff is the admin-set shop closing time (settings.shopClosingTime,
+ * default 8:00 PM): orders placed at or after it, or before the shop opens
+ * (settings.shopOpeningTime, default 6:00 AM), are scheduled for Next Day delivery.
  */
+
+// "20:00" -> "8:00 PM"
+function formatHourLabel(hhmm, fallback) {
+  const [h, m] = String(hhmm || '').split(':').map(Number);
+  if (Number.isNaN(h)) return fallback;
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  const minuteStr = String(m || 0).padStart(2, '0');
+  return `${hour12}:${minuteStr} ${period}`;
+}
 
 export function formatDateDDMMYYYY(date) {
   const d = new Date(date);
@@ -20,7 +32,13 @@ export function formatDateLong(date) {
   });
 }
 
-export function getDeliverySchedule(input) {
+export function getDeliverySchedule(input, settings = {}) {
+  const expressEnabled = settings.expressDeliveryEnabled !== false;
+  const expressEstimate = settings.expressDeliveryEstimate || '60-90 Mins';
+  const closingHour = parseInt(String(settings.shopClosingTime || '20:00').split(':')[0], 10) || 20;
+  const openingHour = parseInt(String(settings.shopOpeningTime || '06:00').split(':')[0], 10) || 6;
+  const closingLabel = formatHourLabel(settings.shopClosingTime, '8:00 PM');
+  const openingLabel = formatHourLabel(settings.shopOpeningTime, '6:00 AM');
   let orderTime = new Date();
 
   if (input instanceof Date) {
@@ -47,8 +65,10 @@ export function getDeliverySchedule(input) {
   }
 
   const hours = orderTime.getHours();
-  // Cutoff at 8:00 PM (20:00) onwards or early morning before 6 AM
-  const isAfter8PM = hours >= 20 || hours < 6;
+  // Cutoff at the admin-set closing hour onwards, or before the admin-set opening hour.
+  // Kept as `isAfter8PM` for the many existing call sites, even though the actual hour
+  // is now whatever the admin configured, not necessarily 8 PM.
+  const isAfter8PM = hours >= closingHour || hours < openingHour;
 
   const orderDateStr = formatDateDDMMYYYY(orderTime);
   const orderDateLong = formatDateLong(orderTime);
@@ -68,13 +88,18 @@ export function getDeliverySchedule(input) {
     : `Your order will be delivered today (${deliveryDateStr})`;
 
   const checkoutBannerMessage = isAfter8PM
-    ? `🌙 Night Order Notice: Orders placed after 8:00 PM are scheduled for Next Day Delivery on ${deliveryDateStr}.`
-    : `⚡ Express Daytime Delivery: Fast dispatch active for orders placed before 8:00 PM.`;
+    ? `🌙 Night Order Notice: Orders placed after ${closingLabel} are scheduled for Next Day Delivery on ${deliveryDateStr}.`
+    : expressEnabled
+    ? `⚡ Express Daytime Delivery: Fast dispatch active for orders placed before ${closingLabel}.`
+    : `Your order will be delivered today (${deliveryDateStr}).`;
 
   const topHeaderNotice = `Your order will be delivered on ${deliveryDateStr}`;
 
   return {
     isAfter8PM,
+    expressEnabled,
+    closingTimeLabel: closingLabel,
+    openingTimeLabel: openingLabel,
     orderDate: orderDateStr,
     orderDateLong,
     deliveryDate: deliveryDateStr,
@@ -84,6 +109,8 @@ export function getDeliverySchedule(input) {
     topHeaderNotice,
     expectedDelivery: isAfter8PM
       ? `Tomorrow (${deliveryDateStr}), by 12:00 PM`
-      : `Today (${deliveryDateStr}), Express in 60-90 Mins`,
+      : expressEnabled
+      ? `Today (${deliveryDateStr}), Express in ${expressEstimate}`
+      : `Today (${deliveryDateStr})`,
   };
 }

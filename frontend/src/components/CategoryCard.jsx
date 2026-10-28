@@ -1,5 +1,6 @@
 import React from 'react';
 import { useStore } from '../context/StoreContext';
+import { getOptimizedImageUrl } from '../services/cloudinaryService';
 
 /**
  * Isolated Category Product Illustration Renderer
@@ -467,10 +468,11 @@ const CategoryGraphic = ({ slug, name, category, image }) => {
     default:
       return (
         <img
-          src={categoryImage || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=300'}
+          src={getOptimizedImageUrl(categoryImage, { width: 240, height: 240, crop: 'limit' }) || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=300'}
           alt={name || 'Category'}
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           loading="lazy"
+          decoding="async"
           onError={(e) => {
             e.target.onerror = null;
             e.target.src = 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=300';

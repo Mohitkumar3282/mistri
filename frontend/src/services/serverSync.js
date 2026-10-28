@@ -161,28 +161,6 @@ export const useServerSync = ({ collections, settings, account, session, onError
     if (gen !== generation.current) return;
 
     const serverItems = (res?.data || []).map(cfg.fromServer || ((x) => x));
-    const local = latest.current[cfg.name] || [];
-
-    // Admin safety net: if the local cache has records that are missing on the server,
-    // merge them and schedule a push to MongoDB rather than discarding the administrator's additions.
-    if (initial && cfg.write === 'admin' && sess.isAdmin && Array.isArray(local) && local.length > 0) {
-      const getKey = keyFn(cfg);
-      const serverKeySet = new Set(serverItems.map((item) => String(getKey(item))));
-      const missingOnServer = local.filter((item) => {
-        const k = getKey(item);
-        return k !== undefined && k !== null && k !== '' && !serverKeySet.has(String(k));
-      });
-
-      if (missingOnServer.length > 0) {
-        const merged = [...serverItems, ...missingOnServer];
-        snapshots.current[cfg.name] = toSnapshot(cfg, serverItems);
-        hydrated.current[cfg.name] = true;
-        setState(merged);
-        callbacks.current.onLoaded?.(cfg.name, merged);
-        schedulePush(cfg);
-        return;
-      }
-    }
 
     const nextSnapshot = toSnapshot(cfg, serverItems);
     const previous = snapshots.current[cfg.name];

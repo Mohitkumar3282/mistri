@@ -32,7 +32,7 @@ export const OrderDetailsView = () => {
     '89418210';
 
   const order = getOrderById(orderId) || viewParams?.order || MOCK_ORDERS[0];
-  const deliveryInfo = getDeliverySchedule(order);
+  const deliveryInfo = getDeliverySchedule(order, siteSettings);
 
   const handleDownloadInvoice = () => {
     printTaxInvoice(order, siteSettings);
@@ -271,7 +271,9 @@ export const OrderDetailsView = () => {
               <div style={{ fontSize: '0.75rem', color: '#3B82F6', fontWeight: '500' }}>
                 {deliveryInfo.isAfter8PM
                   ? `Night Order · Scheduled for next day priority delivery (${order.deliveryDate || deliveryInfo.deliveryDate})`
-                  : `Express daytime delivery active`}
+                  : deliveryInfo.expressEnabled
+                  ? `Express daytime delivery active`
+                  : `Daytime delivery active`}
               </div>
             </div>
           </div>
@@ -331,7 +333,9 @@ export const OrderDetailsView = () => {
                 <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
                   {order.statusCode === 'delivered'
                     ? 'Consignment safely delivered & unloaded'
-                    : `Express Site Delivery · ETA: ${order.expressTime || '85-90 mins'}`}
+                    : siteSettings.expressDeliveryEnabled !== false
+                    ? `Express Site Delivery · ETA: ${order.expressTime || siteSettings.expressDeliveryEstimate || '60-90 Mins'}`
+                    : 'Site Delivery'}
                 </span>
               </div>
             </div>
@@ -518,22 +522,24 @@ export const OrderDetailsView = () => {
             <h3 style={{ fontSize: '0.94rem', fontWeight: '800', color: '#0F172A', margin: 0 }}>
               Items in this Order ({order.items?.length || 1})
             </h3>
-            <span
-              style={{
-                backgroundColor: '#FFFBEB',
-                color: '#D97706',
-                border: '1px solid #FDE68A',
-                borderRadius: '9999px',
-                fontSize: '0.66rem',
-                fontWeight: '800',
-                padding: '2px 7px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '3px',
-              }}
-            >
-              <Zap size={10} fill="#D97706" /> EXPRESS
-            </span>
+            {siteSettings.expressDeliveryEnabled !== false && (
+              <span
+                style={{
+                  backgroundColor: '#FFFBEB',
+                  color: '#D97706',
+                  border: '1px solid #FDE68A',
+                  borderRadius: '9999px',
+                  fontSize: '0.66rem',
+                  fontWeight: '800',
+                  padding: '2px 7px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                }}
+              >
+                <Zap size={10} fill="#D97706" /> EXPRESS
+              </span>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

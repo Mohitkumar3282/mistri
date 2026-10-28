@@ -198,6 +198,14 @@ const INITIAL_SETTINGS = {
   defaultDriverName: 'Vishal Patidar',
   defaultDriverPhone: '',
   defaultVehicleNumber: '',
+  // Express Delivery: whether same-day orders (placed before the shop's closing time)
+  // are promoted as fast/express, and what estimate is shown for them.
+  expressDeliveryEnabled: true,
+  expressDeliveryEstimate: '60-90 Mins',
+  // Shop hours (24-hour "HH:mm"). Orders placed outside this window are scheduled for
+  // next-day delivery instead of same-day.
+  shopOpeningTime: '06:00',
+  shopClosingTime: '20:00',
   cancellationPolicy: [
     'Orders cannot be modified once packed.',
     'Delivery location of an Order cannot be changed. INR 249 additional charges in unavoidable cases.',
@@ -957,7 +965,7 @@ export const StoreProvider = ({ children }) => {
     const siteAddress = orderData.siteAddress || addresses[0];
     const orderItems = orderData.items && orderData.items.length > 0 ? orderData.items : [...cart];
     const now = new Date();
-    const deliveryInfo = getDeliverySchedule(now);
+    const deliveryInfo = getDeliverySchedule(now, siteSettings);
 
     const request = {
       items: orderItems.map((item) => ({
@@ -1467,11 +1475,12 @@ export const StoreProvider = ({ children }) => {
           categories: [created],
           isActive: true,
         };
-        try {
-          api.collection.save('/category-sections', newSecObj.id, newSecObj, { auth: 'admin' })
-            .then(() => markSynced('categorySections', newSecObj))
-            .catch(() => {});
-        } catch (e) {}
+        api.collection.save('/category-sections', newSecObj.id, newSecObj, { auth: 'admin' })
+          .then(() => markSynced('categorySections', newSecObj))
+          .catch((err) => {
+            console.warn('Backend section save warning:', err);
+            addToast(`New section "${sectionName}" NOT saved to database: ${err?.message || 'unknown error'}. It will disappear on refresh.`, 'error', 9000);
+          });
         return [newSecObj, ...prev];
       }
     });
@@ -1498,6 +1507,11 @@ export const StoreProvider = ({ children }) => {
         addToast('Category updated in database', 'success');
       } catch (err) {
         console.warn('Backend category update warning:', err);
+        if (err?.status === 401 || err?.status === 403) {
+          addToast('Change NOT saved - admin token is missing or expired. Please re-login as Admin.', 'error', 8000);
+        } else {
+          addToast(`Change NOT saved to database: ${err?.message || 'unknown error'}. It will revert on refresh.`, 'error', 9000);
+        }
       }
     }
     // Keep the copy stored inside its storefront section in step.
@@ -1527,6 +1541,11 @@ export const StoreProvider = ({ children }) => {
       addToast('Category deleted from database', 'info');
     } catch (err) {
       console.warn('Backend category delete warning:', err);
+      if (err?.status === 401 || err?.status === 403) {
+        addToast('NOT deleted from the database - admin token is missing or expired. It will reappear on refresh.', 'error', 8000);
+      } else {
+        addToast(`NOT deleted from the database: ${err?.message || 'unknown error'}. It will reappear on refresh.`, 'error', 9000);
+      }
     }
   };
 
@@ -1553,6 +1572,11 @@ export const StoreProvider = ({ children }) => {
       addToast(`Parent Category "${created.title}" saved to database!`, 'success');
     } catch (err) {
       console.warn('Backend section save warning:', err);
+      if (err?.status === 401 || err?.status === 403) {
+        addToast('Parent Category NOT saved - admin token is missing or expired. Please re-login as Admin.', 'error', 8000);
+      } else {
+        addToast(`Parent Category NOT saved to database: ${err?.message || 'unknown error'}. It will disappear on refresh.`, 'error', 9000);
+      }
     }
 
     return created;
@@ -1577,6 +1601,11 @@ export const StoreProvider = ({ children }) => {
         addToast('Parent Category updated in database', 'success');
       } catch (err) {
         console.warn('Backend section update warning:', err);
+        if (err?.status === 401 || err?.status === 403) {
+          addToast('Change NOT saved - admin token is missing or expired. Please re-login as Admin.', 'error', 8000);
+        } else {
+          addToast(`Change NOT saved to database: ${err?.message || 'unknown error'}. It will revert on refresh.`, 'error', 9000);
+        }
       }
     }
   };
@@ -1588,6 +1617,11 @@ export const StoreProvider = ({ children }) => {
       addToast('Parent Category removed from database', 'info');
     } catch (err) {
       console.warn('Backend section delete warning:', err);
+      if (err?.status === 401 || err?.status === 403) {
+        addToast('NOT deleted from the database - admin token is missing or expired. It will reappear on refresh.', 'error', 8000);
+      } else {
+        addToast(`NOT deleted from the database: ${err?.message || 'unknown error'}. It will reappear on refresh.`, 'error', 9000);
+      }
     }
   };
 

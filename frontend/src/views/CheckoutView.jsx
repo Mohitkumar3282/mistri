@@ -97,7 +97,7 @@ export const CheckoutView = () => {
     };
 
   const isOnline = paymentMethod === 'online';
-  const deliveryInfo = getDeliverySchedule(new Date());
+  const deliveryInfo = getDeliverySchedule(new Date(), siteSettings);
 
   // Check if current selected delivery location is serviceable based on Admin settings
   const serviceability = checkDeliveryServiceability({
@@ -295,11 +295,15 @@ export const CheckoutView = () => {
           {deliveryInfo.isAfter8PM ? (
             <>
               🌙 <strong>Night Order:</strong> Your order will be delivered on{' '}
-              <strong style={{ textDecoration: 'underline', color: '#9A3412' }}>{deliveryInfo.deliveryDate}</strong> (Orders placed after 8:00 PM are delivered next day)
+              <strong style={{ textDecoration: 'underline', color: '#9A3412' }}>{deliveryInfo.deliveryDate}</strong> (Orders placed after {deliveryInfo.closingTimeLabel} are delivered next day)
+            </>
+          ) : deliveryInfo.expressEnabled ? (
+            <>
+              ⚡ <strong>Express Daytime Delivery:</strong> Your order will be delivered today ({deliveryInfo.deliveryDate})
             </>
           ) : (
             <>
-              ⚡ <strong>Express Daytime Delivery:</strong> Your order will be delivered today ({deliveryInfo.deliveryDate})
+              Your order will be delivered today ({deliveryInfo.deliveryDate})
             </>
           )}
         </span>
@@ -351,8 +355,10 @@ export const CheckoutView = () => {
               </div>
               <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
                 {deliveryInfo.isAfter8PM
-                  ? 'Order placed after 8:00 PM cutoff · First slot dispatch tomorrow morning'
-                  : 'Fast dispatch within 60-90 minutes'}
+                  ? `Order placed after ${deliveryInfo.closingTimeLabel} cutoff · First slot dispatch tomorrow morning`
+                  : deliveryInfo.expressEnabled
+                  ? `Fast dispatch within ${siteSettings.expressDeliveryEstimate || '60-90 Mins'}`
+                  : 'Dispatched today'}
               </div>
             </div>
           </div>

@@ -35,11 +35,25 @@ export const MobileHeader = () => {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // Scroll listener to hide logo and move search bar to top
+  // Scroll listener: when user scrolls upward (into content), collapse header so search bar is at top
   useEffect(() => {
+    let lastScrollY = window.scrollY || document.documentElement.scrollTop;
+
     const handleScroll = () => {
-      const scrollY = window.scrollY || document.documentElement.scrollTop;
-      setIsScrolled(scrollY > 25);
+      const scrollY = Math.max(0, window.scrollY || document.documentElement.scrollTop);
+
+      if (scrollY <= 20) {
+        // At or near top: always show full header
+        setIsScrolled(false);
+      } else if (scrollY > lastScrollY + 4) {
+        // Scrolling upward (page content moves up / user scrolling down into feed) -> hide header
+        setIsScrolled(true);
+      } else if (scrollY < lastScrollY - 12) {
+        // Scrolling downward (swiping down / user scrolling back up) -> reveal header
+        setIsScrolled(false);
+      }
+
+      lastScrollY = scrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -85,14 +99,19 @@ export const MobileHeader = () => {
         transition: 'box-shadow 0.25s ease',
       }}
     >
-      {/* Row 1: Left (Logo + Location Pill), Right (Wallet Pill + Cart Icon) */}
+      {/* Row 1: Left (Logo + Location Pill), Right (Notification Bell + Cart Icon) — Collapses on Scroll */}
       <div
         style={{
-          padding: '8px 12px 6px 12px',
+          maxHeight: isScrolled ? '0px' : '56px',
+          opacity: isScrolled ? 0 : 1,
+          overflow: 'hidden',
+          padding: isScrolled ? '0 12px' : '8px 12px 6px 12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '8px',
+          transition: 'max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease, padding 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+          pointerEvents: isScrolled ? 'none' : 'auto',
         }}
       >
         {/* Left: Brand Logo + Location Pincode Pill */}
@@ -225,7 +244,7 @@ export const MobileHeader = () => {
       <div
         style={{
           padding: isScrolled ? '8px 12px 8px 12px' : '0 12px 8px 12px',
-          transition: 'padding 0.2s ease',
+          transition: 'padding 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
           backgroundColor: '#FFFFFF',
         }}
       >
@@ -273,9 +292,21 @@ export const MobileHeader = () => {
         </form>
       </div>
 
-      {/* Announcement Ticker (admin-set in Settings > Store Identity) - below the search bar */}
-      {siteSettings.tickerMessage && (
-        <div className="qc-ticker-strip" style={{ backgroundColor: 'var(--primary-navy)', borderColor: 'var(--primary-navy)', padding: '5px 0' }}>
+      {/* Announcement Ticker (admin-set in Settings > Store Identity) — Collapses on Scroll */}
+      {siteSettings?.tickerMessage && (
+        <div
+          className="qc-ticker-strip"
+          style={{
+            backgroundColor: 'var(--primary-navy)',
+            borderColor: 'var(--primary-navy)',
+            maxHeight: isScrolled ? '0px' : '32px',
+            opacity: isScrolled ? 0 : 1,
+            overflow: 'hidden',
+            padding: isScrolled ? '0' : '5px 0',
+            transition: 'max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease, padding 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+            pointerEvents: isScrolled ? 'none' : 'auto',
+          }}
+        >
           <div className="qc-ticker-content" style={{ color: '#FFFFFF', fontSize: '0.68rem', fontWeight: '700' }}>
             <span>{siteSettings.tickerMessage}</span>
             <span>{siteSettings.tickerMessage}</span>

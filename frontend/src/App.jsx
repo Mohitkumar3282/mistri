@@ -13,31 +13,48 @@ import QuotationModal from './components/QuotationModal';
 import LoginModal from './components/LoginModal';
 import ToastContainer from './components/Toast';
 
-// 23 Views
+// HomeView and LoginView are the two first-paint screens (logged-in and logged-out
+// landing views), so they stay in the main bundle. Every other view is only needed once
+// someone actually navigates there, so it loads as its own chunk on demand instead of
+// bloating what every visitor downloads just to see the home page.
 import HomeView from './views/HomeView';
-import CategoriesView from './views/CategoriesView';
-import ProductListingView from './views/ProductListingView';
-import SearchResultsView from './views/SearchResultsView';
-import ProductDetailsView from './views/ProductDetailsView';
-import CartView from './views/CartView';
-import CheckoutView from './views/CheckoutView';
-import OrderConfirmationView from './views/OrderConfirmationView';
-import MyOrdersView from './views/MyOrdersView';
-import OrderDetailsView from './views/OrderDetailsView';
-import OrderTrackingView from './views/OrderTrackingView';
-import WishlistView from './views/WishlistView';
-import ProfileView from './views/ProfileView';
-import AddressesView from './views/AddressesView';
-import NotificationsView from './views/NotificationsView';
 import LoginView from './views/LoginView';
-import SignupView from './views/SignupView';
-import ForgotPasswordView from './views/ForgotPasswordView';
-import AboutView from './views/AboutView';
-import ContactView from './views/ContactView';
-import HelpFaqView from './views/HelpFaqView';
-import TermsView from './views/TermsView';
-import PrivacyPolicyView from './views/PrivacyPolicyView';
-import AdminView from './views/AdminView';
+
+const CategoriesView = React.lazy(() => import('./views/CategoriesView'));
+const ProductListingView = React.lazy(() => import('./views/ProductListingView'));
+const SearchResultsView = React.lazy(() => import('./views/SearchResultsView'));
+const ProductDetailsView = React.lazy(() => import('./views/ProductDetailsView'));
+const CartView = React.lazy(() => import('./views/CartView'));
+const CheckoutView = React.lazy(() => import('./views/CheckoutView'));
+const OrderConfirmationView = React.lazy(() => import('./views/OrderConfirmationView'));
+const MyOrdersView = React.lazy(() => import('./views/MyOrdersView'));
+const OrderDetailsView = React.lazy(() => import('./views/OrderDetailsView'));
+const OrderTrackingView = React.lazy(() => import('./views/OrderTrackingView'));
+const WishlistView = React.lazy(() => import('./views/WishlistView'));
+const ProfileView = React.lazy(() => import('./views/ProfileView'));
+const AddressesView = React.lazy(() => import('./views/AddressesView'));
+const NotificationsView = React.lazy(() => import('./views/NotificationsView'));
+const SignupView = React.lazy(() => import('./views/SignupView'));
+const ForgotPasswordView = React.lazy(() => import('./views/ForgotPasswordView'));
+const AboutView = React.lazy(() => import('./views/AboutView'));
+const ContactView = React.lazy(() => import('./views/ContactView'));
+const HelpFaqView = React.lazy(() => import('./views/HelpFaqView'));
+const TermsView = React.lazy(() => import('./views/TermsView'));
+const PrivacyPolicyView = React.lazy(() => import('./views/PrivacyPolicyView'));
+
+// Admin panel is huge and only ever used by the store owner, not shoppers - loading it
+// as a separate chunk keeps it out of what every customer downloads just to browse.
+const AdminView = React.lazy(() => import('./views/AdminView'));
+
+const AdminLoadingFallback = () => (
+  <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ color: '#64748B', fontSize: '0.9rem', fontWeight: 600 }}>Loading admin panel...</div>
+  </div>
+);
+
+// A view switching in mid-page shouldn't blank the whole screen while its chunk
+// downloads - render nothing for a beat instead of a visible loading flash.
+const ViewLoadingFallback = () => null;
 
 function MainAppLayout() {
   const { currentView, user } = useStore();
@@ -48,7 +65,9 @@ function MainAppLayout() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <main style={{ flex: 1 }}>
-          <AdminView />
+          <React.Suspense fallback={<AdminLoadingFallback />}>
+            <AdminView />
+          </React.Suspense>
         </main>
         <ToastContainer />
       </div>
@@ -70,6 +89,7 @@ function MainAppLayout() {
             padding: '1.5rem 1rem',
           }}
         >
+          <React.Suspense fallback={<ViewLoadingFallback />}>
           {currentView === 'signup' ? (
             <SignupView />
           ) : currentView === 'forgot-password' ? (
@@ -87,6 +107,7 @@ function MainAppLayout() {
           ) : (
             <LoginView />
           )}
+          </React.Suspense>
         </main>
         <ToastContainer />
       </div>
@@ -100,7 +121,11 @@ function MainAppLayout() {
   const renderActiveView = () => {
     switch (currentView) {
       case 'admin':
-        return <AdminView />;
+        return (
+          <React.Suspense fallback={<AdminLoadingFallback />}>
+            <AdminView />
+          </React.Suspense>
+        );
       case 'home':
         return <HomeView />;
       case 'categories':
@@ -156,7 +181,9 @@ function MainAppLayout() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <main style={{ flex: 1 }}>
-          <AdminView />
+          <React.Suspense fallback={<AdminLoadingFallback />}>
+            <AdminView />
+          </React.Suspense>
         </main>
         <ToastContainer />
       </div>
@@ -173,7 +200,9 @@ function MainAppLayout() {
 
       {/* Dynamic Main View */}
       <main style={{ flex: 1 }}>
-        {renderActiveView()}
+        <React.Suspense fallback={<ViewLoadingFallback />}>
+          {renderActiveView()}
+        </React.Suspense>
       </main>
 
       {/* Universal Footer */}

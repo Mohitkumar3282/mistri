@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, X, ChevronRight, Layers } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { CATEGORY_SECTIONS } from '../data/mockData';
+import { getOptimizedImageUrl } from '../services/cloudinaryService';
 
 export const CategoriesView = () => {
   const { navigateTo, categorySections, categories } = useStore();
@@ -249,7 +250,7 @@ export const CategoriesView = () => {
                         }}
                       >
                         <img
-                          src={cat.image}
+                          src={getOptimizedImageUrl(cat.image, { width: 240, height: 240, crop: 'limit' }) || 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=300'}
                           alt={cat.name}
                           style={{
                             width: '100%',
@@ -258,6 +259,7 @@ export const CategoriesView = () => {
                             borderRadius: '10px',
                           }}
                           loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src =

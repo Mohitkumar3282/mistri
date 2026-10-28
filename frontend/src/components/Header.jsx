@@ -665,9 +665,10 @@ export const Header = () => {
             <span>ALL CATEGORIES</span>
           </button>
 
-          {/* Category Links */}
+          {/* Category Links - every active category, not just the first 10; the bar
+              already scrolls horizontally so nothing an admin added is hidden here. */}
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: '2px', paddingLeft: '8px', flex: 1, overflowX: 'auto' }}>
-            {(categories || []).slice(0, 10).map((cat) => (
+            {(categories || []).map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => handleSelectCategory(cat.slug)}

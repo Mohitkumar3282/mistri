@@ -16,7 +16,7 @@ import { useStore } from '../context/StoreContext';
 import { getDeliverySchedule } from '../utils/deliverySchedule';
 
 export const MyOrdersView = () => {
-  const { orders: storeOrders, navigateTo, user, adminUser, openLoginModal } = useStore();
+  const { orders: storeOrders, navigateTo, user, adminUser, openLoginModal, siteSettings } = useStore();
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'delivered' | 'cancelled'
 
   if (!user) {
@@ -318,7 +318,7 @@ export const MyOrdersView = () => {
 
               const itemCount = order.items?.reduce((sum, i) => sum + (i.quantity || 1), 0) || 1;
               const paymentMode = order.paymentMode || 'online';
-              const orderDeliveryInfo = getDeliverySchedule(order);
+              const orderDeliveryInfo = getDeliverySchedule(order, siteSettings);
               const formattedPrice = (
                 order.summary?.totalAmount ||
                 order.totalPrice ||
