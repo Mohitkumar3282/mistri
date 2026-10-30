@@ -202,6 +202,7 @@ const INITIAL_SETTINGS = {
   // are promoted as fast/express, and what estimate is shown for them.
   expressDeliveryEnabled: true,
   expressDeliveryEstimate: '60-90 Mins',
+  expressDeliveryFee: 0,
   // Shop hours (24-hour "HH:mm"). Orders placed outside this window are scheduled for
   // next-day delivery instead of same-day.
   shopOpeningTime: '06:00',
@@ -813,12 +814,19 @@ export const StoreProvider = ({ children }) => {
     cashbackAmount,
     cashbackNote,
     deliveryFee,
+    expressDeliveryFee,
     deliveryNote,
     unloadingCharge,
     gstAmount,
     isGstInclusive,
     grandTotal,
-  } = computeTotals({ subtotal: cartSubtotal, coupon: activeCoupon, settings: siteSettings, includeUnloading: isUnloadingSelected });
+  } = computeTotals({
+    subtotal: cartSubtotal,
+    coupon: activeCoupon,
+    settings: siteSettings,
+    includeUnloading: isUnloadingSelected,
+    isExpressDelivery: !getDeliverySchedule(new Date(), siteSettings).isAfter8PM && siteSettings.expressDeliveryEnabled !== false,
+  });
 
   // Cart Operations
   const addToCart = (product, quantity = 1) => {
@@ -976,13 +984,14 @@ export const StoreProvider = ({ children }) => {
         quantity: item.quantity,
       })),
       couponCode: appliedCoupon?.code || null,
+      deliveryOption: orderData.deliveryOption || 'normal',
       paymentMethod,
       customerName: user?.name || siteAddress?.recipientName || '',
       customerPhone: user?.phone || siteAddress?.phone || '',
-      deliverySlot: orderData.deliverySlot || (deliveryInfo.isAfter8PM ? 'Next Day Priority Slot' : 'Express Morning (08:00 AM - 12:00 PM)'),
+      deliverySlot: orderData.deliverySlot || (orderData.deliveryOption === 'express' ? 'Express Delivery' : 'Normal Delivery'),
       vehicleAccess: orderData.siteVehicleAccess || 'Heavy 10-Wheeler Truck Access',
       unloadingNotes: orderData.unloadingNotes || '',
-      expectedDelivery: deliveryInfo.expectedDelivery,
+      expectedDelivery: orderData.deliveryOption === 'express' ? (deliveryInfo.isAfter8PM ? `Tomorrow (${deliveryInfo.deliveryDate}), Express in ${siteSettings.expressDeliveryEstimate || '60-90 Mins'}` : `Today (${deliveryInfo.deliveryDate}), Express in ${siteSettings.expressDeliveryEstimate || '60-90 Mins'}`) : deliveryInfo.deliveryMessage,
       deliveryDate: deliveryInfo.deliveryDate,
       deliveryMessage: deliveryInfo.deliveryMessage,
       isAfter8PMOrder: deliveryInfo.isAfter8PM,
@@ -2540,6 +2549,7 @@ export const StoreProvider = ({ children }) => {
         cashbackAmount,
         cashbackNote,
         deliveryFee,
+        expressDeliveryFee,
         deliveryNote,
         unloadingCharge,
         isUnloadingSelected,

@@ -18,6 +18,7 @@ export const BillDetailsCard = ({
   cashbackNote = '',
   walletDiscount = 0,
   deliveryFee = 0,
+  expressDeliveryFee = 0,
   handlingFee = 0,
   gstAmount = 0,
   isGstInclusive = false,
@@ -103,10 +104,19 @@ export const BillDetailsCard = ({
               >
                 Delivery Charge
               </span>
-              <span style={{ fontWeight: '700', color: deliveryFee === 0 ? '#10B981' : '#0F172A' }}>
-                {deliveryFee === 0 ? 'FREE' : `₹${Number(deliveryFee).toLocaleString('en-IN')}`}
+              <span style={{ fontWeight: '700', color: deliveryFee - expressDeliveryFee === 0 ? '#10B981' : '#0F172A' }}>
+                {deliveryFee - expressDeliveryFee === 0 ? 'FREE' : `₹${Number(deliveryFee - expressDeliveryFee).toLocaleString('en-IN')}`}
               </span>
             </div>
+
+            {expressDeliveryFee > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}>
+                <span>Express Delivery Fee</span>
+                <span style={{ fontWeight: '700', color: '#0F172A' }}>
+                  ₹{Number(expressDeliveryFee).toLocaleString('en-IN')}
+                </span>
+              </div>
+            )}
 
             {/* GST - only shown as its own line when it's actually being added on top of
                 the subtotal (exclusive mode). When isGstInclusive is true, it's already

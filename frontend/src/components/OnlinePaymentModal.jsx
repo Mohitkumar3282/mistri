@@ -165,6 +165,7 @@ export const OnlinePaymentModal = ({
       })),
       couponCode: couponCode || null,
       includeUnloading: Boolean(summary?.isUnloadingSelected),
+      deliveryOption: summary?.deliveryOption || 'normal',
     });
 
   // Development only (VITE_ALLOW_SANDBOX_PAYMENTS=true, and the server must allow it too):

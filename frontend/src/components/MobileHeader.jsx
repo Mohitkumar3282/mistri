@@ -71,21 +71,16 @@ export const MobileHeader = () => {
   };
 
   return (
+    <>
     <header
       className="hide-on-desktop"
       style={{
         backgroundColor: '#FFFFFF',
-        position: 'sticky',
-        top: 0,
-        zIndex: 900,
-        boxShadow: isScrolled ? '0 3px 12px rgba(8,39,76,0.08)' : '0 2px 8px rgba(0,0,0,0.04)',
-        transition: 'box-shadow 0.25s ease',
       }}
     >
       {/* Row 1: Left (Logo + Location Pill), Right (Notification Bell + Cart Icon) */}
       <div
         style={{
-          minHeight: '56px',
           padding: '8px 12px 6px 12px',
           display: 'flex',
           alignItems: 'center',
@@ -218,12 +213,18 @@ export const MobileHeader = () => {
           </button>
         </div>
       </div>
+    </header>
 
       {/* Row 2: Search Bar */}
       <div
         style={{
-          padding: '0 12px 8px 12px',
+          position: 'sticky',
+          top: 0,
+          zIndex: 950,
+          padding: '6px 12px',
           backgroundColor: '#FFFFFF',
+          boxShadow: isScrolled ? '0 3px 12px rgba(8,39,76,0.08)' : '0 2px 8px rgba(0,0,0,0.04)',
+          transition: 'box-shadow 0.2s ease',
         }}
       >
         <form onSubmit={handleSearchSubmit} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -287,7 +288,7 @@ export const MobileHeader = () => {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 };
 

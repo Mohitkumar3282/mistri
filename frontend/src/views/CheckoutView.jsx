@@ -23,7 +23,7 @@ import OnlinePaymentModal from '../components/OnlinePaymentModal';
 import BillDetailsCard from '../components/BillDetailsCard';
 import CancellationPolicyCard from '../components/CancellationPolicyCard';
 import UnloadingServiceCard from '../components/UnloadingServiceCard';
-import { getCartItemKey, couponDiscount } from '../utils/pricing';
+import { getCartItemKey, couponDiscount, computeTotals } from '../utils/pricing';
 import { getDeliverySchedule } from '../utils/deliverySchedule';
 import { checkDeliveryServiceability } from '../utils/deliveryValidation';
 
@@ -42,6 +42,7 @@ export const CheckoutView = () => {
     cashbackAmount,
     cashbackNote,
     deliveryFee,
+    expressDeliveryFee,
     deliveryNote,
     unloadingCharge,
     isUnloadingSelected,
@@ -72,6 +73,7 @@ export const CheckoutView = () => {
   const [isOrderProcessing, setIsOrderProcessing] = useState(false);
   const [isOrderSuccess, setIsOrderSuccess] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [deliveryOption, setDeliveryOption] = useState('normal');
 
   const handleGpsLocationClick = async () => {
     try {
@@ -98,6 +100,27 @@ export const CheckoutView = () => {
 
   const isOnline = paymentMethod === 'online';
   const deliveryInfo = getDeliverySchedule(new Date(), siteSettings);
+  const checkoutTotals = computeTotals({
+    subtotal: cartSubtotal,
+    coupon: appliedCoupon,
+    settings: siteSettings,
+    includeUnloading: isUnloadingSelected,
+    isExpressDelivery: deliveryOption === 'express',
+  });
+  const normalQuote = computeTotals({
+    subtotal: cartSubtotal,
+    coupon: appliedCoupon,
+    settings: siteSettings,
+    includeUnloading: isUnloadingSelected,
+    isExpressDelivery: false,
+  });
+  const expressQuote = computeTotals({
+    subtotal: cartSubtotal,
+    coupon: appliedCoupon,
+    settings: siteSettings,
+    includeUnloading: isUnloadingSelected,
+    isExpressDelivery: true,
+  });
 
   // Check if current selected delivery location is serviceable based on Admin settings
   const serviceability = checkDeliveryServiceability({
@@ -138,6 +161,7 @@ export const CheckoutView = () => {
           paymentMethod: 'Cash on Delivery (Pay on Site)',
           siteAddress: selectedAddress,
           unloadingNotes: 'Direct site delivery',
+          deliveryOption,
         });
         setIsOrderProcessing(false);
         setIsOrderSuccess(true);
@@ -181,6 +205,7 @@ export const CheckoutView = () => {
         razorpaySignature: paymentDetails.razorpaySignature,
         siteAddress: selectedAddress,
         unloadingNotes: 'Direct site delivery',
+        deliveryOption,
       });
       setIsOrderProcessing(false);
       setIsOrderSuccess(true);
@@ -263,7 +288,7 @@ export const CheckoutView = () => {
               Your cart
             </h1>
             <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: '500' }}>
-              {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'} · ₹{(grandTotal || 0).toLocaleString('en-IN')}
+              {cartItemCount} {cartItemCount === 1 ? 'item' : 'items'} · ₹{checkoutTotals.grandTotal.toLocaleString('en-IN')}
             </span>
           </div>
         </div>
@@ -320,6 +345,23 @@ export const CheckoutView = () => {
           gap: '14px',
         }}
       >
+        <section style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: 16 }}>
+          <div style={{ fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>Choose delivery speed</div>
+          <div style={{ fontSize: '.78rem', color: '#64748B', marginBottom: 12 }}>Select one option. Charges update with your choice.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {[
+              { id: 'normal', title: 'Normal Delivery', detail: deliveryInfo.isAfter8PM ? `Next day · ${deliveryInfo.deliveryDate}` : `Standard delivery · ${deliveryInfo.deliveryDate}`, fee: normalQuote.deliveryFee },
+              { id: 'express', title: 'Express Delivery', detail: deliveryInfo.isAfter8PM ? `Fast dispatch next day · ${siteSettings.expressDeliveryEstimate || '60-90 Mins'}` : `Fast delivery · ${siteSettings.expressDeliveryEstimate || '60-90 Mins'}`, fee: expressQuote.deliveryFee },
+            ].map((option) => {
+              const disabled = option.id === 'express' && (!deliveryInfo.expressEnabled || cartSubtotal <= 0);
+              const selected = deliveryOption === option.id;
+              return <button key={option.id} type="button" disabled={disabled} onClick={() => setDeliveryOption(option.id)} style={{ textAlign: 'left', padding: 12, borderRadius: 10, border: `1.5px solid ${selected ? '#E11D48' : '#E2E8F0'}`, background: selected ? '#FFF5F5' : '#fff', opacity: disabled ? .5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontWeight: 800, color: '#0F172A' }}><span>{option.title}</span><span>{option.fee ? `₹${option.fee}` : 'FREE'}</span></div>
+                <div style={{ fontSize: '.72rem', color: '#64748B', marginTop: 5 }}>{disabled ? 'Currently unavailable' : option.detail}</div>
+              </button>;
+            })}
+          </div>
+        </section>
         {/* Delivery Schedule Highlight Box */}
         <div
           style={{
@@ -1116,15 +1158,16 @@ export const CheckoutView = () => {
         {/* 6. Bill Details Card (Exact Reference Image Match) */}
         <BillDetailsCard
           subtotal={cartSubtotal}
-          discount={discountAmount}
-          cashback={cashbackAmount}
-          cashbackNote={cashbackNote}
+          discount={checkoutTotals.discount}
+          cashback={checkoutTotals.cashbackAmount}
+          cashbackNote={checkoutTotals.cashbackNote}
           walletDiscount={0}
-          deliveryFee={deliveryFee}
+          deliveryFee={checkoutTotals.deliveryFee}
+          expressDeliveryFee={checkoutTotals.expressDeliveryFee}
           handlingFee={isUnloadingSelected ? unloadingCharge : 0}
-          gstAmount={gstAmount}
-          isGstInclusive={isGstInclusive}
-          total={grandTotal}
+          gstAmount={checkoutTotals.gstAmount}
+          isGstInclusive={checkoutTotals.isGstInclusive}
+          total={checkoutTotals.grandTotal}
         />
 
         {/* 7. Dynamic Cancellation Policy Card (Exact Reference Image Match) */}
@@ -1166,7 +1209,7 @@ export const CheckoutView = () => {
         <div style={{ maxWidth: '540px', margin: '0 auto' }}>
           <SlideToOrder
             paymentMethod={paymentMethod}
-            amount={grandTotal}
+          amount={checkoutTotals.grandTotal}
             isLoading={isOrderProcessing}
             isSuccess={isOrderSuccess}
             disabled={!serviceability.isServiceable}
@@ -1276,17 +1319,18 @@ export const CheckoutView = () => {
       <OnlinePaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
-        amount={grandTotal}
+        amount={checkoutTotals.grandTotal}
         customer={user}
         orderItems={cart}
         couponCode={appliedCoupon?.code || null}
         summary={{
           subtotal: cartSubtotal,
-          gstAmount: gstAmount,
-          discountAmount: discountAmount,
-          cashbackAmount: cashbackAmount,
-          grandTotal: grandTotal,
+          gstAmount: checkoutTotals.gstAmount,
+          discountAmount: checkoutTotals.discount,
+          cashbackAmount: checkoutTotals.cashbackAmount,
+          grandTotal: checkoutTotals.grandTotal,
           isUnloadingSelected: isUnloadingSelected,
+          deliveryOption,
         }}
         onPaymentSuccess={handleOnlinePaymentSuccess}
       />

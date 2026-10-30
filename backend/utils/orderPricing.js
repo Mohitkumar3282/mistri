@@ -23,7 +23,7 @@ const optionLabel = (opt) => (opt && typeof opt === 'object' ? opt.name ?? opt.l
  * @param {string} couponCode  optional
  * @returns {Promise<{ lines, totals, couponCode }>}
  */
-export const priceCart = async ({ items, couponCode, includeUnloading = false }) => {
+export const priceCart = async ({ items, couponCode, includeUnloading = false, deliveryOption = 'normal' }) => {
   if (!Array.isArray(items) || items.length === 0) throw new PricingError('Your cart is empty');
   if (items.length > MAX_LINES) throw new PricingError('Too many items in one order');
 
@@ -75,7 +75,14 @@ export const priceCart = async ({ items, couponCode, includeUnloading = false })
   }
 
   const { _id, key, ...settings } = (await Setting.findOne({ key: 'site' }).lean()) || {};
-  const totals = computeTotals({ subtotal, coupon, settings, includeUnloading: Boolean(includeUnloading) });
+  const isExpressDelivery = deliveryOption === 'express' && settings.expressDeliveryEnabled !== false;
+  const totals = computeTotals({
+    subtotal,
+    coupon,
+    settings,
+    includeUnloading: Boolean(includeUnloading),
+    isExpressDelivery,
+  });
 
   return { lines, totals, couponCode: coupon ? code : null };
 };

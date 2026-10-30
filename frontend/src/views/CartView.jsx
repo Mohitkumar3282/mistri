@@ -41,6 +41,7 @@ export const CartView = () => {
     cashbackAmount,
     cashbackNote,
     deliveryFee,
+    expressDeliveryFee,
     deliveryNote,
     unloadingCharge,
     isUnloadingSelected,
@@ -700,6 +701,7 @@ export const CartView = () => {
           cashbackNote={cashbackNote}
           walletDiscount={0}
           deliveryFee={deliveryFee}
+          expressDeliveryFee={expressDeliveryFee}
           handlingFee={isUnloadingSelected ? unloadingCharge : 0}
           gstAmount={gstAmount}
           isGstInclusive={isGstInclusive}

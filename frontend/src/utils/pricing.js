@@ -223,7 +223,7 @@ export const cashbackDiscount = (subtotal, settings = {}) => {
  * @returns {{ subtotal, discount, subtotalAfterDiscount, deliveryFee, deliveryNote,
  *             unloadingCharge, gstAmount, isGstInclusive, deliveryType, grandTotal }}
  */
-export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeUnloading = false }) => {
+export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeUnloading = false, isExpressDelivery = false }) => {
   const s = { ...DEFAULT_PRICING_SETTINGS, ...(settings || {}) };
   const discount = couponDiscount(coupon, subtotal).amount;
   // Assured cashback comes off the bill straight away, like the coupon does.
@@ -232,6 +232,7 @@ export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeU
   const subtotalAfterDiscount = Math.max(0, subtotal - discount - cashbackAmount);
 
   let deliveryFee = 0;
+  let expressDeliveryFee = 0;
   let deliveryNote = 'FREE';
   const deliveryType = s.deliveryType || 'free';
 
@@ -261,6 +262,14 @@ export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeU
     }
   }
 
+  if (subtotal > 0 && isExpressDelivery) {
+    expressDeliveryFee = Math.max(0, num(s.expressDeliveryFee, 0));
+    // Express is a delivery option with its own configured price, not an add-on
+    // stacked on top of the regular delivery charge.
+    deliveryFee = expressDeliveryFee;
+    deliveryNote = expressDeliveryFee === 0 ? 'FREE' : `₹${expressDeliveryFee} (Express)`;
+  }
+
   const unloadingCharge =
     subtotal > 0 && Boolean(s.enableUnloadingFee) && Boolean(includeUnloading)
       ? subtotal >= num(s.freeUnloadingThreshold, 50000)
@@ -286,6 +295,7 @@ export const computeTotals = ({ subtotal, coupon = null, settings = {}, includeU
     cashbackNote: cashback.reason,
     subtotalAfterDiscount,
     deliveryFee,
+    expressDeliveryFee,
     deliveryNote,
     unloadingCharge,
     gstAmount,

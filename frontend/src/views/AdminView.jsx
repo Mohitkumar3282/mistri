@@ -12826,7 +12826,8 @@ export default function AdminView() {
           </div>
 
           {siteSettings.expressDeliveryEnabled !== false && (
-            <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <div>
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
                 Delivery Time Estimate
               </label>
@@ -12840,6 +12841,24 @@ export default function AdminView() {
               <p style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px' }}>
                 Shown to customers as "Today, Express in {siteSettings.expressDeliveryEstimate || '60-90 Mins'}".
               </p>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                  Express Delivery Fee (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                  value={siteSettings.expressDeliveryFee ?? 0}
+                  onChange={(e) => updateSiteSettings({ expressDeliveryFee: Math.max(0, Number(e.target.value)) })}
+                  style={{ width: '100%', maxWidth: '280px', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
+                />
+                <p style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px' }}>
+                  Charged instead of the regular delivery fee when the customer selects Express. Enter 0 for free Express delivery.
+                </p>
+              </div>
             </div>
           )}
         </div>

@@ -31,6 +31,7 @@ const CUSTOMER_FIELDS = [
   'deliveryDate',
   'deliveryMessage',
   'isAfter8PMOrder',
+  'deliveryOption',
   'date',
   'time',
   'driverName',
@@ -138,6 +139,7 @@ export const placeOrder = async (req, res) => {
         items: body.items,
         couponCode: body.couponCode,
         includeUnloading: Boolean(body.includeUnloading ?? body.isUnloadingSelected ?? false),
+        deliveryOption: body.deliveryOption === 'express' ? 'express' : 'normal',
       }));
       paymentStatus = 'Pending (Pay on Site)';
       gateway = 'Cash On Site';
@@ -169,6 +171,8 @@ export const placeOrder = async (req, res) => {
         unloadingCharge: totals.unloadingCharge,
         gstAmount: totals.gstAmount,
         deliveryCharge: totals.deliveryFee,
+        deliveryOption: body.deliveryOption === 'express' ? 'express' : 'normal',
+        expressDeliveryFee: totals.expressDeliveryFee,
         deliveryNote: totals.deliveryNote,
         isGstInclusive: totals.isGstInclusive,
         deliveryType: totals.deliveryType,
