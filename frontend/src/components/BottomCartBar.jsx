@@ -75,6 +75,7 @@ export const BottomCartBar = () => {
 
       {/* Centering Wrapper Container (pointer-events: none so outside clicks pass through) */}
       <div
+        className="hide-on-desktop"
         style={{
           position: 'fixed',
           left: 0,

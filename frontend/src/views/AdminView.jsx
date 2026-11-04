@@ -72,6 +72,8 @@ import {
   Copy,
   Percent,
   Ticket,
+  Download,
+  Printer,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import Logo from '../components/Logo';
@@ -4149,7 +4151,7 @@ export default function AdminView() {
 
       {/* Modal 4: Create / Edit Master Product Modal (Image 2 Reference) */}
       {(activeModal === 'create-product' || activeModal === 'edit-product') && (
-        <div style={{
+        <div className="admin-product-modal-overlay" style={{
           position: 'fixed',
           inset: 0,
           backgroundColor: 'rgba(15, 23, 42, 0.65)',
@@ -5633,6 +5635,35 @@ export default function AdminView() {
         /* MOBILE PHONES RESPONSIVENESS (<= 768px)                   */
         /* ========================================================= */
         @media (max-width: 768px) {
+          .admin-product-modal-overlay {
+            align-items: center !important;
+            padding: max(8px, env(safe-area-inset-top, 8px)) 8px max(8px, env(safe-area-inset-bottom, 8px)) !important;
+          }
+          .admin-product-modal-container {
+            width: 100% !important;
+            max-width: 640px !important;
+            height: min(94vh, 860px) !important;
+            height: min(94dvh, 860px) !important;
+            max-height: 94vh !important;
+            max-height: 94dvh !important;
+            min-height: 0 !important;
+            border-radius: 14px !important;
+          }
+          .admin-product-modal-container > div:first-child {
+            flex: 0 0 auto !important;
+            padding: 0.8rem 0.9rem !important;
+          }
+          .admin-product-modal-container > div:first-child > div {
+            min-width: 0;
+          }
+          .admin-product-modal-container > div:first-child h2 {
+            font-size: 1rem !important;
+          }
+          .admin-product-modal-container > div:first-child button {
+            flex: 0 0 36px;
+            min-width: 36px;
+            min-height: 36px;
+          }
           .admin-top-header {
             height: 58px !important;
             padding: 0 10px !important;
@@ -5732,16 +5763,15 @@ export default function AdminView() {
           }
           /* Product Modal Responsive Styles */
           .admin-product-modal-container {
-            width: 96% !important;
-            max-width: 96vw !important;
-            max-height: 94vh !important;
-            border-radius: 14px !important;
+            width: 100% !important;
+            max-width: 640px !important;
           }
           .admin-product-modal-body {
             flex-direction: column !important;
             min-height: 0 !important;
             max-height: none !important;
-            overflow-y: auto !important;
+            flex: 1 1 auto !important;
+            overflow: hidden !important;
           }
           .admin-product-modal-tabs {
             width: 100% !important;
@@ -5750,6 +5780,7 @@ export default function AdminView() {
             border-bottom: 1px solid #E2E8F0 !important;
             padding: 0.5rem 0.75rem !important;
             gap: 0 !important;
+            flex: 0 0 auto !important;
           }
           /* The tab buttons scroll horizontally, separate from the Status/Featured
              controls below - they used to share one row and got squeezed off-screen. */
@@ -5774,10 +5805,39 @@ export default function AdminView() {
           .admin-product-modal-sidebar-extras > * {
             flex: 1 1 140px !important;
           }
+          .admin-product-modal-content {
+            min-height: 0 !important;
+            padding: 1rem !important;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+          }
+          .admin-product-modal-footer {
+            flex: 0 0 auto !important;
+            padding: 0.65rem 0.85rem max(0.65rem, env(safe-area-inset-bottom, 0px)) !important;
+            gap: 0.5rem !important;
+          }
+          .admin-product-modal-footer button {
+            min-height: 42px;
+          }
           .admin-product-quick-strip {
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 8px !important;
             padding: 0.6rem 1rem !important;
+          }
+          .admin-product-quick-strip > div:last-child {
+            border-left: 0 !important;
+            padding-left: 0 !important;
+          }
+          .admin-main-content {
+            min-width: 0 !important;
+            overflow-x: hidden !important;
+          }
+          .admin-main-content table {
+            min-width: 640px;
+          }
+          .admin-main-content [style*="overflowX: 'auto'"] {
+            max-width: 100%;
+            -webkit-overflow-scrolling: touch;
           }
           /* All modals responsive width */
           div[style*="maxWidth: '680px'"],
@@ -5825,7 +5885,29 @@ export default function AdminView() {
             grid-template-columns: 1fr !important;
           }
           .admin-product-quick-strip {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 0.55rem 0.75rem !important;
+            padding: 0.55rem 0.85rem !important;
+          }
+          .admin-product-modal-overlay {
+            padding-left: 6px !important;
+            padding-right: 6px !important;
+          }
+          .admin-product-modal-container {
+            max-height: 96vh !important;
+            max-height: 96dvh !important;
+            height: 96vh !important;
+            height: 96dvh !important;
+            border-radius: 12px !important;
+          }
+          .admin-product-modal-tablist button {
+            padding: 0.45rem 0.65rem !important;
+          }
+          .admin-product-modal-sidebar-extras > * {
+            flex: 1 1 125px !important;
+          }
+          .admin-product-modal-footer {
+            justify-content: space-between !important;
           }
         }
       `}</style>
@@ -8817,6 +8899,69 @@ export default function AdminView() {
     const deactivatedCount = (usersList || []).filter((u) => u.status === 'Deactivated' || u.status === 'Inactive').length;
     const contractorCount = (usersList || []).filter((u) => (u.role || '').toLowerCase() === 'contractor' || u.tier).length;
 
+    const formatCustomerAddresses = (customer) => {
+      const saved = Array.isArray(customer.addresses) ? customer.addresses : [];
+      const addresses = [customer.address, ...saved].filter((address) =>
+        address && typeof address === 'object' && Object.values(address).some((value) => String(value || '').trim())
+      );
+      return addresses.map((address) => [
+        address.label,
+        address.name,
+        address.phone,
+        address.street,
+        address.address,
+        address.line1,
+        address.line2,
+        address.city,
+        address.state,
+        address.pincode,
+        address.zip,
+      ].filter((value) => String(value || '').trim()).join(', ')).join(' | ');
+    };
+    const csvValue = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const exportCustomers = () => {
+      const headers = ['Customer Name', 'Email', 'Phone Number', 'Address'];
+      const rows = (usersList || []).map((customer) => [
+        customer.name, customer.email, customer.phone, formatCustomerAddresses(customer),
+      ]);
+      const csv = `\uFEFF${[headers, ...rows].map((row) => row.map(csvValue).join(',')).join('\r\n')}`;
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `mistri-customers-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    };
+    const printCustomers = () => {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        addToast('Allow pop-ups to print the customer directory.', 'error');
+        return;
+      }
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[char]));
+      const field = (label, value) => `<div class="field"><b>${label}</b><span>${escapeHtml(value === undefined || value === null || value === '' ? '-' : value)}</span></div>`;
+      const cards = (usersList || []).map((customer) => `
+        <article class="customer">
+          <h2>${escapeHtml(customer.name || 'Unnamed customer')}</h2>
+          <div class="grid">
+            ${field('Email', customer.email)}
+            ${field('Phone Number', customer.phone)}
+            ${field('Address', formatCustomerAddresses(customer))}
+          </div>
+        </article>`).join('');
+      printWindow.document.open();
+      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Customer Directory</title><style>
+        *{box-sizing:border-box}body{font:14px Arial,sans-serif;color:#172033;margin:24px}h1{font-size:22px;margin:0 0 6px}.meta{color:#596579;margin-bottom:18px}.customer{border:1px solid #cbd5e1;border-radius:8px;padding:14px;margin:0 0 12px;break-inside:avoid}.customer h2{font-size:17px;margin:0 0 10px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 16px}.field{min-width:0;overflow-wrap:anywhere}.field b{display:block;font-size:10px;text-transform:uppercase;color:#64748b;margin-bottom:3px}.field span{white-space:pre-wrap}@media print{body{margin:12mm}.customer{break-inside:avoid}}
+      </style></head><body><h1>Customer Directory</h1><div class="meta">${usersList.length} accounts - Generated ${escapeHtml(new Date().toLocaleString())}</div>${cards || '<p>No customer accounts found.</p>'}</body></html>`);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => printWindow.print(), 300);
+    };
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         {/* Top Header */}
@@ -8830,6 +8975,23 @@ export default function AdminView() {
             </p>
           </div>
 
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={exportCustomers}
+            disabled={!usersList.length}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '0.6rem 0.85rem', backgroundColor: '#FFFFFF', color: '#0F172A', borderRadius: '8px', border: '1px solid #CBD5E1', fontWeight: 700, fontSize: '0.82rem', cursor: usersList.length ? 'pointer' : 'not-allowed', opacity: usersList.length ? 1 : 0.55 }}
+          >
+            <Download size={15} /> <span>Download CSV</span>
+          </button>
+          <button
+            type="button"
+            onClick={printCustomers}
+            disabled={!usersList.length}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '0.6rem 0.85rem', backgroundColor: '#FFFFFF', color: '#0F172A', borderRadius: '8px', border: '1px solid #CBD5E1', fontWeight: 700, fontSize: '0.82rem', cursor: usersList.length ? 'pointer' : 'not-allowed', opacity: usersList.length ? 1 : 0.55 }}
+          >
+            <Printer size={15} /> <span>Print All</span>
+          </button>
           <button
             type="button"
             onClick={handleOpenAddUserModal}
@@ -8851,6 +9013,7 @@ export default function AdminView() {
             <Plus size={16} />
             <span>Add User / Contractor</span>
           </button>
+          </div>
         </div>
 
         {/* Stats Strip */}

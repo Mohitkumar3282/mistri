@@ -88,6 +88,7 @@ export const CategoriesView = () => {
       }}
     >
       <div
+        className="categories-page-container"
         style={{
           maxWidth: '680px',
           margin: '0 auto',
@@ -95,7 +96,7 @@ export const CategoriesView = () => {
         }}
       >
         {/* 1. Top Search Bar */}
-        <div style={{ marginBottom: '20px', position: 'sticky', top: '8px', zIndex: 100 }}>
+        <div className="categories-search-bar-wrap" style={{ marginBottom: '20px', position: 'sticky', top: '8px', zIndex: 100 }}>
           <form
             onSubmit={handleSearchSubmit}
             style={{
@@ -203,6 +204,7 @@ export const CategoriesView = () => {
 
                 {/* 4-Column Responsive Grid */}
                 <div
+                  className="categories-section-grid"
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',

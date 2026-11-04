@@ -71,13 +71,12 @@ export const MobileHeader = () => {
   };
 
   return (
-    <>
-    <header
-      className="hide-on-desktop"
-      style={{
-        backgroundColor: '#FFFFFF',
-      }}
-    >
+    <div className="hide-on-desktop">
+      <header
+        style={{
+          backgroundColor: '#FFFFFF',
+        }}
+      >
       {/* Row 1: Left (Logo + Location Pill), Right (Notification Bell + Cart Icon) */}
       <div
         style={{
@@ -288,7 +287,7 @@ export const MobileHeader = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

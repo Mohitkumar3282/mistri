@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import Order from '../models/Order.js';
 import Quotation from '../models/Quotation.js';
@@ -111,6 +112,8 @@ export const getUsers = async (req, res) => {
       company: u.company || '',
       gstin: u.gstin || '',
       city: u.city || u.address?.city || '',
+      address: u.address || null,
+      addresses: Array.isArray(u.addresses) ? u.addresses : [],
       tier: u.tier || 'Standard Builder Tier',
       status: u.status || 'Active',
       totalOrders: u.totalOrders || 0,

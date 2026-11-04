@@ -113,7 +113,7 @@ export const Header = () => {
     <header className="hide-on-mobile" style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, zIndex: 1000, boxShadow: 'var(--shadow-xs)' }}>
       {/* 2. Main Header Bar */}
       <div style={{ padding: '12px 0' }}>
-        <div className="container flex items-center justify-between gap-6">
+        <div className="container desktop-header-inner flex items-center justify-between gap-6">
           {/* MISTRI Brand Logo */}
           <div style={{ flexShrink: 0 }}>
             <Logo onClick={() => navigateTo('home')} size="medium" />
@@ -121,6 +121,7 @@ export const Header = () => {
 
           {/* Location Delivery Selector */}
           <div
+            className="desktop-header-location"
             onClick={() => setIsLocationModalOpen(true)}
             style={{
               display: 'flex',
@@ -153,25 +154,26 @@ export const Header = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'var(--primary-orange)',
+                flexShrink: 0,
               }}
             >
               <Truck size={18} strokeWidth={2.2} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.2' }}>
+            <div className="desktop-header-location-content" style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.2' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '0.92rem', fontWeight: '800', color: 'var(--primary-navy)' }}>
+                <span className="desktop-header-location-label" style={{ fontSize: '0.92rem', fontWeight: '800', color: 'var(--primary-navy)' }}>
                   Deliver to:
                 </span>
                 <ChevronDown size={14} color="var(--primary-navy)" strokeWidth={2.5} />
               </div>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: '600' }}>
+              <span className="desktop-header-location-pincode" style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: '600' }}>
                 {currentCity} ({currentPincode || '452005'})
               </span>
             </div>
           </div>
 
           {/* Large Search Bar with Live Autocomplete */}
-          <div ref={searchRef} style={{ flex: 1, maxWidth: '580px', position: 'relative' }}>
+          <div ref={searchRef} className="desktop-header-search" style={{ flex: 1, maxWidth: '580px', minWidth: '180px', position: 'relative' }}>
             <form onSubmit={handleSearchSubmit} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <input
                 type="text"
@@ -341,17 +343,19 @@ export const Header = () => {
           </div>
 
           {/* Quick Action Icons: Notifications, Wishlist, My Orders, Cart, Account */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 desktop-header-actions">
             {/* Notifications */}
             {user && (
               <button
                 onClick={handleBellClick}
+                className="desktop-header-action-btn"
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   gap: '2px',
                   background: 'none',
+                  border: 'none',
                   cursor: 'pointer',
                   color: currentView === 'notifications' ? 'var(--primary-orange)' : 'var(--text-primary)',
                   position: 'relative',
@@ -382,19 +386,21 @@ export const Header = () => {
                     </span>
                   )}
                 </div>
-                <span style={{ fontSize: '0.72rem', fontWeight: '600' }}>Alerts</span>
+                <span className="desktop-header-action-label" style={{ fontSize: '0.72rem', fontWeight: '600' }}>Alerts</span>
               </button>
             )}
 
             {/* Wishlist */}
             <button
               onClick={() => navigateTo('wishlist')}
+              className="desktop-header-action-btn"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: '2px',
                 background: 'none',
+                border: 'none',
                 cursor: 'pointer',
                 color: currentView === 'wishlist' ? 'var(--primary-orange)' : 'var(--text-primary)',
                 position: 'relative',
@@ -425,30 +431,33 @@ export const Header = () => {
                   </span>
                 )}
               </div>
-              <span style={{ fontSize: '0.72rem', fontWeight: '600' }}>Wishlist</span>
+              <span className="desktop-header-action-label" style={{ fontSize: '0.72rem', fontWeight: '600' }}>Wishlist</span>
             </button>
 
             {/* My Orders */}
             <button
               onClick={() => navigateTo('orders')}
+              className="desktop-header-action-btn"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: '2px',
                 background: 'none',
+                border: 'none',
                 cursor: 'pointer',
                 color: currentView === 'orders' ? 'var(--primary-orange)' : 'var(--text-primary)',
                 padding: '4px 8px',
               }}
             >
               <Truck size={22} />
-              <span style={{ fontSize: '0.72rem', fontWeight: '600' }}>Orders</span>
+              <span className="desktop-header-action-label" style={{ fontSize: '0.72rem', fontWeight: '600' }}>Orders</span>
             </button>
 
             {/* Shopping Cart Button with Live Counter & Total */}
             <button
               onClick={() => navigateTo('cart')}
+              className="desktop-header-cart-btn"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -460,6 +469,7 @@ export const Header = () => {
                 cursor: 'pointer',
                 boxShadow: 'var(--shadow-xs)',
                 transition: 'var(--transition)',
+                flexShrink: 0,
               }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--dark-navy)')}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--primary-navy)')}
@@ -485,8 +495,8 @@ export const Header = () => {
                   </span>
                 )}
               </div>
-              <div style={{ textAlign: 'left', lineHeight: '1.1' }}>
-                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--light-orange)' }}>Site Cart</div>
+              <div className="desktop-header-cart-info" style={{ textAlign: 'left', lineHeight: '1.1' }}>
+                <div className="desktop-header-cart-label" style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--light-orange)' }}>Site Cart</div>
                 <div style={{ fontSize: '0.85rem', fontWeight: '800' }}>₹{cartSubtotal.toLocaleString()}</div>
               </div>
             </button>
@@ -667,7 +677,7 @@ export const Header = () => {
 
           {/* Category Links - every active category, not just the first 10; the bar
               already scrolls horizontally so nothing an admin added is hidden here. */}
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: '2px', paddingLeft: '8px', flex: 1, overflowX: 'auto' }}>
+          <div className="desktop-header-category-strip" style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: '2px', paddingLeft: '8px', flex: 1, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {(categories || []).map((cat) => (
               <button
                 key={cat.id}

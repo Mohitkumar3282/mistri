@@ -245,6 +245,7 @@ export const CartView = () => {
 
       {/* Main Cart Content Container */}
       <div
+        className="cart-page-container"
         style={{
           maxWidth: '600px',
           margin: '0 auto',
@@ -726,7 +727,7 @@ export const CartView = () => {
           zIndex: 1000,
         }}
       >
-        <div style={{ maxWidth: '540px', margin: '0 auto' }}>
+        <div className="cart-bottom-bar-inner" style={{ maxWidth: '540px', margin: '0 auto' }}>
           <button
             type="button"
             onClick={() => navigateTo('checkout')}

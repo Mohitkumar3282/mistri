@@ -192,8 +192,8 @@ function MainAppLayout() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: isCustomHeaderView ? '#FFFFFF' : 'var(--bg-main)' }}>
-      {/* Desktop Navigation Header */}
-      {!isCustomHeaderView && <Header />}
+      {/* Desktop Navigation Header (CSS-hidden on mobile screens via .hide-on-mobile) */}
+      <Header />
 
       {/* Mobile Navigation Header */}
       {!hideMobileHeader && <MobileHeader />}
@@ -205,8 +205,8 @@ function MainAppLayout() {
         </React.Suspense>
       </main>
 
-      {/* Universal Footer */}
-      {!isCustomHeaderView && <Footer />}
+      {/* Universal Footer (CSS-hidden on mobile screens via .hide-on-mobile) */}
+      <Footer />
 
       {/* Floating Bottom Cart Notification Bar (Quick Commerce Style) */}
       <BottomCartBar />

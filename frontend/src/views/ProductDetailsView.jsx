@@ -839,52 +839,54 @@ export const ProductDetailsView = () => {
 
       {/* 2. FIXED BOTTOM STICKY PURCHASE BAR (EXACT MATCH TO REFERENCE SCREENSHOT) */}
       <div className="qc-bottom-sticky-bar">
-        <div>
-          {selectedVariantSummary && (
-            <div className="qc-bottom-variant-text" title={selectedVariantSummary}>
-              {selectedVariantSummary}
+        <div className="qc-bottom-sticky-bar-inner">
+          <div>
+            {selectedVariantSummary && (
+              <div className="qc-bottom-variant-text" title={selectedVariantSummary}>
+                {selectedVariantSummary}
+              </div>
+            )}
+            <div className="qc-bottom-price-row">
+              <span className="qc-bottom-price-val">₹ {currentPrice.toLocaleString()}</span>
+              {currentMrp && <span className="qc-bottom-mrp-val">₹ {currentMrp.toLocaleString()}</span>}
+              {currentDiscount && (
+                <span className="qc-bottom-discount-badge">{currentDiscount}</span>
+              )}
             </div>
-          )}
-          <div className="qc-bottom-price-row">
-            <span className="qc-bottom-price-val">₹ {currentPrice.toLocaleString()}</span>
-            {currentMrp && <span className="qc-bottom-mrp-val">₹ {currentMrp.toLocaleString()}</span>}
-            {currentDiscount && (
-              <span className="qc-bottom-discount-badge">{currentDiscount}</span>
+            <div className="qc-bottom-gst-sub">Including GST</div>
+          </div>
+
+          <div>
+            {qtyInCart > 0 ? (
+              <div className="qc-bottom-qty-counter">
+                <button
+                  type="button"
+                  onClick={handleDecrement}
+                  className="qc-bottom-qty-btn"
+                  aria-label="Decrease quantity"
+                >
+                  <Minus size={14} strokeWidth={2.5} />
+                </button>
+                <span className="qc-bottom-qty-num">{qtyInCart}</span>
+                <button
+                  type="button"
+                  onClick={handleIncrement}
+                  className="qc-bottom-qty-btn"
+                  aria-label="Increase quantity"
+                >
+                  <Plus size={14} strokeWidth={2.5} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="qc-bottom-add-btn"
+              >
+                <span>Add</span>
+              </button>
             )}
           </div>
-          <div className="qc-bottom-gst-sub">Including GST</div>
-        </div>
-
-        <div>
-          {qtyInCart > 0 ? (
-            <div className="qc-bottom-qty-counter">
-              <button
-                type="button"
-                onClick={handleDecrement}
-                className="qc-bottom-qty-btn"
-                aria-label="Decrease quantity"
-              >
-                <Minus size={14} strokeWidth={2.5} />
-              </button>
-              <span className="qc-bottom-qty-num">{qtyInCart}</span>
-              <button
-                type="button"
-                onClick={handleIncrement}
-                className="qc-bottom-qty-btn"
-                aria-label="Increase quantity"
-              >
-                <Plus size={14} strokeWidth={2.5} />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={handleAdd}
-              className="qc-bottom-add-btn"
-            >
-              <span>Add</span>
-            </button>
-          )}
         </div>
       </div>
     </div>

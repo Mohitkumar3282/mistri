@@ -1143,6 +1143,85 @@ img {
   .hide-on-desktop {
     display: none !important;
   }
+
+  /* Responsive Desktop Header */
+  .desktop-header-inner {
+    gap: clamp(10px, 1.8vw, 24px) !important;
+  }
+
+  /* Desktop Mega Category Strip */
+  .desktop-header-category-strip {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  .desktop-header-category-strip::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  /* Product Details Desktop Sticky Bar Centering */
+  .qc-bottom-sticky-bar-inner {
+    max-width: 1080px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Categories Catalog Page Desktop */
+  .categories-page-container {
+    max-width: 1240px !important;
+    padding: 24px 20px 48px 20px !important;
+  }
+  .categories-search-bar-wrap {
+    max-width: 520px;
+    margin: 0 auto 24px auto !important;
+  }
+  .categories-section-grid {
+    grid-template-columns: repeat(8, 1fr) !important;
+    gap: 18px 12px !important;
+  }
+
+  /* Cart Page Desktop */
+  .cart-page-container {
+    max-width: 1080px !important;
+  }
+  .cart-bottom-bar-inner {
+    max-width: 1080px !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+  }
+  .cart-bottom-bar-inner > button {
+    max-width: 320px !important;
+  }
+}
+
+/* Tablet & Compact Desktop Adaptations (769px to 1080px) */
+@media (min-width: 769px) and (max-width: 1080px) {
+  .desktop-header-location-label {
+    display: none !important;
+  }
+  .desktop-header-action-label {
+    display: none !important;
+  }
+  .desktop-header-actions {
+    gap: 6px !important;
+  }
+  .desktop-header-cart-label {
+    display: none !important;
+  }
+  .categories-section-grid {
+    grid-template-columns: repeat(6, 1fr) !important;
+    gap: 14px 10px !important;
+  }
+}
+
+/* Base style for qc-bottom-sticky-bar-inner on mobile (pass-through flex) */
+.qc-bottom-sticky-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
 /* Mistri Assured Slider Enhancements */
