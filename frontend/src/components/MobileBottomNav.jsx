@@ -10,7 +10,7 @@ export const MobileBottomNav = () => {
   const isHomeActive = currentView === 'home';
   const isCategoriesActive = currentView === 'categories' || currentView === 'category-products' || currentView === 'product-details';
   const isOrdersActive = currentView === 'orders' || currentView === 'order-details' || currentView === 'order-tracking' || currentView === 'order-confirmation';
-  const isAccountActive = currentView === 'profile' || currentView === 'addresses' || currentView === 'notifications' || currentView === 'login' || currentView === 'signup' || currentView === 'forgot-password';
+  const isAccountActive = currentView === 'profile' || currentView === 'wallet' || currentView === 'referrals' || currentView === 'addresses' || currentView === 'notifications' || currentView === 'login' || currentView === 'signup' || currentView === 'forgot-password';
 
   // Do not show the 5-tab generic bottom bar on product details, cart, or checkout view (as they use dedicated bottom action bars)
   if (currentView === 'product-details' || currentView === 'cart' || currentView === 'checkout') return null;

@@ -1,13 +1,28 @@
 import React from 'react';
 import { CheckCircle2, Truck, Calendar, MapPin, Download, ArrowRight, Home } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { MOCK_ORDERS } from '../data/mockData';
 import { printTaxInvoice } from '../utils/printInvoice';
 import { getDeliverySchedule } from '../utils/deliverySchedule';
 
 export const OrderConfirmationView = () => {
-  const { viewParams, navigateTo, addToast, siteSettings } = useStore();
-  const order = viewParams?.order || MOCK_ORDERS[0];
+  const { viewParams, navigateTo, addToast, siteSettings, orders = [] } = useStore();
+  const requestedOrderId = viewParams?.orderId || viewParams?.id;
+  const order = viewParams?.order || (requestedOrderId
+    ? orders.find((item) => String(item.id) === String(requestedOrderId))
+    : orders[0]) || null;
+
+  if (!order) {
+    return (
+      <div className="container page-container">
+        <div style={{ maxWidth: 620, margin: '0 auto', padding: '2rem', textAlign: 'center', background: '#fff', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+          <h1 style={{ color: 'var(--primary-navy)' }}>Order details unavailable</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>We could not find this order on this device. Check your orders to view its details.</p>
+          <button type="button" className="btn btn-primary" onClick={() => navigateTo('orders')}>View My Orders</button>
+        </div>
+      </div>
+    );
+  }
+
   const deliveryInfo = getDeliverySchedule(order, siteSettings);
 
   const handleDownloadInvoice = () => {

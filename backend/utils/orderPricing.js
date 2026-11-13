@@ -1,7 +1,7 @@
 import Product from '../models/Product.js';
-import Coupon from '../models/Coupon.js';
 import Setting from '../models/Setting.js';
-import { resolveVariantOptions, unitPrice, couponDiscount, computeTotals } from './pricing.js';
+import { resolveVariantOptions, unitPrice, computeTotals } from './pricing.js';
+import { getCouponEligibility, getCouponSettings } from '../services/coupons.js';
 
 export class PricingError extends Error {
   constructor(message) {
@@ -23,7 +23,7 @@ const optionLabel = (opt) => (opt && typeof opt === 'object' ? opt.name ?? opt.l
  * @param {string} couponCode  optional
  * @returns {Promise<{ lines, totals, couponCode }>}
  */
-export const priceCart = async ({ items, couponCode, includeUnloading = false, deliveryOption = 'normal' }) => {
+export const priceCart = async ({ items, couponCode, userId = null, includeUnloading = false, deliveryOption = 'normal' }) => {
   if (!Array.isArray(items) || items.length === 0) throw new PricingError('Your cart is empty');
   if (items.length > MAX_LINES) throw new PricingError('Too many items in one order');
 
@@ -65,13 +65,33 @@ export const priceCart = async ({ items, couponCode, includeUnloading = false, d
   const subtotal = lines.reduce((acc, l) => acc + l.lineTotal, 0);
 
   let coupon = null;
-  const code = couponCode ? String(couponCode).trim().toUpperCase() : '';
-  if (code) {
-    const { _id, ...found } = (await Coupon.findOne({ code }).lean()) || {};
-    if (!found.code) throw new PricingError(`Coupon ${code} is not valid`);
-    const { reason } = couponDiscount(found, subtotal);
-    if (reason) throw new PricingError(`Coupon ${code}: ${reason}`);
-    coupon = found;
+  let couponDiscountAmount = 0;
+  let couponOwnerUserId = null;
+  let couponDiscounts = [];
+  const codes = couponCode ? [...new Set(String(couponCode).split(',').map((value) => value.trim().toUpperCase()).filter(Boolean))] : [];
+  if (codes.length) {
+    try {
+      const couponSettings = await getCouponSettings();
+      if (codes.length > 1 && !couponSettings.allowCouponStacking) throw new PricingError('Only one coupon can be used on an order');
+      const eligibilities = [];
+      for (const code of codes) eligibilities.push(await getCouponEligibility({ code, subtotal, userId, lines }));
+      const rawDiscount = eligibilities.reduce((sum, item) => sum + item.discount, 0);
+      const orderDiscount = Math.min(rawDiscount, subtotal, couponSettings.maxDiscountPerOrder > 0 ? couponSettings.maxDiscountPerOrder : Number.POSITIVE_INFINITY);
+      const scale = rawDiscount > 0 ? orderDiscount / rawDiscount : 0;
+      couponDiscounts = eligibilities.map((item, index) => ({ code: codes[index], amount: Math.floor(item.discount * scale) }));
+      const remainder = orderDiscount - couponDiscounts.reduce((sum, item) => sum + item.amount, 0);
+      if (remainder > 0 && couponDiscounts.length) couponDiscounts[0].amount += remainder;
+      couponDiscountAmount = couponDiscounts.reduce((sum, item) => sum + item.amount, 0);
+      couponOwnerUserId = eligibilities.map((item) => item.ownerUserId).filter(Boolean)[0] || null;
+      coupon = {
+        ...eligibilities[0].coupon,
+        discountType: 'flat',
+        flatAmount: couponDiscountAmount,
+        discountPercentage: 0,
+      };
+    } catch (error) {
+      throw new PricingError(error.message);
+    }
   }
 
   const { _id, key, ...settings } = (await Setting.findOne({ key: 'site' }).lean()) || {};
@@ -84,5 +104,5 @@ export const priceCart = async ({ items, couponCode, includeUnloading = false, d
     isExpressDelivery,
   });
 
-  return { lines, totals, couponCode: coupon ? code : null };
+  return { lines, totals, couponCode: coupon ? codes.join(',') : null, couponDiscountAmount, couponDiscounts, couponOwnerUserId };
 };

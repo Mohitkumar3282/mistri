@@ -13,6 +13,7 @@ import Notification from '../models/Notification.js';
 import Setting from '../models/Setting.js';
 import buildCrud from './crudFactory.js';
 import { notifyNewQuotation, notifyNewSupportMessage } from './notificationHooks.js';
+import { ensureReferralCode } from '../services/referrals.js';
 
 // ---------------------------------------------------------------------------
 // Collection handlers
@@ -34,11 +35,18 @@ export const quotationCrud = buildCrud(Quotation, { scopeToOwner: true, onCreate
 export const listCoupons = async (req, res) => {
   if (req.user?.role === 'admin') return couponCrud.list(req, res);
   try {
-    const docs = await Coupon.find({ isActive: { $ne: false } }).sort({ _id: -1 }).lean();
+    const visibleOwners = req.user?._id ? [null, '', String(req.user._id)] : [null, ''];
+    const now = new Date();
+    const docs = (await Coupon.find({ isActive: { $ne: false }, ownerUserId: { $in: visibleOwners } }).sort({ _id: -1 }).lean()).filter((coupon) => {
+      const starts = coupon.startDate ? new Date(coupon.startDate) : null;
+      const expires = coupon.expiryDate ? new Date(coupon.expiryDate) : null;
+      if (expires && /^\d{4}-\d{2}-\d{2}$/.test(String(coupon.expiryDate))) expires.setHours(23, 59, 59, 999);
+      return (!starts || Number.isNaN(starts.getTime()) || starts <= now) && (!expires || Number.isNaN(expires.getTime()) || expires >= now);
+    });
     res.json({
       success: true,
       count: docs.length,
-      data: docs.map(({ _id, ...rest }) => rest),
+      data: docs.map(({ _id, usageByUser, reservedCount, ...rest }) => rest),
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -162,12 +170,14 @@ export const createUser = async (req, res) => {
     if (cleanEmail) userData.email = cleanEmail;
 
     const user = await User.create(userData);
+    await ensureReferralCode(user);
     res.status(201).json({
       success: true,
       data: {
         id: user.clientId || String(user._id),
         _id: String(user._id),
         name: user.name,
+        referralCode: user.referralCode,
         email: user.email || '',
         phone: user.phone || '',
         role: capitalize(user.role),

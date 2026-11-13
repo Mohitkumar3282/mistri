@@ -19,8 +19,8 @@ export const ProductOptionsModal = () => {
 
   if (!isOptionsModalOpen || !optionsModalProduct) return null;
 
-  const currentPrice = selectedOption ? selectedOption.price : optionsModalProduct.price;
-  const currentMrp = selectedOption ? selectedOption.mrp : optionsModalProduct.mrp;
+  const currentPrice = Number(selectedOption?.price ?? optionsModalProduct.price ?? 0);
+  const currentMrp = Number(selectedOption?.mrp ?? optionsModalProduct.mrp ?? 0);
   const currentDiscount = selectedOption ? selectedOption.discount : optionsModalProduct.discount;
   const currentTitle = selectedOption
     ? `${optionsModalProduct.name} - ${selectedOption.name}`
@@ -103,6 +103,8 @@ export const ProductOptionsModal = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             {options.map((opt, idx) => {
               const isSelected = selectedOption && selectedOption.name === opt.name;
+              const optionPrice = Number(opt.price ?? optionsModalProduct.price ?? 0);
+              const optionMrp = Number(opt.mrp ?? optionsModalProduct.mrp ?? 0);
               return (
                 <div
                   key={idx}
@@ -143,11 +145,11 @@ export const ProductOptionsModal = () => {
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', justifyContent: 'flex-end' }}>
                       <span style={{ fontWeight: '800', fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-                        ₹{opt.price.toLocaleString()}
+                        ₹{optionPrice.toLocaleString('en-IN')}
                       </span>
-                      {opt.mrp && (
+                      {optionMrp > 0 && (
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
-                          ₹{opt.mrp.toLocaleString()}
+                          ₹{optionMrp.toLocaleString('en-IN')}
                         </span>
                       )}
                     </div>

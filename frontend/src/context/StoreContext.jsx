@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import api from '../services/api';
 import { useServerSync } from '../services/serverSync';
-import { computeTotals, couponDiscount, resolveVariantOptions, unitPrice, getCartItemKey } from '../utils/pricing';
+import { computeTotals, resolveVariantOptions, unitPrice, getCartItemKey } from '../utils/pricing';
 import { getDeliverySchedule } from '../utils/deliverySchedule';
+import orderAlertAudio from '../assets/WhatsApp Audio 2026-11-12 at 23.04.00.mpeg';
 import { auth, googleProvider } from '../config/firebase';
 import {
   signInWithPopup,
@@ -207,6 +208,7 @@ const INITIAL_SETTINGS = {
   // next-day delivery instead of same-day.
   shopOpeningTime: '06:00',
   shopClosingTime: '20:00',
+  newOrderAlertDurationSeconds: 30,
   cancellationPolicy: [
     'Orders cannot be modified once packed.',
     'Delivery location of an Order cannot be changed. INR 249 additional charges in unavoidable cases.',
@@ -268,7 +270,7 @@ const parseRouteFromUrl = () => {
       }
     }
 
-    if (params.id && !params.orderId && (viewName === 'order-details' || viewName === 'order-tracking')) {
+    if (params.id && !params.orderId && (viewName === 'order-details' || viewName === 'order-tracking' || viewName === 'order-confirmation')) {
       params.orderId = params.id;
     }
     if (params.id && !params.productId && viewName === 'product-details') {
@@ -291,6 +293,9 @@ const buildUrlFromRoute = (view, params = {}) => {
   const queryParams = new URLSearchParams();
 
   if (view === 'order-details') {
+    const id = params.order?.id || params.orderId || params.id;
+    if (id) queryParams.set('id', id);
+  } else if (view === 'order-confirmation') {
     const id = params.order?.id || params.orderId || params.id;
     if (id) queryParams.set('id', id);
   } else if (view === 'order-tracking') {
@@ -446,41 +451,78 @@ export const StoreProvider = ({ children }) => {
   // Admin Real-time Notifications State
   const INITIAL_ADMIN_NOTIFICATIONS = [];
   const [adminNotifications, setAdminNotifications] = useState(() => getStored('admin_notifications', INITIAL_ADMIN_NOTIFICATIONS));
+  const [incomingOrderAlerts, setIncomingOrderAlerts] = useState(() => {
+    const durationSeconds = Math.max(5, Math.min(180, Number(siteSettings.newOrderAlertDurationSeconds) || 30));
+    return getStored('pending_order_alerts', []).map((alert) => ({
+      ...alert,
+      // Preserve the original deadline across reloads so an expired alert never rings again.
+      expiresAt: Number(alert.expiresAt) || Date.now() + durationSeconds * 1000,
+    }));
+  });
+  const orderAudioRef = useRef(null);
+  const orderAudioTimerRef = useRef(null);
+  const orderAudioRunRef = useRef(0);
 
   // Notifications the admin has sent out to customers (recent-send history for the composer)
   const [sentNotifications, setSentNotifications] = useState([]);
 
-  // Web Audio Synthesizer for instant Order Alert Chime
-  const playOrderNotificationSound = () => {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
-
-      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5 -> E5 -> G5 -> C6 chime
-      notes.forEach((freq, index) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + index * 0.11);
-
-        gain.gain.setValueAtTime(0, ctx.currentTime + index * 0.11);
-        gain.gain.linearRampToValueAtTime(0.35, ctx.currentTime + index * 0.11 + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + index * 0.11 + 0.35);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(ctx.currentTime + index * 0.11);
-        osc.stop(ctx.currentTime + index * 0.11 + 0.36);
-      });
-    } catch (e) {
-      console.log('Audio chime error:', e);
+  // Loop the supplied alert sound until the admin-configured ring duration elapses.
+  const stopOrderNotificationSound = () => {
+    orderAudioRunRef.current += 1;
+    if (orderAudioTimerRef.current) clearTimeout(orderAudioTimerRef.current);
+    orderAudioTimerRef.current = null;
+    if (orderAudioRef.current) {
+      orderAudioRef.current.pause();
+      try { orderAudioRef.current.currentTime = 0; } catch { /* Audio metadata may not be ready yet. */ }
     }
+  };
+
+  const playOrderNotificationSound = (durationSeconds = siteSettings.newOrderAlertDurationSeconds) => {
+    try {
+      stopOrderNotificationSound();
+      if (!orderAudioRef.current) {
+        orderAudioRef.current = new Audio(orderAlertAudio);
+        orderAudioRef.current.loop = true;
+      }
+      orderAudioRef.current.currentTime = 0;
+      const runId = orderAudioRunRef.current;
+      orderAudioRef.current.play()
+        .then(() => {
+          // A staff action may stop the alert before the browser finishes starting playback.
+          if (runId !== orderAudioRunRef.current) {
+            orderAudioRef.current.pause();
+            orderAudioRef.current.currentTime = 0;
+          }
+        })
+        .catch((e) => console.debug('Order alert audio could not autoplay:', e));
+      const seconds = Math.max(5, Math.min(180, Number(durationSeconds) || 30));
+      orderAudioTimerRef.current = setTimeout(() => {
+        if (runId === orderAudioRunRef.current) stopOrderNotificationSound();
+      }, seconds * 1000);
+    } catch (e) {
+      console.log('Order alert audio error:', e);
+    }
+  };
+
+  useEffect(() => () => stopOrderNotificationSound(), []);
+
+  useEffect(() => {
+    setStored('pending_order_alerts', incomingOrderAlerts);
+  }, [incomingOrderAlerts]);
+
+  useEffect(() => {
+    const alert = incomingOrderAlerts[0];
+    if (adminUser && alert) {
+      const remainingSeconds = Math.ceil((Number(alert.expiresAt) - Date.now()) / 1000);
+      if (remainingSeconds > 0) playOrderNotificationSound(remainingSeconds);
+    }
+  }, []); // Restore and ring unresolved orders once after an admin refreshes.
+
+  const resolveIncomingOrderAlert = (orderId) => {
+    const remaining = incomingOrderAlerts.filter((alert) => String(alert.orderId) !== String(orderId));
+    setIncomingOrderAlerts(remaining);
+    setStored('pending_order_alerts', remaining);
+    stopOrderNotificationSound();
   };
 
   // Fetches this device's real FCM token and registers it with the server, so the
@@ -599,7 +641,21 @@ export const StoreProvider = ({ children }) => {
       // can actually reach them - a previous attempt tried to fire this from the
       // customer's browser instead, which could never reach the admin's device.
       if (name !== 'adminNotifications') return;
-      playOrderNotificationSound();
+      const newOrders = items.filter((item) => item.type === 'new_order' && item.orderId);
+      if (newOrders.length) {
+        const now = Date.now();
+        const durationSeconds = Math.max(5, Math.min(180, Number(siteSettings.newOrderAlertDurationSeconds) || 30));
+        const known = new Set(incomingOrderAlerts.map((alert) => String(alert.orderId)));
+        const fresh = newOrders.filter((item) => !known.has(String(item.orderId)));
+        if (fresh.length) {
+          setIncomingOrderAlerts((prev) => [...prev, ...fresh.map((notification) => ({
+            notification,
+            orderId: notification.orderId,
+            expiresAt: now + durationSeconds * 1000,
+          }))]);
+          playOrderNotificationSound(durationSeconds);
+        }
+      }
       (getNotificationPermission() === 'default' ? requestNotificationPermission() : Promise.resolve())
         .then((result) => {
           if (result === 'granted' || getNotificationPermission() === 'granted') registerPushToken('admin');
@@ -804,11 +860,39 @@ export const StoreProvider = ({ children }) => {
   // checkout is the total the order is charged.
   const cartSubtotal = cart.reduce((acc, item) => acc + (item.price || 0) * item.quantity, 0);
   const cartItemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  useEffect(() => {
+    if (!appliedCoupon?.code || cart.length === 0) return undefined;
+    let cancelled = false;
+    const code = appliedCoupon.code;
+    api.validateCoupon({
+      items: cart.map((item) => ({
+        product: { id: item.product?.id ?? item.id, variantSelection: item.product?.variantSelection || undefined },
+        quantity: item.quantity,
+      })),
+      couponCode: code,
+      includeUnloading: Boolean(isUnloadingSelected),
+    }).then(({ data }) => {
+      if (!cancelled) {
+        setAppliedCoupon((current) => current?.code === code ? {
+          ...data.coupon,
+          code,
+          discountType: 'flat',
+          discountPercentage: 0,
+          flatAmount: Number(data.discountAmount) || 0,
+          discountAmount: Number(data.discountAmount) || 0,
+        } : current);
+      }
+    }).catch((error) => {
+      if (!cancelled) {
+        setAppliedCoupon((current) => current?.code === code ? null : current);
+        addToast(error.message || 'The applied coupon is no longer valid', 'warning');
+      }
+    });
+    return () => { cancelled = true; };
+  }, [cart, appliedCoupon?.code, isUnloadingSelected]);
   // Re-check the applied coupon against the current coupon list and cart, so a coupon
   // that was deactivated or no longer meets its minimum stops discounting.
-  const activeCoupon = appliedCoupon
-    ? coupons.find((c) => c.code?.toUpperCase() === appliedCoupon.code?.toUpperCase()) || null
-    : null;
+  const activeCoupon = appliedCoupon || null;
   const {
     discount: discountAmount,
     cashbackAmount,
@@ -908,35 +992,40 @@ export const StoreProvider = ({ children }) => {
   };
 
   // Coupon Application
-  const applyCoupon = (code) => {
+  const applyCoupon = async (code) => {
     if (!code) return { success: false, message: 'Please enter promo code' };
-    const upper = code.trim().toUpperCase();
-
-    const foundCoupon = coupons.find((c) => c.code?.toUpperCase() === upper);
-
-    if (foundCoupon) {
-      const { amount: calculatedDiscount, reason } = couponDiscount(foundCoupon, cartSubtotal);
-      if (reason) {
-        const msg = `${upper}: ${reason}`;
-        addToast(msg, 'warning');
-        return { success: false, message: msg };
-      }
-
-      setAppliedCoupon({
-        code: upper,
-        discountType: foundCoupon.discountType || (foundCoupon.flatAmount ? 'flat' : 'percentage'),
-        discountPercentage: foundCoupon.discountPercentage || 0,
-        flatAmount: foundCoupon.flatAmount || 0,
-        discountAmount: calculatedDiscount,
-        description: foundCoupon.description || '',
+    const enteredCodes = String(code).split(',').map((value) => value.trim().toUpperCase()).filter(Boolean);
+    const requestedCodes = siteSettings.couponSettings?.allowCouponStacking && appliedCoupon?.code
+      ? [...new Set([...String(appliedCoupon.code).split(','), ...enteredCodes].map((value) => value.trim()).filter(Boolean))]
+      : [...new Set(enteredCodes)];
+    const requestedCode = requestedCodes.join(',');
+    if (!requestedCode) return { success: false, message: 'Please enter promo code' };
+    try {
+      const { data } = await api.validateCoupon({
+        items: cart.map((item) => ({
+          product: { id: item.product?.id ?? item.id, variantSelection: item.product?.variantSelection || undefined },
+          quantity: item.quantity,
+        })),
+        couponCode: requestedCode,
+        includeUnloading: Boolean(isUnloadingSelected),
       });
-
-      addToast(`Coupon "${upper}" applied! Saved ₹${calculatedDiscount.toLocaleString('en-IN')}`, 'success');
-      return { success: true };
+      const foundCoupon = data.coupon;
+      const calculatedDiscount = Number(data.discountAmount) || 0;
+      setAppliedCoupon({
+        ...foundCoupon,
+        code: requestedCode,
+        discountType: 'flat',
+        discountPercentage: 0,
+        flatAmount: calculatedDiscount,
+        discountAmount: calculatedDiscount,
+      });
+      addToast(`Coupon${requestedCodes.length > 1 ? 's' : ''} applied! Saved ₹${calculatedDiscount.toLocaleString('en-IN')}`, 'success');
+      return { success: true, discountAmount: calculatedDiscount, coupon: foundCoupon };
+    } catch (error) {
+      const message = error.message || 'This coupon code is invalid';
+      addToast(message, 'warning');
+      return { success: false, message };
     }
-
-    addToast('Invalid or expired coupon code.', 'danger');
-    return { success: false, message: 'Invalid or expired promo code' };
   };
 
   const removeCoupon = () => {
@@ -1206,6 +1295,7 @@ export const StoreProvider = ({ children }) => {
         company: formData.company || '',
         gstin: formData.gstin || '',
         city: currentCity,
+        referralCode: formData.referralCode || '',
       });
     } catch (err) {
       const message =
@@ -1719,6 +1809,22 @@ export const StoreProvider = ({ children }) => {
     addToast(`Order ${orderId} status set to "${status}"`, 'success');
   };
 
+  const decideIncomingOrder = (orderId, decision) => {
+    const rejected = decision === 'rejected';
+    // Stop before updating state so the click silences the ringtone immediately.
+    stopOrderNotificationSound();
+    setOrders((prev) => prev.map((order) => String(order.id) === String(orderId)
+      ? {
+          ...order,
+          adminDecision: rejected ? 'rejected' : 'accepted',
+          adminDecisionAt: new Date().toISOString(),
+          ...(rejected ? { status: 'Cancelled', statusCode: 'cancelled' } : {}),
+        }
+      : order));
+    resolveIncomingOrderAlert(orderId);
+    addToast(rejected ? `Order ${orderId} rejected` : `Order ${orderId} accepted`, rejected ? 'info' : 'success');
+  };
+
   const updateOrderTracking = (orderId, currentStep, customSteps = null) => {
     setOrders((prev) =>
       prev.map((o) => {
@@ -2007,63 +2113,47 @@ export const StoreProvider = ({ children }) => {
       code: cleanCode,
     };
 
-    setCoupons((prev) => {
-      const exists = prev.some((c) => c.code?.toUpperCase() === cleanCode);
-      if (exists) {
-        return prev.map((c) => (c.code?.toUpperCase() === cleanCode ? created : c));
-      }
-      return [created, ...prev];
-    });
-
     try {
       await api.createCoupon(created);
+      setCoupons((prev) => [created, ...prev.filter((c) => c.code?.toUpperCase() !== cleanCode)]);
       markSynced('coupons', created);
       addToast(`Coupon "${created.code}" created and saved to database!`, 'success');
+      return created;
     } catch (err) {
-      console.warn('Backend createCoupon warning:', err);
-      addToast(`Coupon "${created.code}" created!`, 'success');
+      addToast(err.message || `Could not create coupon "${created.code}"`, 'error');
+      return null;
     }
-
-    return created;
   };
 
   const updateCoupon = async (code, updatedFields) => {
     const cleanCode = String(code || '').toUpperCase().trim();
     let updatedDoc = null;
 
-    setCoupons((prev) =>
-      prev.map((c) => {
-        if (c.code?.toUpperCase() === cleanCode) {
-          const updated = { ...c, ...updatedFields, code: cleanCode };
-          updatedDoc = updated;
-          return updated;
-        }
-        return c;
-      })
-    );
-
-    if (updatedDoc) {
-      try {
-        await api.updateCoupon(cleanCode, updatedDoc);
-        markSynced('coupons', updatedDoc);
-        addToast(`Coupon "${cleanCode}" updated in database`, 'success');
-      } catch (err) {
-        console.warn('Backend updateCoupon warning:', err);
-        addToast(`Coupon "${cleanCode}" updated`, 'success');
-      }
+    const current = coupons.find((c) => c.code?.toUpperCase() === cleanCode);
+    if (!current) return null;
+    updatedDoc = { ...current, ...updatedFields, code: cleanCode };
+    try {
+      await api.updateCoupon(cleanCode, updatedDoc);
+      setCoupons((prev) => prev.map((c) => c.code?.toUpperCase() === cleanCode ? updatedDoc : c));
+      markSynced('coupons', updatedDoc);
+      addToast(`Coupon "${cleanCode}" updated in database`, 'success');
+      return updatedDoc;
+    } catch (err) {
+      addToast(err.message || `Could not update coupon "${cleanCode}"`, 'error');
+      return null;
     }
   };
 
   const deleteCoupon = async (code) => {
     const cleanCode = String(code || '').toUpperCase().trim();
-    setCoupons((prev) => prev.filter((c) => c.code?.toUpperCase() !== cleanCode));
-
     try {
       await api.deleteCoupon(cleanCode);
+      setCoupons((prev) => prev.filter((c) => c.code?.toUpperCase() !== cleanCode));
       addToast(`Coupon "${cleanCode}" removed from database`, 'info');
+      return true;
     } catch (err) {
-      console.warn('Backend deleteCoupon warning:', err);
-      addToast(`Coupon "${cleanCode}" deleted`, 'info');
+      addToast(err.message || `Could not delete coupon "${cleanCode}"`, 'error');
+      return false;
     }
   };
 
@@ -2581,6 +2671,9 @@ export const StoreProvider = ({ children }) => {
         markAllAdminNotificationsRead,
         clearAdminNotifications,
         playOrderNotificationSound,
+        stopOrderNotificationSound,
+        incomingOrderAlerts,
+        resolveIncomingOrderAlert,
         requestNotificationPermission,
         getNotificationPermission,
         isNotificationSupported,
@@ -2617,6 +2710,7 @@ export const StoreProvider = ({ children }) => {
         placeOrder,
         getOrderById,
         updateOrderStatus,
+        decideIncomingOrder,
         updateOrderTracking,
         updateOrderDriver,
         updateOrderPayment,

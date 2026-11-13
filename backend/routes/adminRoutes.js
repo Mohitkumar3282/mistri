@@ -3,6 +3,8 @@ import { getAdminStats, getUsers, createUser, updateUser, deleteUser, notificati
 import { sendNotification, listSentNotifications } from '../controllers/userNotificationController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
 import { adminRouter } from './routeFactory.js';
+import { adminReferralData, saveReferralConfig, updateReferralUser, updateReferralStatus } from '../controllers/referralController.js';
+import { couponAnalytics } from '../controllers/couponController.js';
 
 const router = express.Router();
 
@@ -10,6 +12,11 @@ const router = express.Router();
 router.use(protect, authorize('admin'));
 
 router.get('/stats', getAdminStats);
+router.get('/coupons/analytics', couponAnalytics);
+router.get('/referrals', adminReferralData);
+router.put('/referrals/config', saveReferralConfig);
+router.patch('/referrals/users/:id', updateReferralUser);
+router.patch('/referrals/:id/status', updateReferralStatus);
 router.get('/users', getUsers);
 router.post('/users', createUser);
 router.put('/users/:id', updateUser);

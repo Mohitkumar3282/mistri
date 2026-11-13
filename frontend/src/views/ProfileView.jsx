@@ -20,6 +20,8 @@ import {
   Mail,
   Building,
   Sliders,
+  Gift,
+  Wallet,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
@@ -78,6 +80,8 @@ export const ProfileView = () => {
       icon: ClipboardList,
       onClick: () => (user ? navigateTo('orders') : openLoginModal('login', () => navigateTo('orders'))),
     },
+    ...(user ? [{ id: 'wallet', title: 'My Wallet', icon: Wallet, onClick: () => navigateTo('wallet') }] : []),
+    ...(user ? [{ id: 'referrals', title: 'Refer & Earn', icon: Gift, onClick: () => navigateTo('referrals') }] : []),
     {
       id: 'addresses',
       title: 'My Site Addresses',

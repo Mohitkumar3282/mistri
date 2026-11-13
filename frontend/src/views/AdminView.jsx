@@ -81,6 +81,7 @@ import { uploadCloudFile } from '../services/storageService';
 import { uploadBannerToCloud } from '../services/cloudinaryService';
 import { printTaxInvoice } from '../utils/printInvoice';
 import { cashbackOffer, cashbackDiscount } from '../utils/pricing';
+import api from '../services/api';
 
 const DEFAULT_CATEGORY_IMAGE = 'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&q=80&w=300';
 // A category's image upload shows a local base64 preview immediately, then replaces it
@@ -89,6 +90,13 @@ const DEFAULT_CATEGORY_IMAGE = 'https://images.unsplash.com/photo-1590069261209-
 // permanent value. That alone made every category list load take 50-70s. This is the
 // last line of defense: a save can never persist raw image data past a small size.
 const MAX_INLINE_IMAGE_CHARS = 50000;
+const adminInput = { padding: '9px 10px', border: '1px solid #CBD5E1', borderRadius: 8, color: '#0F172A', background: '#fff' };
+const adminFieldLabel = { display: 'grid', gap: 5, fontSize: 12, color: '#475569', fontWeight: 700 };
+const adminTable = { width: '100%', borderCollapse: 'collapse', minWidth: 740 };
+const adminTh = { textAlign: 'left', fontSize: 12, color: '#64748B', padding: '11px 8px', borderBottom: '1px solid #E2E8F0', whiteSpace: 'nowrap' };
+const adminTd = { padding: '11px 8px', borderBottom: '1px solid #F1F5F9', fontSize: 13, whiteSpace: 'nowrap' };
+const smallButton = { border: '1px solid #CBD5E1', borderRadius: 7, padding: '8px 11px', cursor: 'pointer', background: '#fff', color: '#0F172A', fontWeight: 700, fontSize: 12 };
+const dangerButton = { ...smallButton, color: '#B91C1C', borderColor: '#FECACA' };
 const safeCategoryImage = (value) =>
   typeof value === 'string' && value.startsWith('data:') && value.length > MAX_INLINE_IMAGE_CHARS
     ? null
@@ -123,6 +131,7 @@ export default function AdminView() {
     deleteSubCategory,
     orders,
     updateOrderStatus,
+    decideIncomingOrder,
     updateOrderTracking,
     updateOrderDriver,
     updateOrderPayment,
@@ -182,6 +191,7 @@ export default function AdminView() {
     markAllAdminNotificationsRead,
     clearAdminNotifications,
     playOrderNotificationSound,
+    incomingOrderAlerts = [],
     requestNotificationPermission,
     getNotificationPermission,
     isNotificationSupported,
@@ -190,6 +200,22 @@ export default function AdminView() {
     sendUserNotification,
     loadSentNotifications,
   } = useStore();
+
+  const [referralAdmin, setReferralAdmin] = useState(null);
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralSaving, setReferralSaving] = useState(false);
+  const [referralSearch, setReferralSearch] = useState('');
+  const [referralStatusFilter, setReferralStatusFilter] = useState('All');
+  const [referralCategoryFilter, setReferralCategoryFilter] = useState('All');
+  const [referralDateFrom, setReferralDateFrom] = useState('');
+  const [referralDateTo, setReferralDateTo] = useState('');
+  const loadReferralAdmin = async () => {
+    setReferralLoading(true);
+    try { const response = await api.getAdminReferrals(); setReferralAdmin(response.data); }
+    catch (error) { addToast(error.message || 'Could not load referral management', 'error'); }
+    finally { setReferralLoading(false); }
+  };
+  useEffect(() => { if (adminActiveTab === 'referrals') loadReferralAdmin(); }, [adminActiveTab]);
 
   // Sidebar & View state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -218,6 +244,16 @@ export default function AdminView() {
   const [orderFilterTab, setOrderFilterTab] = useState('all'); // 'all' | 'online' | 'cash' | 'confirmed' | 'in_transit' | 'delivered'
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [selectedOrderDetailsModal, setSelectedOrderDetailsModal] = useState(null);
+  const [incomingAlertNow, setIncomingAlertNow] = useState(Date.now());
+  useEffect(() => {
+    if (!incomingOrderAlerts.length) return undefined;
+    const timer = setInterval(() => setIncomingAlertNow(Date.now()), 250);
+    return () => clearInterval(timer);
+  }, [incomingOrderAlerts.length]);
+  const activeIncomingAlert = incomingOrderAlerts[0] || null;
+  const activeIncomingOrder = activeIncomingAlert
+    ? orders.find((order) => String(order.id) === String(activeIncomingAlert.orderId))
+    : null;
 
   // Settings Delivery & Price Simulator State
   const [simCartSubtotal, setSimCartSubtotal] = useState(555);
@@ -404,7 +440,12 @@ export default function AdminView() {
 
   // Coupon Management State & Handlers
   const [couponSearchQuery, setCouponSearchQuery] = useState('');
-  const [couponStatusFilter, setCouponStatusFilter] = useState('all'); // 'all' | 'active' | 'disabled'
+  const [couponStatusFilter, setCouponStatusFilter] = useState('all'); // 'all' | 'active' | 'disabled' | 'expired'
+  const [couponOwnerSearch, setCouponOwnerSearch] = useState('');
+  const [couponAnalytics, setCouponAnalytics] = useState(null);
+  const [couponHistorySearch, setCouponHistorySearch] = useState('');
+  const [couponHistoryFrom, setCouponHistoryFrom] = useState('');
+  const [couponHistoryTo, setCouponHistoryTo] = useState('');
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState(null);
   const [couponFormData, setCouponFormData] = useState({
@@ -416,10 +457,21 @@ export default function AdminView() {
     minOrderValue: 999,
     maxDiscount: 500,
     badge: 'SPECIAL',
+    ownerUserId: '',
+    startDate: '',
     expiryDate: '',
+    totalUsageLimit: 0,
+    perUserUsageLimit: 0,
+    categoryIds: [],
+    productIds: [],
     scope: 'All Customers',
     isActive: true,
   });
+
+  useEffect(() => {
+    if (adminActiveTab !== 'coupons') return;
+    api.getCouponAnalytics().then((result) => setCouponAnalytics(result.data)).catch(() => setCouponAnalytics(null));
+  }, [adminActiveTab, coupons.length]);
 
   function handleOpenAddCouponModal() {
     setEditingCoupon(null);
@@ -432,10 +484,17 @@ export default function AdminView() {
       minOrderValue: 999,
       maxDiscount: 500,
       badge: 'SPECIAL',
+      ownerUserId: '',
+      startDate: '',
       expiryDate: '',
+      totalUsageLimit: 0,
+      perUserUsageLimit: 0,
+      categoryIds: [],
+      productIds: [],
       scope: 'All Customers',
       isActive: true,
     });
+    setCouponOwnerSearch('');
     setIsCouponModalOpen(true);
   }
 
@@ -450,10 +509,18 @@ export default function AdminView() {
       minOrderValue: c.minOrderValue || 0,
       maxDiscount: c.maxDiscount || 0,
       badge: c.badge || '',
+      ownerUserId: c.ownerUserId || '',
+      startDate: c.startDate ? c.startDate.split('T')[0] : '',
       expiryDate: c.expiryDate ? c.expiryDate.split('T')[0] : '',
+      totalUsageLimit: Number(c.totalUsageLimit) || 0,
+      perUserUsageLimit: Number(c.perUserUsageLimit) || 0,
+      categoryIds: Array.isArray(c.categoryIds) ? c.categoryIds : [],
+      productIds: Array.isArray(c.productIds) ? c.productIds : [],
       scope: c.scope || 'All Customers',
       isActive: c.isActive !== false,
     });
+    const owner = usersList.find((u) => String(u._id || u.id) === String(c.ownerUserId));
+    setCouponOwnerSearch(owner ? `${owner.name || 'Customer'} · ${owner.phone || owner.id}` : '');
     setIsCouponModalOpen(true);
   }
 
@@ -474,18 +541,22 @@ export default function AdminView() {
       minOrderValue: Number(couponFormData.minOrderValue) || 0,
       maxDiscount: couponFormData.discountType === 'percentage' ? Number(couponFormData.maxDiscount) || 0 : Number(couponFormData.flatAmount) || 0,
       badge: couponFormData.badge || '',
+      ownerUserId: couponFormData.ownerUserId || null,
+      ownerName: usersList.find((u) => String(u._id || u.id) === String(couponFormData.ownerUserId))?.name || '',
+      startDate: couponFormData.startDate || null,
       expiryDate: couponFormData.expiryDate || null,
+      totalUsageLimit: Math.max(0, Number(couponFormData.totalUsageLimit) || 0),
+      perUserUsageLimit: Math.max(0, Number(couponFormData.perUserUsageLimit) || 0),
+      categoryIds: couponFormData.categoryIds,
+      productIds: couponFormData.productIds,
       scope: couponFormData.scope || 'All Customers',
       isActive: couponFormData.isActive !== false,
     };
 
-    if (editingCoupon) {
-      await updateCoupon(editingCoupon.code, payload);
-    } else {
-      await addCoupon(payload);
-    }
-
-    setIsCouponModalOpen(false);
+    const saved = editingCoupon
+      ? await updateCoupon(editingCoupon.code, payload)
+      : await addCoupon(payload);
+    if (saved) setIsCouponModalOpen(false);
   }
 
   function handleDeleteCouponConfirm(code) {
@@ -668,12 +739,13 @@ export default function AdminView() {
       group: 'USERS',
       items: [
         { id: 'customers', label: 'Customers', icon: Users, badge: usersList.length },
+        { id: 'referrals', label: 'Refer & Earn', icon: Gift },
       ],
     },
     {
       group: 'MARKETING',
       items: [
-        { id: 'coupons', label: 'Coupons & Promos', icon: Tag, badge: coupons.filter(c => c.isActive).length },
+        { id: 'coupons', label: 'Coupons & Offers', icon: Tag, badge: coupons.filter(c => c.isActive).length },
         { id: 'banners', label: 'Banners & Content', icon: ImageIcon, badge: banners.length },
       ],
     },
@@ -2631,6 +2703,7 @@ export default function AdminView() {
             {adminActiveTab === 'orders' && renderOrdersView()}
             {adminActiveTab === 'live-tracking' && renderLiveTrackingView()}
             {adminActiveTab === 'customers' && renderUsersView('Customers')}
+            {adminActiveTab === 'referrals' && renderReferralManagementView()}
             {adminActiveTab === 'coupons' && renderCouponsView()}
             {adminActiveTab === 'banners' && renderBannersView()}
             {adminActiveTab === 'bookings' && renderBookingsView()}
@@ -2821,6 +2894,7 @@ export default function AdminView() {
                   <input
                     type="text"
                     required
+                    disabled={Boolean(editingCoupon)}
                     placeholder="Type new parent category name (e.g. Roofing & Insulation, Sanitaryware)"
                     value={modalFormData.section || ''}
                     onChange={(e) => setModalFormData({ ...modalFormData, section: e.target.value })}
@@ -5911,6 +5985,31 @@ export default function AdminView() {
           }
         }
       `}</style>
+      {activeIncomingAlert && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15,23,42,.58)', display: 'grid', placeItems: 'center', padding: 16 }}>
+          <section role="dialog" aria-modal="true" aria-label="New order received" style={{ width: 'min(560px, 100%)', maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: 18, boxShadow: '0 24px 80px rgba(0,0,0,.28)', padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+              <div><div style={{ color: '#15803D', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em' }}>New order</div><h2 style={{ margin: '5px 0 0', fontSize: 22 }}>{activeIncomingOrder?.orderNumber || activeIncomingAlert.orderId}</h2></div>
+              <div style={{ borderRadius: 999, background: '#FEF2F2', color: '#B91C1C', padding: '7px 10px', fontSize: 12, fontWeight: 800 }}>Ringing {Math.max(0, Math.ceil((activeIncomingAlert.expiresAt - incomingAlertNow) / 1000))}s</div>
+            </div>
+            {activeIncomingOrder ? <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 20 }}>
+                <div style={{ background: '#F8FAFC', borderRadius: 10, padding: 12 }}><small style={{ color: '#64748B' }}>Customer</small><div style={{ fontWeight: 750, marginTop: 4 }}>{activeIncomingOrder.customerName || 'Customer'}</div><div style={{ color: '#475569', fontSize: 12 }}>{activeIncomingOrder.customerPhone || activeIncomingOrder.siteAddress?.phone || ''}</div></div>
+                <div style={{ background: '#F8FAFC', borderRadius: 10, padding: 12 }}><small style={{ color: '#64748B' }}>Payment</small><div style={{ fontWeight: 750, marginTop: 4 }}>{activeIncomingOrder.payment?.method || activeIncomingOrder.paymentMethod || 'Payment method'}</div><div style={{ color: '#475569', fontSize: 12 }}>{activeIncomingOrder.payment?.status || activeIncomingOrder.paymentStatus || ''}</div></div>
+              </div>
+              <div style={{ marginTop: 12, background: '#F8FAFC', borderRadius: 10, padding: 12 }}><small style={{ color: '#64748B' }}>Delivery address</small><div style={{ marginTop: 4 }}>{activeIncomingOrder.siteAddress?.addressLine || activeIncomingOrder.deliveryAddress || activeIncomingOrder.siteAddress?.address || 'Address unavailable'}{activeIncomingOrder.siteAddress?.city ? `, ${activeIncomingOrder.siteAddress.city}` : ''}</div></div>
+              <div style={{ marginTop: 14, borderTop: '1px solid #E2E8F0', paddingTop: 10 }}>
+                {(activeIncomingOrder.items || []).map((item, index) => <div key={`${item.id || item.product?.id || item.name || 'item'}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', fontSize: 13 }}><span>{item.name || item.title || item.product?.name || 'Item'} × {item.quantity || item.qty || 1}</span><strong>₹{Number(item.total || item.lineTotal || (Number(item.price || item.unitPrice || 0) * Number(item.quantity || item.qty || 1))).toLocaleString('en-IN')}</strong></div>)}
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', marginTop: 8, paddingTop: 12, fontWeight: 850, fontSize: 17 }}><span>Total</span><span>₹{Number(activeIncomingOrder.grandTotal || activeIncomingOrder.total || activeIncomingOrder.amount || activeIncomingAlert.notification?.amount || 0).toLocaleString('en-IN')}</span></div>
+              </div>
+            </> : <p style={{ color: '#64748B', margin: '18px 0' }}>Loading order details…</p>}
+            <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+              <button disabled={!activeIncomingOrder} onClick={() => decideIncomingOrder(activeIncomingAlert.orderId, 'rejected')} style={{ flex: 1, border: '1px solid #FECACA', borderRadius: 10, background: '#FFF7F7', color: '#B91C1C', padding: 12, fontWeight: 800, cursor: 'pointer', opacity: activeIncomingOrder ? 1 : .5 }}>Reject</button>
+              <button disabled={!activeIncomingOrder} onClick={() => decideIncomingOrder(activeIncomingAlert.orderId, 'accepted')} style={{ flex: 1, border: 'none', borderRadius: 10, background: '#15803D', color: '#fff', padding: 12, fontWeight: 800, cursor: 'pointer', opacity: activeIncomingOrder ? 1 : .5 }}>Accept order</button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 
@@ -8277,9 +8376,14 @@ export default function AdminView() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: theme.textMuted }}>
+              Ring for
+              <input aria-label="New order alert ring duration in seconds" type="number" min="5" max="180" step="1" value={siteSettings.newOrderAlertDurationSeconds ?? 30} onChange={(e) => updateSiteSettings({ newOrderAlertDurationSeconds: Math.max(5, Math.min(180, Number(e.target.value) || 5)) })} style={{ width: 72, padding: '8px 7px', borderRadius: 8, border: '1px solid #D0E2F2', color: '#0F172A' }} />
+              sec
+            </label>
             <button
-              onClick={playOrderNotificationSound}
+              onClick={() => playOrderNotificationSound(3)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -9639,6 +9743,25 @@ export default function AdminView() {
   // 7. COUPONS, BANNERS, BOOKINGS, SERVICES, QUOTES, SETTINGS
   // -------------------------------------------------------------
   function renderCouponsView() {
+    const couponSettings = {
+      allowSelfRedemption: false,
+      allowCouponStacking: false,
+      enableCouponSharing: true,
+      restoreCouponOnCancellation: true,
+      maxDiscountPerOrder: 0,
+      ...(siteSettings.couponSettings || {}),
+    };
+    const couponTotals = couponAnalytics?.totals || {};
+    const updateCouponSettings = (changes) => {
+      updateSiteSettings({ couponSettings: { ...couponSettings, ...changes } });
+    };
+    const historySearch = couponHistorySearch.trim().toLowerCase();
+    const filteredUsageHistory = (couponAnalytics?.usageHistory || []).filter((usage) => {
+      const redeemedAt = usage.redeemedAt || usage.createdAt;
+      const date = redeemedAt ? new Date(redeemedAt).toISOString().slice(0, 10) : '';
+      const matchesSearch = !historySearch || [usage.code, usage.userName, usage.userPhone, usage.userId, usage.orderId].some((value) => String(value || '').toLowerCase().includes(historySearch));
+      return matchesSearch && (!couponHistoryFrom || date >= couponHistoryFrom) && (!couponHistoryTo || date <= couponHistoryTo);
+    });
     const q = (couponSearchQuery || '').toLowerCase().trim();
     const filteredCoupons = coupons.filter((c) => {
       const matchSearch =
@@ -9651,13 +9774,15 @@ export default function AdminView() {
         couponStatusFilter === 'all'
           ? true
           : couponStatusFilter === 'active'
-          ? c.isActive !== false
-          : c.isActive === false;
+          ? c.isActive !== false && (!c.expiryDate || new Date(c.expiryDate) >= new Date()) && (!c.startDate || new Date(c.startDate) <= new Date()) && (!(Number(c.totalUsageLimit) > 0) || Number(c.usageCount || 0) < Number(c.totalUsageLimit))
+          : couponStatusFilter === 'expired'
+            ? Boolean(c.expiryDate && new Date(c.expiryDate) < new Date())
+            : c.isActive === false;
 
       return matchSearch && matchStatus;
     });
 
-    const activeCount = coupons.filter((c) => c.isActive !== false).length;
+    const activeCount = coupons.filter((c) => c.isActive !== false && (!c.startDate || new Date(c.startDate) <= new Date()) && (!c.expiryDate || new Date(c.expiryDate) >= new Date()) && (!(Number(c.totalUsageLimit) > 0) || Number(c.usageCount || 0) < Number(c.totalUsageLimit))).length;
     const disabledCount = coupons.filter((c) => c.isActive === false).length;
     const totalClaims = coupons.reduce((sum, c) => sum + (Number(c.usageCount) || 0), 0);
 
@@ -9667,7 +9792,7 @@ export default function AdminView() {
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <div>
             <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: theme.textDark, margin: '0 0 4px 0' }}>
-              Coupons & Promo Codes Management
+              Coupons & Offers Management
             </h1>
             <p style={{ fontSize: '0.85rem', color: theme.textMuted, margin: 0 }}>
               Create discount coupons, set minimum order values, percentage or flat discounts, and make them available to customers on the storefront.
@@ -9700,20 +9825,51 @@ export default function AdminView() {
         {/* Quick KPI Stat Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
           <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: `1px solid ${theme.cardBorder}` }}>
-            <div style={{ fontSize: '0.78rem', color: theme.textMuted, fontWeight: 700, marginBottom: '4px' }}>Total Promos</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: theme.textDark }}>{coupons.length}</div>
+            <div style={{ fontSize: '0.78rem', color: theme.textMuted, fontWeight: 700, marginBottom: '4px' }}>Total Coupons</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: theme.textDark }}>{couponTotals.totalCoupons ?? coupons.length}</div>
           </div>
           <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: `1px solid ${theme.cardBorder}` }}>
             <div style={{ fontSize: '0.78rem', color: '#15803D', fontWeight: 700, marginBottom: '4px' }}>Active on Storefront</div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#15803D' }}>{activeCount}</div>
           </div>
           <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: `1px solid ${theme.cardBorder}` }}>
-            <div style={{ fontSize: '0.78rem', color: '#2563EB', fontWeight: 700, marginBottom: '4px' }}>Total Customer Claims</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#2563EB' }}>{totalClaims}</div>
+            <div style={{ fontSize: '0.78rem', color: '#2563EB', fontWeight: 700, marginBottom: '4px' }}>Successful Redemptions</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#2563EB' }}>{couponTotals.totalUsage ?? totalClaims}</div>
           </div>
           <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px', border: `1px solid ${theme.cardBorder}` }}>
             <div style={{ fontSize: '0.78rem', color: '#D97706', fontWeight: 700, marginBottom: '4px' }}>Disabled / Inactive</div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#D97706' }}>{disabledCount}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+          <div style={{ background: '#fff', border: `1px solid ${theme.cardBorder}`, borderRadius: 12, padding: 16 }}>
+            <div style={{ color: '#B45309', fontSize: 12, fontWeight: 700 }}>Expired Coupons</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{couponTotals.expiredCoupons ?? coupons.filter((c) => c.expiryDate && new Date(c.expiryDate) < new Date()).length}</div>
+          </div>
+          <div style={{ background: '#fff', border: `1px solid ${theme.cardBorder}`, borderRadius: 12, padding: 16 }}>
+            <div style={{ color: '#15803D', fontSize: 12, fontWeight: 700 }}>Discounts Provided</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>₹{Number(couponTotals.totalDiscounts || 0).toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+
+        <div style={{ background: '#fff', border: `1px solid ${theme.cardBorder}`, borderRadius: 12, padding: 16 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 12px' }}>Coupon Rules</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+            {[
+              ['allowSelfRedemption', 'Allow coupon owners to redeem their own code'],
+              ['allowCouponStacking', 'Allow coupon discounts to stack'],
+              ['enableCouponSharing', 'Allow personal coupons to be shared'],
+              ['restoreCouponOnCancellation', 'Restore coupon usage when an order is cancelled'],
+            ].map(([key, label]) => (
+              <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 650, color: theme.textDark }}>
+                <input type="checkbox" checked={Boolean(couponSettings[key])} onChange={(e) => updateCouponSettings({ [key]: e.target.checked })} />
+                {label}
+              </label>
+            ))}
+            <label style={{ ...adminFieldLabel, maxWidth: 300 }}>Maximum discount per order (₹; 0 = no global cap)
+              <input type="number" min="0" value={couponSettings.maxDiscountPerOrder} onChange={(e) => updateCouponSettings({ maxDiscountPerOrder: Number(e.target.value) || 0 })} style={adminInput} />
+            </label>
           </div>
         </div>
 
@@ -9724,6 +9880,7 @@ export default function AdminView() {
             {[
               { id: 'all', label: `All Promos (${coupons.length})` },
               { id: 'active', label: `Active (${activeCount})` },
+              { id: 'expired', label: `Expired (${couponTotals.expiredCoupons ?? coupons.filter((c) => c.expiryDate && new Date(c.expiryDate) < new Date()).length})` },
               { id: 'disabled', label: `Disabled (${disabledCount})` },
             ].map((tab) => (
               <button
@@ -9784,6 +9941,9 @@ export default function AdminView() {
             {filteredCoupons.map((c) => {
               const isFlat = c.discountType === 'flat' || (Number(c.flatAmount) > 0 && !Number(c.discountPercentage));
               const discountText = isFlat ? `₹${(c.flatAmount || c.discountAmount || 0).toLocaleString('en-IN')} FLAT OFF` : `${c.discountPercentage || 0}% OFF`;
+              const isExpired = Boolean(c.expiryDate && new Date(c.expiryDate) < new Date());
+              const isScheduled = Boolean(c.startDate && new Date(c.startDate) > new Date());
+              const isExhausted = Number(c.totalUsageLimit) > 0 && Number(c.usageCount || 0) >= Number(c.totalUsageLimit);
 
               return (
                 <div
@@ -9839,14 +9999,14 @@ export default function AdminView() {
                           padding: '3px 10px',
                           borderRadius: '12px',
                           border: 'none',
-                          backgroundColor: c.isActive !== false ? '#DCFCE7' : '#FEE2E2',
-                          color: c.isActive !== false ? '#15803D' : '#DC2626',
+                          backgroundColor: c.isActive === false ? '#FEE2E2' : (isExpired || isExhausted) ? '#FEF3C7' : '#DCFCE7',
+                          color: c.isActive === false ? '#DC2626' : (isExpired || isExhausted) ? '#B45309' : '#15803D',
                           fontWeight: 700,
                           fontSize: '0.72rem',
                           cursor: 'pointer',
                         }}
                       >
-                        {c.isActive !== false ? '● Active on Store' : '○ Disabled'}
+                        {c.isActive === false ? 'Disabled' : isExpired ? 'Expired' : isExhausted ? 'Limit reached' : isScheduled ? 'Scheduled' : 'Active'}
                       </button>
                     </div>
 
@@ -9857,6 +10017,7 @@ export default function AdminView() {
                     <p style={{ fontSize: '0.82rem', color: '#475569', margin: '0 0 8px 0', lineHeight: 1.4 }}>
                       {c.description || 'Special promo offer on construction materials and site supplies.'}
                     </p>
+                    {c.ownerUserId && <div style={{ fontSize: 12, color: '#475569', marginBottom: 8 }}>Owner: <strong>{c.ownerName || usersList.find((u) => String(u._id || u.id) === String(c.ownerUserId))?.name || c.ownerUserId}</strong></div>}
 
                     {/* Criteria Details */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '0.75rem', color: '#64748B' }}>
@@ -9869,9 +10030,18 @@ export default function AdminView() {
                         </span>
                       )}
                       <span style={{ backgroundColor: '#F8FAFC', padding: '3px 8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
-                        Usage: <strong>{c.usageCount || 0} times</strong>
+                        Usage: <strong>{c.usageCount || 0}{Number(c.totalUsageLimit) > 0 ? ` / ${c.totalUsageLimit}` : ''}</strong>
                       </span>
                     </div>
+                    {(() => {
+                      const performance = couponAnalytics?.coupons?.find((entry) => entry.code === c.code);
+                      if (!performance) return null;
+                      return <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8, fontSize: 11, color: '#475569' }}>
+                        <span>Orders: <strong>{performance.successfulOrders}</strong></span>
+                        <span>Order value: <strong>₹{Number(performance.generatedOrderValue || 0).toLocaleString('en-IN')}</strong></span>
+                        <span>Discounts: <strong>₹{Number(performance.totalDiscountProvided || 0).toLocaleString('en-IN')}</strong></span>
+                      </div>;
+                    })()}
                   </div>
 
                   {/* Bottom Actions */}
@@ -9926,6 +10096,37 @@ export default function AdminView() {
             })}
           </div>
         )}
+
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: 12, border: `1px solid ${theme.cardBorder}`, padding: 16 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, alignItems: 'end', marginBottom: 12 }}>
+            <div>
+              <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: theme.textDark }}>Coupon Usage History</h2>
+              <div style={{ fontSize: 12, color: theme.textMuted }}>Successful coupon redemptions and order value.</div>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <input type="search" placeholder="Search code, customer, order" value={couponHistorySearch} onChange={(e) => setCouponHistorySearch(e.target.value)} style={{ ...adminInput, minWidth: 210 }} />
+              <label style={adminFieldLabel}>From<input type="date" value={couponHistoryFrom} onChange={(e) => setCouponHistoryFrom(e.target.value)} style={adminInput} /></label>
+              <label style={adminFieldLabel}>To<input type="date" value={couponHistoryTo} onChange={(e) => setCouponHistoryTo(e.target.value)} style={adminInput} /></label>
+            </div>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ ...adminTable, minWidth: 780 }}>
+              <thead><tr><th style={adminTh}>Date</th><th style={adminTh}>Coupon</th><th style={adminTh}>Customer</th><th style={adminTh}>Order</th><th style={adminTh}>Order value</th><th style={adminTh}>Discount</th></tr></thead>
+              <tbody>
+                {filteredUsageHistory.length ? filteredUsageHistory.map((usage) => (
+                  <tr key={usage.id}>
+                    <td style={adminTd}>{usage.redeemedAt || usage.createdAt ? new Date(usage.redeemedAt || usage.createdAt).toLocaleDateString() : '—'}</td>
+                    <td style={{ ...adminTd, fontWeight: 800 }}>{usage.code}</td>
+                    <td style={adminTd}>{usage.userName || usage.userId}{usage.userPhone ? <div style={{ fontSize: 11, color: '#64748B' }}>{usage.userPhone}</div> : null}</td>
+                    <td style={adminTd}>{usage.orderId || '—'}</td>
+                    <td style={adminTd}>₹{Number(usage.orderValue || 0).toLocaleString('en-IN')}</td>
+                    <td style={{ ...adminTd, color: '#15803D', fontWeight: 700 }}>₹{Number(usage.discountAmount || 0).toLocaleString('en-IN')}</td>
+                  </tr>
+                )) : <tr><td style={{ ...adminTd, color: theme.textMuted }} colSpan={6}>No coupon redemptions match these filters.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {/* Create / Edit Coupon Modal */}
         {isCouponModalOpen && (
@@ -10004,6 +10205,34 @@ export default function AdminView() {
                       letterSpacing: '1px',
                     }}
                   />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Assign to a registered user (optional)
+                  </label>
+                  <input
+                    type="search"
+                    placeholder="Search by name, mobile, or user ID"
+                    value={couponOwnerSearch}
+                    onChange={(e) => { setCouponOwnerSearch(e.target.value); setCouponFormData({ ...couponFormData, ownerUserId: '' }); }}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem', marginBottom: '6px' }}
+                  />
+                  <select
+                    value={couponFormData.ownerUserId}
+                    onChange={(e) => {
+                      const selected = usersList.find((u) => String(u._id || u.id) === e.target.value);
+                      setCouponFormData({ ...couponFormData, ownerUserId: e.target.value });
+                      setCouponOwnerSearch(selected ? `${selected.name || 'Customer'} · ${selected.phone || selected.id}` : '');
+                    }}
+                    style={{ ...adminInput, width: '100%' }}
+                  >
+                    <option value="">General coupon — no owner</option>
+                    {usersList.filter((u) => String(u.role || '').toLowerCase() === 'customer' && (() => {
+                      const search = couponOwnerSearch.trim().toLowerCase();
+                      return !search || [u.name, u.phone, u.id, u._id].some((v) => String(v || '').toLowerCase().includes(search));
+                    })()).map((u) => <option key={u._id || u.id} value={u._id || u.id}>{u.name || 'Customer'} · {u.phone || u.id || u._id}</option>)}
+                  </select>
                 </div>
 
                 {/* Offer Description */}
@@ -10147,17 +10376,25 @@ export default function AdminView() {
                   </div>
                 </div>
 
-                {/* Expiry Date */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                    Expiry Date (Optional - Leave blank for no expiry)
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <label style={adminFieldLabel}>Start Date (optional)<input type="date" value={couponFormData.startDate} onChange={(e) => setCouponFormData({ ...couponFormData, startDate: e.target.value })} style={adminInput} /></label>
+                  <label style={adminFieldLabel}>Expiry Date (optional)<input type="date" value={couponFormData.expiryDate} onChange={(e) => setCouponFormData({ ...couponFormData, expiryDate: e.target.value })} style={adminInput} /></label>
+                  <label style={adminFieldLabel}>Total uses (0 = unlimited)<input type="number" min="0" value={couponFormData.totalUsageLimit} onChange={(e) => setCouponFormData({ ...couponFormData, totalUsageLimit: e.target.value })} style={adminInput} /></label>
+                  <label style={adminFieldLabel}>Uses per customer (0 = unlimited)<input type="number" min="0" value={couponFormData.perUserUsageLimit} onChange={(e) => setCouponFormData({ ...couponFormData, perUserUsageLimit: e.target.value })} style={adminInput} /></label>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <label style={adminFieldLabel}>Eligible categories (optional)
+                    <select multiple value={couponFormData.categoryIds} onChange={(e) => setCouponFormData({ ...couponFormData, categoryIds: Array.from(e.target.selectedOptions, (option) => option.value) })} style={{ ...adminInput, minHeight: 100 }}>
+                      {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                    </select>
                   </label>
-                  <input
-                    type="date"
-                    value={couponFormData.expiryDate}
-                    onChange={(e) => setCouponFormData({ ...couponFormData, expiryDate: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem' }}
-                  />
+                  <label style={adminFieldLabel}>Eligible products (optional)
+                    <select multiple value={couponFormData.productIds} onChange={(e) => setCouponFormData({ ...couponFormData, productIds: Array.from(e.target.selectedOptions, (option) => option.value) })} style={{ ...adminInput, minHeight: 100 }}>
+                      {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+                    </select>
+                  </label>
+                  <span style={{ gridColumn: '1 / -1', fontSize: 11, color: '#64748B' }}>Leave both empty to apply the discount to all products. Hold Ctrl or Command to choose multiple options.</span>
                 </div>
 
                 {/* Active Toggle */}
@@ -13027,6 +13264,39 @@ export default function AdminView() {
         </div>
       </div>
     );
+  }
+
+  function renderReferralManagementView() {
+    const config = referralAdmin?.config || {};
+    const analytics = referralAdmin?.analytics || {};
+    const filteredReferrals = (referralAdmin?.referrals || []).filter((r) => {
+      const query = referralSearch.trim().toLowerCase();
+      const owner = (referralAdmin?.users || []).find((u) => String(u._id) === String(r.referrerId));
+      const date = new Date(r.createdAt);
+      return (!query || `${r.referrerName} ${r.referredName} ${r.referralCode}`.toLowerCase().includes(query))
+        && (referralStatusFilter === 'All' || r.status === referralStatusFilter)
+        && (referralCategoryFilter === 'All' || (owner?.referralCategory || 'Normal') === referralCategoryFilter)
+        && (!referralDateFrom || date >= new Date(`${referralDateFrom}T00:00:00`))
+        && (!referralDateTo || date <= new Date(`${referralDateTo}T23:59:59`));
+    });
+    const setConfig = (key, value) => setReferralAdmin((current) => ({ ...current, config: { ...current.config, [key]: value } }));
+    const field = (label, key, type = 'number', extra = {}) => <label key={key} style={{ display: 'grid', gap: 5, fontSize: 12, color: '#475569', fontWeight: 700 }}>{label}<input {...extra} type={type} value={type === 'date' && config[key] ? new Date(config[key]).toISOString().slice(0, 10) : config[key] ?? ''} onChange={(e) => setConfig(key, type === 'number' ? Number(e.target.value) : (type === 'date' && !e.target.value ? null : e.target.value))} style={{ padding: '9px 10px', border: '1px solid #CBD5E1', borderRadius: 8, color: '#0F172A', fontWeight: 500, width: '100%' }} /></label>;
+    const saveConfig = async () => { setReferralSaving(true); try { const saved = await api.saveReferralConfig(config); setReferralAdmin((x) => ({ ...x, config: saved.data })); addToast('Referral settings saved', 'success'); } catch (e) { addToast(e.message || 'Could not save settings', 'error'); } finally { setReferralSaving(false); } };
+    const patchUser = async (person, changes) => { try { await api.updateReferralUser(person._id, changes); await loadReferralAdmin(); addToast('Referral member settings updated', 'success'); } catch (e) { addToast(e.message || 'Could not update member', 'error'); } };
+    const updateCategory = (index, key, value) => { const categories = [...(config.categories || [])]; categories[index] = { ...categories[index], [key]: key === 'limit' ? Number(value) : value }; setConfig('categories', categories); setConfig('limits', Object.fromEntries(categories.map((x) => [x.name, Number(x.limit)]))); };
+    return <div style={{ display: 'grid', gap: 18, color: '#0F172A' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}><div><h1 style={{ margin: 0, fontSize: 25, fontWeight: 850 }}>Refer & Earn Management</h1><p style={{ color: '#64748B', margin: '6px 0 0' }}>Configure referral eligibility, wallet rewards, and member limits.</p></div><button onClick={loadReferralAdmin} style={{ padding: '9px 13px', background: '#fff', border: '1px solid #CBD5E1', borderRadius: 9, cursor: 'pointer', display: 'flex', gap: 7, alignItems: 'center' }}><RefreshCw size={15}/> Refresh</button></div>
+      {referralLoading ? <div style={{ padding: 55, textAlign: 'center', color: '#64748B' }}>Loading referral analytics…</div> : <>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>{[['Total referrals', analytics.total || 0], ['Successful', analytics.successful || 0], ['Pending', analytics.pending || 0], ['Rewards distributed', `₹${Number(analytics.distributed || 0).toLocaleString('en-IN')}`], ['Rewards pending', `₹${Number(analytics.pendingRewards || 0).toLocaleString('en-IN')}`], ['Reversed', `₹${Number(analytics.reversed || 0).toLocaleString('en-IN')}`]].map(([label, value]) => <div key={label} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: 16 }}><div style={{ fontSize: 12, color: '#64748B' }}>{label}</div><strong style={{ fontSize: 23, display: 'block', marginTop: 7 }}>{value}</strong></div>)}</div>
+        <section style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: 20 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}><div><h2 style={{ margin: 0, fontSize: 18 }}>Reward configuration</h2><small style={{ color: '#64748B' }}>Reward values and qualification are enforced by the backend.</small></div><label style={{ display: 'flex', gap: 9, alignItems: 'center', fontWeight: 700 }}><input type="checkbox" checked={Boolean(config.enabled)} onChange={(e) => setConfig('enabled', e.target.checked)}/> Program enabled</label></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 13 }}>{field('Referrer reward (₹)', 'referrerReward')}{field('New customer reward (₹)', 'referredReward')}<label style={adminFieldLabel}>Reward type<select value={config.rewardType || 'fixed'} onChange={(e) => setConfig('rewardType', e.target.value)} style={adminInput}> <option value="fixed">Fixed amount</option></select></label><label style={adminFieldLabel}>Eligibility condition<select value={config.eligibility || 'orders'} onChange={(e) => setConfig('eligibility', e.target.value)} style={adminInput}><option value="orders">Successful order count</option><option value="minimumOrder">Minimum successful order value</option></select></label>{config.eligibility === 'minimumOrder' ? field('Minimum order amount (₹)', 'minimumOrderAmount') : field('Successful orders required', 'successfulOrdersRequired')}{field('Reward expiry (days, 0 = no expiry)', 'rewardExpiryDays')}{field('Program starts', 'startDate', 'date')}{field('Program ends', 'endDate', 'date')}</div>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', margin: '17px 0' }}><label><input type="checkbox" checked={config.useForPurchases !== false} onChange={(e) => setConfig('useForPurchases', e.target.checked)}/> Wallet rewards usable for purchases</label><label><input type="checkbox" checked={Boolean(config.allowWithdrawals)} onChange={(e) => setConfig('allowWithdrawals', e.target.checked)}/> Allow withdrawals</label><label>Refund policy <select value={config.refundPolicy || 'reverse'} onChange={(e) => setConfig('refundPolicy', e.target.value)} style={adminInput}><option value="reverse">Reverse reward</option><option value="keep">Keep reward</option></select></label></div>
+          <h3 style={{ fontSize: 15 }}>Referral membership categories</h3><div style={{ display: 'grid', gridTemplateColumns: '1.1fr .8fr 1fr 1fr auto', gap: 8, color: '#64748B', fontSize: 11, marginBottom: 6 }}><span>Name</span><span>Limit (-1 unlimited)</span><span>Referrer reward override</span><span>New customer reward override</span><span/></div>{(config.categories || []).map((category, index) => <div key={`${category.name}-${index}`} style={{ display: 'grid', gridTemplateColumns: '1.1fr .8fr 1fr 1fr auto', gap: 8, marginBottom: 8 }}><input value={category.name || ''} onChange={(e) => updateCategory(index, 'name', e.target.value)} placeholder="Category" style={adminInput}/><input type="number" value={category.limit ?? 0} onChange={(e) => updateCategory(index, 'limit', e.target.value)} style={adminInput}/><input type="number" value={category.referrerReward ?? ''} placeholder={`Default ₹${config.referrerReward || 0}`} onChange={(e) => updateCategory(index, 'referrerReward', e.target.value)} style={adminInput}/><input type="number" value={category.referredReward ?? ''} placeholder={`Default ₹${config.referredReward || 0}`} onChange={(e) => updateCategory(index, 'referredReward', e.target.value)} style={adminInput}/><button onClick={() => { const next = config.categories.filter((_, i) => i !== index); setConfig('categories', next); setConfig('limits', Object.fromEntries(next.map((x) => [x.name, Number(x.limit)]))); }} style={dangerButton}>Remove</button></div>)}<div style={{ display: 'flex', gap: 8, marginTop: 10 }}><button onClick={() => setConfig('categories', [...(config.categories || []), { name: '', limit: 0 }])} style={smallButton}>+ Add category</button><button disabled={referralSaving} onClick={saveConfig} style={{ ...smallButton, background: '#0B2947', color: '#fff', borderColor: '#0B2947' }}>{referralSaving ? 'Saving…' : 'Save referral settings'}</button></div>
+        </section>
+        <section style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: 20 }}><h2 style={{ margin: '0 0 12px', fontSize: 18 }}>Member referral limits</h2><div style={{ overflowX: 'auto' }}><table style={adminTable}><thead><tr>{['Member','Referral code','Category','Custom limit','Used','Actions'].map((x)=><th key={x} style={adminTh}>{x}</th>)}</tr></thead><tbody>{(referralAdmin?.users || []).map((person)=><tr key={person._id}><td style={adminTd}>{person.name}<div style={{ color: '#64748B', fontSize: 12 }}>{person.phone || person.email}</div></td><td style={adminTd}>{person.referralCode || '—'}</td><td style={adminTd}><select value={person.referralCategory || 'Normal'} onChange={(e) => patchUser(person, { category: e.target.value })} style={adminInput}>{(config.categories || []).map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}</select></td><td style={adminTd}><input type="number" placeholder="Default" defaultValue={person.referralLimitOverride ?? ''} onBlur={(e) => patchUser(person, { limit: e.target.value === '' ? null : Number(e.target.value) })} style={{ ...adminInput, width: 100 }}/></td><td style={adminTd}>{person.referralLimitUsed || 0}</td><td style={adminTd}><button onClick={() => patchUser(person, { reset: true })} style={smallButton}>Reset used count</button></td></tr>)}</tbody></table></div></section>
+        <section style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, padding: 20 }}><h2 style={{ margin: '0 0 12px', fontSize: 18 }}>Referral reward status</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8, marginBottom: 12 }}><input value={referralSearch} onChange={(e) => setReferralSearch(e.target.value)} placeholder="Search name or referral code" style={adminInput}/><select value={referralStatusFilter} onChange={(e) => setReferralStatusFilter(e.target.value)} style={adminInput}>{['All','Pending','Eligible','Approved','Credited','Rejected','Reversed'].map((x)=><option key={x}>{x}</option>)}</select><select value={referralCategoryFilter} onChange={(e) => setReferralCategoryFilter(e.target.value)} style={adminInput}><option>All</option>{(config.categories || []).map((x)=><option key={x.name}>{x.name}</option>)}</select><input type="date" value={referralDateFrom} onChange={(e) => setReferralDateFrom(e.target.value)} style={adminInput}/><input type="date" value={referralDateTo} onChange={(e) => setReferralDateTo(e.target.value)} style={adminInput}/></div><div style={{ overflowX: 'auto' }}><table style={adminTable}><thead><tr>{['Referrer','New customer','Code','Order ID','Rewards','Status','Actions'].map((x)=><th key={x} style={adminTh}>{x}</th>)}</tr></thead><tbody>{filteredReferrals.map((r)=><tr key={r._id}><td style={adminTd}>{r.referrerName}</td><td style={adminTd}>{r.referredName}</td><td style={adminTd}>{r.referralCode}</td><td style={adminTd}>{r.qualifyingOrderId || '—'}</td><td style={adminTd}>₹{Number(r.referrerReward).toLocaleString('en-IN')} / ₹{Number(r.referredReward).toLocaleString('en-IN')}</td><td style={adminTd}>{r.status}</td><td style={adminTd}>{['Pending','Eligible'].includes(r.status) && <button onClick={async () => { await api.updateReferralStatus(r._id, 'Rejected'); loadReferralAdmin(); }} style={dangerButton}>Reject</button>}{r.status === 'Credited' && <button onClick={async () => { await api.updateReferralStatus(r._id, 'Reversed'); loadReferralAdmin(); }} style={dangerButton}>Reverse</button>}</td></tr>)}</tbody></table>{!filteredReferrals.length && <p style={{ color: '#64748B' }}>No referrals match these filters.</p>}</div></section>
+      </>}
+    </div>;
   }
 
   function renderAdminUsersView() {

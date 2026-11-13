@@ -1,5 +1,4 @@
 import Order from '../models/Order.js';
-import Coupon from '../models/Coupon.js';
 import PaymentIntent from '../models/PaymentIntent.js';
 import buildCrud from './crudFactory.js';
 import { notifyNewOrder } from './notificationHooks.js';
@@ -7,12 +6,21 @@ import { priceCart } from '../utils/orderPricing.js';
 import { confirmPayment, sandboxAllowed } from '../utils/razorpay.js';
 import { sendPushToOwner } from '../utils/push.js';
 import { nextSequence } from '../utils/counters.js';
+import { getReferralConfig, processCompletedOrder } from '../services/referrals.js';
+import User from '../models/User.js';
+import { WalletTransaction } from '../models/Referral.js';
+import { consumeCouponUse, releaseCouponUse, reserveCouponUse, restoreCouponUsageForOrder } from '../services/coupons.js';
 
 /**
  * Material orders
  * @route /api/orders  - customers create/read their own, admins manage all
  */
-const orderCrud = buildCrud(Order, { scopeToOwner: true, onCreate: notifyNewOrder });
+const handleOrderUpdate = async (order) => {
+  const status = `${String(order.statusCode || '').toLowerCase()} ${String(order.status || '').toLowerCase()}`;
+  if (status.includes('cancel')) await restoreCouponUsageForOrder(order);
+  await processCompletedOrder(order);
+};
+const orderCrud = buildCrud(Order, { scopeToOwner: true, onCreate: notifyNewOrder, onUpdate: handleOrderUpdate });
 export default orderCrud;
 
 const ONLINE_METHOD = /online|upi|card|net ?banking|wallet|razorpay|phonepe|paytm|google pay|gpay/i;
@@ -77,7 +85,8 @@ export const placeOrder = async (req, res) => {
   const body = req.body || {};
   const payment = body.payment || {};
   const methodLabel = String(body.paymentMethod || payment.method || 'Cash on Delivery');
-  const isOnline = ONLINE_METHOD.test(methodLabel) && !/cash/i.test(methodLabel);
+  const isWallet = /mistri wallet/i.test(methodLabel);
+  const isOnline = ONLINE_METHOD.test(methodLabel) && !/cash/i.test(methodLabel) && !isWallet;
   const userId = String(req.user._id);
 
   let lines;
@@ -85,6 +94,9 @@ export const placeOrder = async (req, res) => {
   let couponCode;
   let paymentStatus;
   let gateway;
+  const reservedCoupons = [];
+  let couponOwnerUserId = null;
+  let couponDiscounts = [];
   let intentId = null;
   const razorpayOrderId = payment.razorpayOrderId || body.razorpayOrderId || null;
   const razorpayPaymentId = payment.razorpayPaymentId || body.razorpayPaymentId || null;
@@ -133,20 +145,63 @@ export const placeOrder = async (req, res) => {
       }
 
       // The order is exactly what was priced and paid for.
-      ({ lines, totals, couponCode } = intent);
+      ({ lines, totals, couponCode, couponDiscounts = [] } = intent);
+      couponOwnerUserId = intent.couponOwnerUserId || null;
     } else {
-      ({ lines, totals, couponCode } = await priceCart({
+      ({ lines, totals, couponCode, couponDiscounts = [] } = await priceCart({
         items: body.items,
         couponCode: body.couponCode,
+        userId,
         includeUnloading: Boolean(body.includeUnloading ?? body.isUnloadingSelected ?? false),
         deliveryOption: body.deliveryOption === 'express' ? 'express' : 'normal',
       }));
-      paymentStatus = 'Pending (Pay on Site)';
-      gateway = 'Cash On Site';
+      if (isWallet) {
+        const config = await getReferralConfig();
+        if (!config.useForPurchases) return fail(res, 403, 'Referral wallet funds are not enabled for purchases');
+        paymentStatus = 'Paid (Mistri Wallet)';
+        gateway = 'Mistri Wallet';
+      } else {
+        paymentStatus = 'Pending (Pay on Site)';
+        gateway = 'Cash On Site';
+      }
     }
 
     const id = await newOrderId();
     const now = new Date();
+    let walletDebit = null;
+    if (isWallet) {
+      const transactionId = `PUR-${id}`;
+      await User.updateOne({ _id: userId, walletBalance: { $exists: false } }, { $set: { walletBalance: 0 } });
+      walletDebit = await User.findOneAndUpdate(
+        { _id: userId, walletBalance: { $gte: totals.grandTotal }, walletTransactionIds: { $ne: transactionId } },
+        { $inc: { walletBalance: -totals.grandTotal }, $addToSet: { walletTransactionIds: transactionId } },
+        { new: true }
+      ).select('walletBalance').lean();
+      if (!walletDebit) return fail(res, 400, 'Wallet balance is insufficient or the wallet transaction was already used');
+    }
+    if (couponCode && !isOnline) {
+      try {
+        const codes = couponCode.split(',').filter(Boolean);
+        for (const code of codes) {
+          reservedCoupons.push(await reserveCouponUse({
+            code,
+            userId,
+            referenceId: id,
+            discountAmount: couponDiscounts.find((item) => item.code === code)?.amount || 0,
+            orderValue: totals.subtotal,
+            userName: req.user.name || '',
+            userPhone: req.user.phone || '',
+          }));
+        }
+      } catch (error) {
+        await Promise.all(reservedCoupons.map((reservation) => releaseCouponUse({ code: reservation.code, userId, referenceId: reservation.referenceId }).catch(() => {})));
+        reservedCoupons.length = 0;
+        if (walletDebit) {
+          await User.updateOne({ _id: userId }, { $inc: { walletBalance: totals.grandTotal }, $pull: { walletTransactionIds: `PUR-${id}` } });
+        }
+        throw error;
+      }
+    }
     const customer = Object.fromEntries(CUSTOMER_FIELDS.filter((f) => body[f] !== undefined).map((f) => [f, body[f]]));
 
     const order = {
@@ -162,6 +217,7 @@ export const placeOrder = async (req, res) => {
       items: lines,
       itemCount: lines.reduce((acc, l) => acc + l.quantity, 0),
       couponCode: couponCode || null,
+      ...(couponCode ? { couponOwnerUserId: couponOwnerUserId || reservedCoupons.map((item) => item.ownerUserId).filter(Boolean)[0] || null } : {}),
       grandTotal: totals.grandTotal,
       total: totals.grandTotal,
       summary: {
@@ -191,22 +247,32 @@ export const placeOrder = async (req, res) => {
       tracking: initialTracking(body),
     };
 
+    if (walletDebit) {
+      try {
+        await WalletTransaction.create({ transactionId: `PUR-${id}`, userId, orderId: id, type: 'adjustment', status: 'Credited', amount: -totals.grandTotal, balanceAfter: walletDebit.walletBalance, description: `Purchase paid from referral wallet for ${id}` });
+      } catch (error) {
+        await User.updateOne({ _id: userId }, { $inc: { walletBalance: totals.grandTotal }, $pull: { walletTransactionIds: `PUR-${id}` } });
+        throw error;
+      }
+    }
+
     let saved;
     try {
       saved = (await Order.create(order)).toJSON();
     } catch (err) {
+      if (walletDebit) {
+        await User.updateOne({ _id: userId }, { $inc: { walletBalance: totals.grandTotal }, $pull: { walletTransactionIds: `PUR-${id}` } });
+        await WalletTransaction.deleteOne({ transactionId: `PUR-${id}` });
+      }
       if (intentId) await PaymentIntent.updateOne({ id: intentId }, { $set: { status: 'created' } });
       if (err?.code === 11000) return fail(res, 409, 'This payment has already been used for an order');
       throw err;
     }
 
+
     if (intentId) await PaymentIntent.updateOne({ id: intentId }, { $set: { orderId: id } });
     if (couponCode) {
-      // Count the redemption (skipped if an admin stored usageCount as text).
-      await Coupon.updateOne(
-        { code: couponCode, usageCount: { $not: { $type: 'string' } } },
-        { $inc: { usageCount: 1 } }
-      ).catch(() => {});
+      await Promise.all(couponCode.split(',').filter(Boolean).map((code) => consumeCouponUse({ code, userId, referenceId: isOnline ? razorpayOrderId : id, orderId: id })));
     }
     notifyNewOrder(saved).catch((err) => console.warn('Order notification failed:', err.message));
     // Real device push to whoever placed the order, so they know it went through even
@@ -219,6 +285,7 @@ export const placeOrder = async (req, res) => {
 
     res.status(201).json({ success: true, data: saved });
   } catch (error) {
+    await Promise.all(reservedCoupons.map((reservation) => releaseCouponUse({ code: reservation.code, userId, referenceId: reservation.referenceId }).catch(() => {})));
     if (intentId && !error.status) {
       await PaymentIntent.updateOne({ id: intentId }, { $set: { status: 'created' } }).catch(() => {});
     }

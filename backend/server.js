@@ -17,6 +17,7 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import categorySectionRoutes from './routes/categorySectionRoutes.js';
 import notificationsRoutes from './routes/notificationsRoutes.js';
+import referralRoutes from './routes/referralRoutes.js';
 import {
   couponRoutes,
   settingsRoutes,
@@ -96,6 +97,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/category-sections', categorySectionRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/referrals', referralRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/mistris', mistriRoutes);
 app.use('/api/bookings', bookingRoutes);

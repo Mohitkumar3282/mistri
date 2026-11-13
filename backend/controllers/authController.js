@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import User from '../models/User.js';
 import generateToken from '../utils/generateToken.js';
 import { saveDeviceToken, ADMIN_OWNER_ID } from '../utils/push.js';
+import { attachReferral, ensureReferralCode } from '../services/referrals.js';
 
 // In-memory fallback users for instant testing without requiring MongoDB
 let mockUsers = [
@@ -38,7 +39,7 @@ let mockUsers = [
  */
 export const registerUser = async (req, res, next) => {
   try {
-    const { name, email, password, phone, role, company, gstin, city } = req.body;
+    const { name, email, password, phone, role, company, gstin, city, referralCode } = req.body;
 
     // Never let a request self-assign a privileged role.
     const safeRole = ['customer', 'mistri'].includes(role) ? role : 'customer';
@@ -87,6 +88,13 @@ export const registerUser = async (req, res, next) => {
       }
 
       const user = await User.create(userData);
+      try {
+        await ensureReferralCode(user);
+        if (safeRole === 'customer' && referralCode) await attachReferral(user, referralCode);
+      } catch (referralError) {
+        await User.deleteOne({ _id: user._id });
+        return res.status(400).json({ success: false, message: referralError.message });
+      }
 
       return res.status(201).json({
         success: true,
@@ -96,6 +104,7 @@ export const registerUser = async (req, res, next) => {
           email: user.email || '',
           role: user.role,
           phone: user.phone,
+          referralCode: user.referralCode,
           token: generateToken(user._id, user.role),
         },
       });
@@ -191,6 +200,7 @@ export const loginUser = async (req, res, next) => {
       }
 
       if (user && (await user.matchPassword(password))) {
+        await ensureReferralCode(user);
         if ((user.status === 'Deactivated' || user.status === 'Inactive') && user.role !== 'admin') {
           return res.status(403).json({
             success: false,
@@ -258,6 +268,7 @@ export const getMe = async (req, res, next) => {
     try {
       const user = await User.findById(req.user._id).select('-password');
       if (user) {
+        await ensureReferralCode(user);
         return res.json({ success: true, data: user });
       }
     } catch (dbError) {}
@@ -461,6 +472,7 @@ export const firebaseLogin = async (req, res, next) => {
     }
 
     let user = await User.findOne({ email });
+    let created = false;
     if (!user) {
       user = await User.create({
         name: fbUser.displayName || email.split('@')[0],
@@ -471,7 +483,9 @@ export const firebaseLogin = async (req, res, next) => {
         avatar: fbUser.photoUrl || undefined,
         role: 'customer',
       });
+      created = true;
     }
+    await ensureReferralCode(user);
 
     res.json({
       success: true,
@@ -481,6 +495,7 @@ export const firebaseLogin = async (req, res, next) => {
         email: user.email,
         role: user.role,
         phone: user.phone,
+        referralCode: user.referralCode,
         avatar: user.avatar,
         company: user.company,
         gstin: user.gstin,

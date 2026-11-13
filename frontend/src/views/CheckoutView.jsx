@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   CheckCircle2,
@@ -16,6 +16,7 @@ import {
   Navigation,
   X,
   Truck,
+  Share2,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import SlideToOrder from '../components/SlideToOrder';
@@ -23,9 +24,10 @@ import OnlinePaymentModal from '../components/OnlinePaymentModal';
 import BillDetailsCard from '../components/BillDetailsCard';
 import CancellationPolicyCard from '../components/CancellationPolicyCard';
 import UnloadingServiceCard from '../components/UnloadingServiceCard';
-import { getCartItemKey, couponDiscount, computeTotals } from '../utils/pricing';
+import { getCartItemKey, computeTotals } from '../utils/pricing';
 import { getDeliverySchedule } from '../utils/deliverySchedule';
 import { checkDeliveryServiceability } from '../utils/deliveryValidation';
+import api from '../services/api';
 
 export const CheckoutView = () => {
   const {
@@ -68,12 +70,27 @@ export const CheckoutView = () => {
   const [isCouponsOpen, setIsCouponsOpen] = useState(false);
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
+
+  const handleShareCoupon = async (code) => {
+    const message = `Use my Mistri coupon code ${code} on your next order.`;
+    try {
+      if (navigator.share) await navigator.share({ title: 'Mistri coupon', text: message });
+      else {
+        await navigator.clipboard.writeText(message);
+        addToast('Coupon sharing text copied', 'success');
+      }
+    } catch (error) {
+      if (error?.name !== 'AbortError') addToast('Could not share the coupon code', 'warning');
+    }
+  };
   const [isPaymentSelectorOpen, setIsPaymentSelectorOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isOrderProcessing, setIsOrderProcessing] = useState(false);
   const [isOrderSuccess, setIsOrderSuccess] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [deliveryOption, setDeliveryOption] = useState('normal');
+  const [walletInfo, setWalletInfo] = useState(null);
+  useEffect(() => { if (user) api.getReferralSummary().then((r) => setWalletInfo(r.data)).catch(() => setWalletInfo(null)); }, [user?._id]);
 
   const handleGpsLocationClick = async () => {
     try {
@@ -99,6 +116,7 @@ export const CheckoutView = () => {
     };
 
   const isOnline = paymentMethod === 'online';
+  const isWallet = paymentMethod === 'wallet';
   const deliveryInfo = getDeliverySchedule(new Date(), siteSettings);
   const checkoutTotals = computeTotals({
     subtotal: cartSubtotal,
@@ -129,12 +147,12 @@ export const CheckoutView = () => {
     siteSettings,
   });
 
-  const handleApplyCoupon = (e) => {
+  const handleApplyCoupon = async (e) => {
     e.preventDefault();
     if (couponInput.trim()) {
-      const res = applyCoupon(couponInput.trim());
-      if (!res) {
-        setCouponError('Invalid coupon code');
+      const res = await applyCoupon(couponInput.trim());
+      if (!res?.success) {
+        setCouponError(res?.message || 'Invalid coupon code');
       } else {
         setCouponError('');
         setCouponInput('');
@@ -188,6 +206,18 @@ export const CheckoutView = () => {
 
     requireAuth(() => {
       setIsPaymentModalOpen(true);
+    });
+  };
+
+  const handleWalletOrderSlide = () => {
+    if (!serviceability.isServiceable) return addToast(serviceability.reason || 'This delivery location is not serviceable.', 'error', 6000);
+    requireAuth(async () => {
+      setIsOrderProcessing(true);
+      try {
+        const newOrder = await placeOrder({ paymentMethod: 'Mistri Wallet', siteAddress: selectedAddress, unloadingNotes: 'Direct site delivery', deliveryOption });
+        setIsOrderProcessing(false); setIsOrderSuccess(true);
+        setTimeout(() => navigateTo('order-confirmation', { order: newOrder }), 600);
+      } catch { setIsOrderProcessing(false); }
     });
   };
 
@@ -832,6 +862,10 @@ export const CheckoutView = () => {
                       <div style={{ fontSize: '0.74rem', color: '#166534' }}>
                         Saved ₹{(discountAmount || appliedCoupon.discountAmount || 0).toLocaleString('en-IN')} on this order
                       </div>
+                      <div style={{ fontSize: '0.7rem', color: '#166534', marginTop: 3 }}>
+                        {Number(appliedCoupon.minOrderValue) > 0 ? `Minimum order ₹${Number(appliedCoupon.minOrderValue).toLocaleString('en-IN')}` : 'No minimum order'}
+                        {appliedCoupon.expiryDate ? ` · Expires ${new Date(appliedCoupon.expiryDate).toLocaleDateString()}` : ''}
+                      </div>
                     </div>
                   </div>
                   <button
@@ -896,8 +930,8 @@ export const CheckoutView = () => {
                         {coupons
                           .filter((c) => c.isActive !== false)
                           .map((coupon) => {
-                            const { amount: potentialSavings, reason } = couponDiscount(coupon, cartSubtotal);
-                            const isEligible = !reason;
+                            const isEligible = true;
+                            const reason = '';
                             const isFlat = coupon.discountType === 'flat' || (Number(coupon.flatAmount) > 0 && !Number(coupon.discountPercentage));
                             const discountBadge = isFlat
                               ? `₹${(coupon.flatAmount || coupon.discountAmount || 0).toLocaleString('en-IN')} FLAT OFF`
@@ -945,6 +979,9 @@ export const CheckoutView = () => {
                                   <div style={{ fontSize: '0.74rem', color: '#475569', lineHeight: 1.3 }}>
                                     {coupon.description || `Save ${discountBadge} on orders above ₹${(coupon.minOrderValue || 0).toLocaleString('en-IN')}`}
                                   </div>
+                                  <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: 3 }}>
+                                    Minimum: ₹{Number(coupon.minOrderValue || 0).toLocaleString('en-IN')}{coupon.expiryDate ? ` · Expires ${new Date(coupon.expiryDate).toLocaleDateString()}` : ''}
+                                  </div>
 
                                   {!isEligible && reason && (
                                     <div style={{ fontSize: '0.7rem', color: '#D97706', fontWeight: '600', marginTop: '2px' }}>
@@ -953,25 +990,14 @@ export const CheckoutView = () => {
                                   )}
                                 </div>
 
-                                <button
-                                  type="button"
-                                  disabled={!isEligible}
-                                  onClick={() => applyCoupon(coupon.code)}
-                                  style={{
-                                    backgroundColor: isEligible ? '#15803D' : '#E2E8F0',
-                                    color: isEligible ? '#FFFFFF' : '#94A3B8',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    padding: '6px 12px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '800',
-                                    cursor: isEligible ? 'pointer' : 'not-allowed',
-                                    whiteSpace: 'nowrap',
-                                    boxShadow: isEligible ? '0 2px 4px rgba(21, 128, 61, 0.2)' : 'none',
-                                  }}
-                                >
-                                  {isEligible ? `APPLY (Save ₹${potentialSavings})` : 'APPLY'}
-                                </button>
+                                <div style={{ display: 'grid', gap: 5 }}>
+                                  <button type="button" disabled={!isEligible} onClick={() => applyCoupon(coupon.code)} style={{ backgroundColor: isEligible ? '#15803D' : '#E2E8F0', color: isEligible ? '#FFFFFF' : '#94A3B8', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: '0.75rem', fontWeight: 800, cursor: isEligible ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}>
+                                    APPLY
+                                  </button>
+                                  {siteSettings.couponSettings?.enableCouponSharing !== false && coupon.ownerUserId && String(coupon.ownerUserId) === String(user?._id) && (
+                                    <button type="button" onClick={() => handleShareCoupon(coupon.code)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, background: '#FFFFFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: 7, padding: '5px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}><Share2 size={12} />Share</button>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
@@ -1017,9 +1043,6 @@ export const CheckoutView = () => {
                 <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#0F172A' }}>
                   Select Payment Mode
                 </div>
-                <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                  Choose online payment or cash on delivery
-                </div>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#15803D', fontWeight: '600', backgroundColor: '#DCFCE7', padding: '3px 8px', borderRadius: '6px' }}>
@@ -1064,29 +1087,6 @@ export const CheckoutView = () => {
                   <span style={{ fontWeight: isOnline ? '700' : '600', fontSize: '0.88rem', color: '#0F172A' }}>
                     💳 Pay Online (UPI / Cards / NetBanking)
                   </span>
-                  <span
-                    style={{
-                      fontSize: '0.68rem',
-                      backgroundColor: '#DCFCE7',
-                      color: '#15803D',
-                      fontWeight: '700',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                    }}
-                  >
-                    RECOMMENDED
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '3px', lineHeight: '1.4' }}>
-                  Instant digital payment via Google Pay, PhonePe, Paytm, UPI, Debit/Credit Card or NetBanking.
-                </div>
-                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.68rem', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', padding: '2px 8px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
-                    ⚡ Instant Confirmation
-                  </span>
-                  <span style={{ fontSize: '0.68rem', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', padding: '2px 8px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
-                    🔒 Fast & Secure
-                  </span>
                 </div>
               </div>
             </div>
@@ -1095,8 +1095,8 @@ export const CheckoutView = () => {
             <div
               onClick={() => setPaymentMethod('cash')}
               style={{
-                border: !isOnline ? '2px solid #15803D' : '1px solid #E2E8F0',
-                backgroundColor: !isOnline ? '#F0FDF4' : '#FAFAFA',
+                border: paymentMethod === 'cash' ? '2px solid #15803D' : '1px solid #E2E8F0',
+                backgroundColor: paymentMethod === 'cash' ? '#F0FDF4' : '#FAFAFA',
                 borderRadius: '12px',
                 padding: '14px',
                 cursor: 'pointer',
@@ -1110,7 +1110,7 @@ export const CheckoutView = () => {
                 <input
                   type="radio"
                   name="paymentOption"
-                  checked={!isOnline}
+                  checked={paymentMethod === 'cash'}
                   onChange={() => setPaymentMethod('cash')}
                   style={{
                     accentColor: '#15803D',
@@ -1123,32 +1123,23 @@ export const CheckoutView = () => {
 
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: !isOnline ? '700' : '600', fontSize: '0.88rem', color: '#0F172A' }}>
+                  <span style={{ fontWeight: paymentMethod === 'cash' ? '700' : '600', fontSize: '0.88rem', color: '#0F172A' }}>
                     💵 Cash on Delivery (Pay on Site)
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '0.68rem',
-                      backgroundColor: '#FEF3C7',
-                      color: '#B45309',
-                      fontWeight: '700',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                    }}
-                  >
-                    PAY AT SITE
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '3px', lineHeight: '1.4' }}>
-                  Pay via Cash or UPI directly to the delivery partner upon arrival at the delivery address.
-                </div>
-                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.68rem', backgroundColor: '#FFFFFF', border: '1px solid #CBD5E1', padding: '2px 8px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
-                    📦 Pay After Delivery
                   </span>
                 </div>
               </div>
             </div>
+            {walletInfo?.config?.useForPurchases && <div onClick={() => walletInfo.walletBalance >= checkoutTotals.grandTotal && setPaymentMethod('wallet')} style={{ border: isWallet ? '2px solid #15803D' : '1px solid #E2E8F0', backgroundColor: isWallet ? '#F0FDF4' : '#FAFAFA', borderRadius: 12, padding: 14, cursor: walletInfo.walletBalance >= checkoutTotals.grandTotal ? 'pointer' : 'not-allowed', opacity: walletInfo.walletBalance >= checkoutTotals.grandTotal ? 1 : .62, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <input type="radio" name="paymentOption" checked={isWallet} disabled={walletInfo.walletBalance < checkoutTotals.grandTotal} onChange={() => setPaymentMethod('wallet')} style={{ accentColor: '#15803D', width: 18, height: 18 }}/>
+              <div>
+                <strong style={{ fontSize: '0.88rem' }}>Wallet</strong>
+                {walletInfo.walletBalance < checkoutTotals.grandTotal && (
+                  <div style={{ fontSize: '0.75rem', color: '#B45309', marginTop: 4 }}>
+                    Low wallet balance
+                  </div>
+                )}
+              </div>
+            </div>}
           </div>
         </div>
 
@@ -1214,7 +1205,7 @@ export const CheckoutView = () => {
             isSuccess={isOrderSuccess}
             disabled={!serviceability.isServiceable}
             disabledMessage={!serviceability.isServiceable ? 'Out of Delivery Range' : ''}
-            onSlideComplete={isOnline ? handleOnlineOrderSlide : handleCashOrderSlide}
+            onSlideComplete={isOnline ? handleOnlineOrderSlide : isWallet ? handleWalletOrderSlide : handleCashOrderSlide}
           />
         </div>
       </div>
@@ -1318,6 +1309,7 @@ export const CheckoutView = () => {
       {/* Online Payment Modal */}
       <OnlinePaymentModal
         isOpen={isPaymentModalOpen}
+        directCheckout
         onClose={() => setIsPaymentModalOpen(false)}
         amount={checkoutTotals.grandTotal}
         customer={user}
@@ -1333,6 +1325,7 @@ export const CheckoutView = () => {
           deliveryOption,
         }}
         onPaymentSuccess={handleOnlinePaymentSuccess}
+        onPaymentError={(message) => addToast(message, 'error', 6000)}
       />
     </div>
   );

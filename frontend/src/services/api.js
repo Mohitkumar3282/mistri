@@ -86,6 +86,12 @@ export const api = {
   register: (userData) => request('/auth/register', json('POST', userData, { quiet: true })),
   firebaseLogin: (idToken) => request('/auth/firebase', json('POST', { idToken }, { quiet: true })),
   getMe: (auth) => request('/auth/me', { auth, quiet: true }),
+  getReferralSummary: () => request('/referrals/me', { auth: 'user', quiet: true }),
+  getWalletHistory: () => request('/referrals/wallet', { auth: 'user', quiet: true }),
+  getAdminReferrals: () => request('/admin/referrals', { auth: 'admin', quiet: true }),
+  saveReferralConfig: (data) => request('/admin/referrals/config', json('PUT', data, { auth: 'admin' })),
+  updateReferralUser: (id, data) => request(`/admin/referrals/users/${encodeURIComponent(id)}`, json('PATCH', data, { auth: 'admin' })),
+  updateReferralStatus: (id, status) => request(`/admin/referrals/${encodeURIComponent(id)}/status`, json('PATCH', { status }, { auth: 'admin' })),
 
   // Saved addresses & wishlist of the signed-in shopper
   getAccountData: () => request('/auth/account', { auth: 'user', quiet: true }),
@@ -128,6 +134,7 @@ export const api = {
 
   // Coupons
   getCoupons: () => request('/coupons'),
+  validateCoupon: (data) => request('/coupons/validate', json('POST', data, { auth: 'user', quiet: true })),
   createCoupon: (data) => request('/coupons', json('POST', data, { auth: 'admin' })),
   updateCoupon: (code, data) => request(`/coupons/${encodeURIComponent(code)}`, json('PATCH', data, { auth: 'admin' })),
   deleteCoupon: (code) => request(`/coupons/${encodeURIComponent(code)}`, { method: 'DELETE', auth: 'admin' }),
@@ -142,6 +149,7 @@ export const api = {
 
   // Admin
   getAdminStats: () => request('/admin/stats'),
+  getCouponAnalytics: () => request('/admin/coupons/analytics', { auth: 'admin', quiet: true }),
   getAdminUsers: () => request('/admin/users', { auth: 'admin' }),
   createAdminUser: (data) => request('/admin/users', json('POST', data, { auth: 'admin' })),
   updateAdminUser: (id, data) => request(`/admin/users/${encodeURIComponent(id)}`, json('PUT', data, { auth: 'admin' })),
@@ -156,6 +164,7 @@ export const api = {
   getPaymentKey: () => request('/payments/key'),
   // Always the shopper's session: the payment must belong to the account placing the order.
   createPaymentOrder: (data) => request('/payments/create-order', json('POST', data, { auth: 'user', quiet: true })),
+  cancelPaymentOrder: (razorpayOrderId) => request('/payments/cancel', json('POST', { razorpayOrderId }, { auth: 'user', quiet: true })),
   verifyPayment: (data) => request('/payments/verify', json('POST', data, { auth: 'user' })),
 
   // Media & Cloudinary Uploads

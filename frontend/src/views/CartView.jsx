@@ -18,9 +18,10 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCircle2,
+  Share2,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { getCartItemKey, couponDiscount } from '../utils/pricing';
+import { getCartItemKey } from '../utils/pricing';
 import BillDetailsCard from '../components/BillDetailsCard';
 import CancellationPolicyCard from '../components/CancellationPolicyCard';
 import UnloadingServiceCard from '../components/UnloadingServiceCard';
@@ -52,16 +53,31 @@ export const CartView = () => {
     siteSettings,
     navigateTo,
     addresses,
+    user,
+    addToast,
   } = useStore();
 
   const [isCouponsOpen, setIsCouponsOpen] = useState(false);
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
 
-  const handleApplyCoupon = (e) => {
+  const handleShareCoupon = async (code) => {
+    const message = `Use my Mistri coupon code ${code} on your next order.`;
+    try {
+      if (navigator.share) await navigator.share({ title: 'Mistri coupon', text: message });
+      else {
+        await navigator.clipboard.writeText(message);
+        addToast('Coupon sharing text copied', 'success');
+      }
+    } catch (error) {
+      if (error?.name !== 'AbortError') addToast('Could not share the coupon code', 'warning');
+    }
+  };
+
+  const handleApplyCoupon = async (e) => {
     e.preventDefault();
     if (couponInput.trim()) {
-      const res = applyCoupon(couponInput.trim());
+      const res = await applyCoupon(couponInput.trim());
       if (!res || !res.success) {
         setCouponError(res?.message || 'Invalid coupon code');
       } else {
@@ -542,6 +558,10 @@ export const CartView = () => {
                       <div style={{ fontSize: '0.74rem', color: '#166534' }}>
                         Saved ₹{(discountAmount || appliedCoupon.discountAmount || 0).toLocaleString('en-IN')} on your cart
                       </div>
+                      <div style={{ fontSize: '0.7rem', color: '#166534', marginTop: 3 }}>
+                        {Number(appliedCoupon.minOrderValue) > 0 ? `Minimum order ₹${Number(appliedCoupon.minOrderValue).toLocaleString('en-IN')}` : 'No minimum order'}
+                        {appliedCoupon.expiryDate ? ` · Expires ${new Date(appliedCoupon.expiryDate).toLocaleDateString()}` : ''}
+                      </div>
                     </div>
                   </div>
                   <button
@@ -606,8 +626,8 @@ export const CartView = () => {
                         {coupons
                           .filter((c) => c.isActive !== false)
                           .map((coupon) => {
-                            const { amount: potentialSavings, reason } = couponDiscount(coupon, cartSubtotal);
-                            const isEligible = !reason;
+                            const isEligible = true;
+                            const reason = '';
                             const isFlat = coupon.discountType === 'flat' || (Number(coupon.flatAmount) > 0 && !Number(coupon.discountPercentage));
                             const discountBadge = isFlat
                               ? `₹${(coupon.flatAmount || coupon.discountAmount || 0).toLocaleString('en-IN')} FLAT OFF`
@@ -655,6 +675,9 @@ export const CartView = () => {
                                   <div style={{ fontSize: '0.74rem', color: '#475569', lineHeight: 1.3 }}>
                                     {coupon.description || `Save ${discountBadge} on orders above ₹${(coupon.minOrderValue || 0).toLocaleString('en-IN')}`}
                                   </div>
+                                  <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: 3 }}>
+                                    Minimum: ₹{Number(coupon.minOrderValue || 0).toLocaleString('en-IN')}{coupon.expiryDate ? ` · Expires ${new Date(coupon.expiryDate).toLocaleDateString()}` : ''}
+                                  </div>
 
                                   {!isEligible && reason && (
                                     <div style={{ fontSize: '0.7rem', color: '#D97706', fontWeight: '600', marginTop: '2px' }}>
@@ -663,25 +686,14 @@ export const CartView = () => {
                                   )}
                                 </div>
 
-                                <button
-                                  type="button"
-                                  disabled={!isEligible}
-                                  onClick={() => applyCoupon(coupon.code)}
-                                  style={{
-                                    backgroundColor: isEligible ? '#15803D' : '#E2E8F0',
-                                    color: isEligible ? '#FFFFFF' : '#94A3B8',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    padding: '6px 12px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '800',
-                                    cursor: isEligible ? 'pointer' : 'not-allowed',
-                                    whiteSpace: 'nowrap',
-                                    boxShadow: isEligible ? '0 2px 4px rgba(21, 128, 61, 0.2)' : 'none',
-                                  }}
-                                >
-                                  {isEligible ? `APPLY (Save ₹${potentialSavings})` : 'APPLY'}
-                                </button>
+                                <div style={{ display: 'grid', gap: 5 }}>
+                                  <button type="button" disabled={!isEligible} onClick={() => applyCoupon(coupon.code)} style={{ backgroundColor: isEligible ? '#15803D' : '#E2E8F0', color: isEligible ? '#FFFFFF' : '#94A3B8', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: '0.75rem', fontWeight: 800, cursor: isEligible ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}>
+                                    APPLY
+                                  </button>
+                                  {siteSettings.couponSettings?.enableCouponSharing !== false && coupon.ownerUserId && String(coupon.ownerUserId) === String(user?._id) && (
+                                    <button type="button" onClick={() => handleShareCoupon(coupon.code)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, background: '#FFFFFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: 7, padding: '5px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}><Share2 size={12} />Share</button>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}

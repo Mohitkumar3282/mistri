@@ -71,6 +71,13 @@ const userSchema = new mongoose.Schema(
     // Per-account data that used to live only in one browser's localStorage
     addresses: { type: [mongoose.Schema.Types.Mixed], default: [] },
     wishlist: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    referralCode: { type: String, unique: true, sparse: true, uppercase: true, trim: true, index: true },
+    referredBy: { type: String, default: '', index: true },
+    referralCategory: { type: String, default: 'Normal' },
+    referralLimitOverride: { type: Number, default: null },
+    referralLimitUsed: { type: Number, default: 0 },
+    walletBalance: { type: Number, default: 0 },
+    walletTransactionIds: { type: [String], default: [] },
   },
   {
     timestamps: true,

@@ -11,6 +11,7 @@ export const SignupView = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    referralCode: new URLSearchParams(window.location.search).get('ref') || '',
   });
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,6 +30,7 @@ export const SignupView = () => {
         email: formData.email,
         password: formData.password,
         role: 'Customer',
+        referralCode: formData.referralCode.trim().toUpperCase(),
       });
       navigateTo('home');
     } catch (err) {
@@ -104,6 +106,12 @@ export const SignupView = () => {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: '0.825rem', fontWeight: 700 }}>Referral Code (Optional)</label>
+            <input type="text" placeholder="Enter a friend's code" className="form-control" value={formData.referralCode} onChange={(e) => setFormData({ ...formData, referralCode: e.target.value.toUpperCase() })} />
+            <small style={{ color: '#64748B' }}>Your friend and you may earn wallet rewards after eligible orders.</small>
           </div>
 
           <div className="responsive-split-equal" style={{ gap: '0.75rem' }}>

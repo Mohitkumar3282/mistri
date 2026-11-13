@@ -15,6 +15,7 @@ import {
   Clock,
   X,
   Bell,
+  Gift,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import Logo from './Logo';
@@ -586,6 +587,16 @@ export const Header = () => {
                       >
                         <Truck size={15} color="var(--primary-orange)" />
                         <span>My Material Orders</span>
+                      </button>
+
+                      <button
+                        onClick={() => { navigateTo('referrals'); setAccountDropdownOpen(false); }}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', background: 'transparent', border: 'none', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--text-primary)', cursor: 'pointer', borderRadius: '6px' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-surface)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <Gift size={15} color="#E88916" />
+                        <span>Refer & Earn</span>
                       </button>
 
                       <button

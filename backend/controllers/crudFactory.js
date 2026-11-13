@@ -36,7 +36,7 @@ const sendError = (res, error) => {
   return res.status(500).json({ success: false, message: error?.message || 'Server error' });
 };
 
-export const buildCrud = (Model, { sort = { _id: -1 }, scopeToOwner = false, onCreate } = {}) => {
+export const buildCrud = (Model, { sort = { _id: -1 }, scopeToOwner = false, onCreate, onUpdate } = {}) => {
   const key = Model.appKey || 'id';
 
   const scopedFilter = (req, extra = {}) =>
@@ -87,6 +87,8 @@ export const buildCrud = (Model, { sort = { _id: -1 }, scopeToOwner = false, onC
       await Model.replaceOne({ [key]: keyValue }, doc, { upsert: true, runValidators: true });
       const saved = clean(await Model.findOne({ [key]: keyValue }).lean());
 
+      if (existing && onUpdate) await onUpdate(saved, req);
+
       if (!existing && onCreate) {
         Promise.resolve(onCreate(saved, req)).catch((err) =>
           console.warn(`${Model.modelName} onCreate hook failed:`, err.message)
@@ -109,6 +111,7 @@ export const buildCrud = (Model, { sort = { _id: -1 }, scopeToOwner = false, onC
         { new: true, runValidators: true }
       ).lean();
       if (!saved) return res.status(404).json({ success: false, message: 'Record not found' });
+      if (onUpdate) await onUpdate(clean(saved), req);
       res.json({ success: true, data: clean(saved) });
     } catch (error) {
       sendError(res, error);

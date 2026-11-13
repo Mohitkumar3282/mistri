@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   ShieldCheck,
@@ -32,7 +32,11 @@ export const OnlinePaymentModal = ({
   customer = {},
   summary = {},
   onPaymentSuccess,
+  onPaymentError,
+  directCheckout = false,
 }) => {
+  const checkoutStartedRef = useRef(false);
+  const paymentOrderIdRef = useRef(null);
   // Main payment method selection
   const [selectedMethod, setSelectedMethod] = useState('phonepe'); // 'phonepe' | 'gpay' | 'paytm' | 'apps_qr' | 'card' | 'netbanking'
   const [activeSubView, setActiveSubView] = useState(null); // null | 'qr_modal' | 'card_form' | 'bank_selector' | 'breakup' | 'failed_recovery'
@@ -88,8 +92,6 @@ export const OnlinePaymentModal = ({
       setTimerSeconds(53);
     }
   }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const formatTimeout = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -152,6 +154,15 @@ export const OnlinePaymentModal = ({
 
   const showFailure = (reason) => {
     setIsProcessing(false);
+    if (directCheckout) {
+      if (paymentOrderIdRef.current) {
+        api.cancelPaymentOrder(paymentOrderIdRef.current).catch(() => {});
+        paymentOrderIdRef.current = null;
+      }
+      onPaymentError?.(reason);
+      onClose?.();
+      return;
+    }
     setFailureReason(reason);
     setActiveSubView('failed_recovery');
   };
@@ -212,6 +223,8 @@ export const OnlinePaymentModal = ({
       return;
     }
 
+    paymentOrderIdRef.current = serverPayment.order.id;
+
     if (typeof window === 'undefined' || !window.Razorpay) {
       showFailure('The payment gateway could not be loaded. Please check your connection and try again.');
       return;
@@ -223,10 +236,11 @@ export const OnlinePaymentModal = ({
         amount: serverPayment.order.amount,
         currency: serverPayment.order.currency || 'INR',
         order_id: serverPayment.order.id,
-        name: 'MISTRI / NOYOONLINE',
+        name: 'MISTRI',
         description: `Order Payment for ${orderItems.length || 1} items`,
         image: 'https://cdn-icons-png.flaticon.com/512/891/891462.png',
         handler: function (response) {
+          paymentOrderIdRef.current = null;
           triggerSuccessCallback({
             razorpayPaymentId: response.razorpay_payment_id,
             razorpayOrderId: response.razorpay_order_id,
@@ -248,7 +262,14 @@ export const OnlinePaymentModal = ({
         },
         modal: {
           ondismiss: function () {
-            showFailure('Payment window was dismissed or cancelled.');
+            if (directCheckout) {
+              if (paymentOrderIdRef.current) {
+                api.cancelPaymentOrder(paymentOrderIdRef.current).catch(() => {});
+                paymentOrderIdRef.current = null;
+              }
+              onClose?.();
+            }
+            else showFailure('Payment window was dismissed or cancelled.');
           },
         },
       };
@@ -277,6 +298,17 @@ export const OnlinePaymentModal = ({
     initiateRazorpayCheckout('upi');
   };
 
+  useEffect(() => {
+    if (!isOpen) {
+      checkoutStartedRef.current = false;
+      return;
+    }
+    if (directCheckout && !checkoutStartedRef.current) {
+      checkoutStartedRef.current = true;
+      initiateRazorpayCheckout();
+    }
+  }, [isOpen, directCheckout]);
+
   const popularBanks = [
     { code: 'HDFC', name: 'HDFC Bank', color: '#004c8f' },
     { code: 'SBI', name: 'State Bank of India', color: '#280071' },
@@ -291,6 +323,8 @@ export const OnlinePaymentModal = ({
   const filteredBanks = popularBanks.filter((b) =>
     b.name.toLowerCase().includes(bankSearch.toLowerCase())
   );
+
+  if (!isOpen || directCheckout) return null;
 
   return (
     <div

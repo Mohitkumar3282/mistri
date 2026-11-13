@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  assetsInclude: ['**/*.mpeg'],
   plugins: [
     react({
       babel: {

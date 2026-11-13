@@ -1,5 +1,6 @@
 import PaymentIntent from '../models/PaymentIntent.js';
 import { priceCart } from '../utils/orderPricing.js';
+import { consumeCouponUse, releaseCouponUse, reserveCouponUse } from '../services/coupons.js';
 import { isConfigured, publicKey, sandboxAllowed, createGatewayOrder, confirmPayment } from '../utils/razorpay.js';
 
 // Show enough of the key to spot a wrong or stale one in the logs, without printing it.
@@ -29,11 +30,13 @@ export const getRazorpayKey = async (req, res) => {
  * @access Private (signed-in shopper)
  */
 export const createRazorpayOrder = async (req, res) => {
+  const reservedCoupons = [];
   try {
     const { items, couponCode, includeUnloading, isUnloadingSelected, deliveryOption } = req.body || {};
-    const { lines, totals, couponCode: appliedCode } = await priceCart({
+    const { lines, totals, couponCode: appliedCode, couponDiscountAmount, couponDiscounts, couponOwnerUserId } = await priceCart({
       items,
       couponCode,
+      userId: String(req.user._id),
       includeUnloading: Boolean(includeUnloading ?? isUnloadingSelected ?? false),
       deliveryOption: deliveryOption === 'express' ? 'express' : 'normal',
     });
@@ -77,6 +80,21 @@ export const createRazorpayOrder = async (req, res) => {
       };
     }
 
+    if (appliedCode) {
+      const codes = appliedCode.split(',').filter(Boolean);
+      for (const code of codes) {
+        reservedCoupons.push(await reserveCouponUse({
+          code,
+          userId: String(req.user._id),
+          referenceId: gatewayOrder.id,
+          discountAmount: couponDiscounts.find((item) => item.code === code)?.amount || 0,
+          orderValue: totals.subtotal,
+          userName: req.user.name || '',
+          userPhone: req.user.phone || '',
+        }));
+      }
+    }
+
     await PaymentIntent.create({
       id: gatewayOrder.id,
       userId: String(req.user._id),
@@ -85,6 +103,9 @@ export const createRazorpayOrder = async (req, res) => {
       lines,
       totals,
       couponCode: appliedCode,
+      couponOwnerUserId,
+      couponDiscountAmount,
+      couponDiscounts,
     });
 
     res.json({
@@ -95,6 +116,7 @@ export const createRazorpayOrder = async (req, res) => {
       sandbox: gatewayOrder.id.startsWith('order_local_'),
     });
   } catch (error) {
+    await Promise.all(reservedCoupons.map((reservation) => releaseCouponUse({ code: reservation.code, userId: reservation.userId, referenceId: reservation.referenceId }).catch(() => {})));
     res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
@@ -137,5 +159,23 @@ export const verifyPayment = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, verified: false, message: error.message });
+  }
+};
+
+export const cancelPaymentOrder = async (req, res) => {
+  try {
+    const orderId = String(req.body?.razorpayOrderId || '');
+    if (!orderId) return res.status(400).json({ success: false, message: 'Payment order ID is required' });
+    const intent = await PaymentIntent.findOneAndUpdate(
+      { id: orderId, userId: String(req.user._id), status: 'created' },
+      { $set: { status: 'cancelled' } },
+      { new: true }
+    ).lean();
+    if (intent?.couponCode) {
+      await Promise.all(String(intent.couponCode).split(',').filter(Boolean).map((code) => releaseCouponUse({ code, userId: intent.userId, referenceId: orderId })));
+    }
+    res.json({ success: true, cancelled: Boolean(intent) });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };

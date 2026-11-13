@@ -41,6 +41,8 @@ const ContactView = React.lazy(() => import('./views/ContactView'));
 const HelpFaqView = React.lazy(() => import('./views/HelpFaqView'));
 const TermsView = React.lazy(() => import('./views/TermsView'));
 const PrivacyPolicyView = React.lazy(() => import('./views/PrivacyPolicyView'));
+const ReferralView = React.lazy(() => import('./views/ReferralView'));
+const WalletView = React.lazy(() => import('./views/WalletView'));
 
 // Admin panel is huge and only ever used by the store owner, not shoppers - loading it
 // as a separate chunk keeps it out of what every customer downloads just to browse.
@@ -115,7 +117,7 @@ function MainAppLayout() {
   }
 
   // Hide global website header (logo, search bar) on categories, orders, order-details, order-tracking, profile, admin, cart, checkout
-  const isCustomHeaderView = ['categories', 'orders', 'order-details', 'order-tracking', 'profile', 'admin', 'cart', 'checkout'].includes(currentView);
+  const isCustomHeaderView = ['categories', 'orders', 'order-details', 'order-tracking', 'profile', 'wallet', 'referrals', 'admin', 'cart', 'checkout'].includes(currentView);
   const hideMobileHeader = isCustomHeaderView || currentView === 'product-details';
 
   const renderActiveView = () => {
@@ -152,6 +154,10 @@ function MainAppLayout() {
         return <WishlistView />;
       case 'profile':
         return <ProfileView />;
+      case 'referrals':
+        return <ReferralView />;
+      case 'wallet':
+        return <WalletView />;
       case 'addresses':
         return <AddressesView />;
       case 'notifications':
