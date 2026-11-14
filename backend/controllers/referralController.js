@@ -9,7 +9,7 @@ const getClientBaseUrl = (req) => {
   const configuredIsLocal = configuredUrl && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredUrl);
   // A local development default must not leak into referral links sent from production.
   const requestOrigin = req.get('origin');
-  const baseUrl = configuredUrl && !configuredIsLocal ? configuredUrl : (requestOrigin || configuredUrl || 'http://localhost:5173');
+  const baseUrl = configuredUrl && !configuredIsLocal ? configuredUrl : (requestOrigin || 'https://m-mistri.com');
   return baseUrl.replace(/\/$/, '');
 };
 
