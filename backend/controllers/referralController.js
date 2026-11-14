@@ -4,6 +4,15 @@ import { getReferralConfig } from '../services/referrals.js';
 
 const id = (user) => String(user._id);
 
+const getClientBaseUrl = (req) => {
+  const configuredUrl = process.env.CLIENT_URL?.split(',')[0]?.trim();
+  const configuredIsLocal = configuredUrl && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredUrl);
+  // A local development default must not leak into referral links sent from production.
+  const requestOrigin = req.get('origin');
+  const baseUrl = configuredUrl && !configuredIsLocal ? configuredUrl : (requestOrigin || configuredUrl || 'http://localhost:5173');
+  return baseUrl.replace(/\/$/, '');
+};
+
 export const referralSummary = async (req, res, next) => {
   try {
     const userId = id(req.user);
@@ -19,7 +28,7 @@ export const referralSummary = async (req, res, next) => {
     const used = Number(user.referralLimitUsed || 0);
     res.json({ success: true, data: {
       code: user.referralCode,
-      link: `${process.env.CLIENT_URL?.split(',')[0] || 'http://localhost:5173'}/signup?ref=${encodeURIComponent(user.referralCode)}`,
+      link: `${getClientBaseUrl(req)}/signup?ref=${encodeURIComponent(user.referralCode)}`,
       referrals,
       ownReferral,
       ledger,

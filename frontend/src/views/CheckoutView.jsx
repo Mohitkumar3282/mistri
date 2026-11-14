@@ -53,6 +53,8 @@ export const CheckoutView = () => {
     grandTotal,
     siteSettings,
     addresses,
+    addAddress,
+    updateAddress,
     placeOrder,
     addToast,
     navigateTo,
@@ -65,7 +67,7 @@ export const CheckoutView = () => {
     isDetectingLocation,
   } = useStore();
 
-  const [selectedAddressId, setSelectedAddressId] = useState(addresses[0]?.id || 'addr_1');
+  const [selectedAddressId, setSelectedAddressId] = useState(addresses.find((address) => address.isDefault)?.id || addresses[0]?.id || 'addr_1');
   const [paymentMethod, setPaymentMethod] = useState('online'); // 'online' | 'cash'
   const [isCouponsOpen, setIsCouponsOpen] = useState(false);
   const [couponInput, setCouponInput] = useState('');
@@ -88,6 +90,10 @@ export const CheckoutView = () => {
   const [isOrderProcessing, setIsOrderProcessing] = useState(false);
   const [isOrderSuccess, setIsOrderSuccess] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [isAddressFormOpen, setIsAddressFormOpen] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState(null);
+  const emptyAddress = () => ({ title: '', recipientName: user?.name || '', phone: user?.phone || '', addressLine: '', locality: '', city: currentCity || '', state: '', pincode: '', unloadingNotes: '' });
+  const [addressForm, setAddressForm] = useState(emptyAddress);
   const [deliveryOption, setDeliveryOption] = useState('normal');
   const [walletInfo, setWalletInfo] = useState(null);
   useEffect(() => { if (user) api.getReferralSummary().then((r) => setWalletInfo(r.data)).catch(() => setWalletInfo(null)); }, [user?._id]);
@@ -101,6 +107,31 @@ export const CheckoutView = () => {
     } catch (err) {
       console.error('GPS fetch failed in checkout:', err);
     }
+  };
+
+  const openAddressForm = (address = null) => {
+    setEditingAddressId(address?.id || null);
+    setAddressForm(address ? { ...emptyAddress(), ...address } : emptyAddress());
+    setIsAddressModalOpen(true);
+    setIsAddressFormOpen(true);
+  };
+
+  const saveCheckoutAddress = (event) => {
+    event.preventDefault();
+    const normalized = { ...addressForm, title: addressForm.title.trim() || 'Delivery address', pincode: addressForm.pincode.trim() };
+    if (!normalized.addressLine.trim() || !normalized.locality.trim() || !normalized.city.trim() || !normalized.state.trim() || !/^\d{6}$/.test(normalized.pincode)) {
+      addToast('Enter the full address and a valid 6-digit pincode', 'error');
+      return;
+    }
+    if (editingAddressId) {
+      updateAddress(editingAddressId, normalized);
+      setSelectedAddressId(editingAddressId);
+    } else {
+      const saved = addAddress(normalized);
+      setSelectedAddressId(saved.id);
+    }
+    setIsAddressFormOpen(false);
+    setIsAddressModalOpen(false);
   };
 
   const selectedAddress =
@@ -513,14 +544,14 @@ export const CheckoutView = () => {
                 <div style={{ display: 'flex', gap: '8px', fontSize: '0.75rem' }}>
                   <button
                     type="button"
-                    onClick={() => setIsAddressModalOpen(true)}
+                    onClick={() => openAddressForm(selectedAddress)}
                     style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 0 }}
                   >
                     Edit
                   </button>
                   <button
                     type="button"
-                    onClick={() => setIsAddressModalOpen(true)}
+                    onClick={() => { setIsAddressFormOpen(false); setIsAddressModalOpen(true); }}
                     style={{ background: 'none', border: 'none', color: '#E11D48', fontWeight: '700', cursor: 'pointer', padding: 0 }}
                   >
                     Change
@@ -530,7 +561,7 @@ export const CheckoutView = () => {
 
               <div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.4 }}>
                 {selectedAddress.recipientName && <span>{selectedAddress.recipientName}, </span>}
-                {selectedAddress.addressLine}, {selectedAddress.city} - {selectedAddress.pincode}
+                {selectedAddress.addressLine}{selectedAddress.locality ? `, ${selectedAddress.locality}` : ''}, {selectedAddress.city}{selectedAddress.state ? `, ${selectedAddress.state}` : ''} - {selectedAddress.pincode}
               </div>
 
               {/* Serviceability Status Badge */}
@@ -1222,7 +1253,7 @@ export const CheckoutView = () => {
             justifyContent: 'center',
             zIndex: 9999,
           }}
-          onClick={() => setIsAddressModalOpen(false)}
+          onClick={() => { setIsAddressModalOpen(false); setIsAddressFormOpen(false); }}
         >
           <div
             style={{
@@ -1239,17 +1270,41 @@ export const CheckoutView = () => {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                Select Delivery Address
+                {isAddressFormOpen ? (editingAddressId ? 'Edit Delivery Address' : 'Add Delivery Address') : 'Select Delivery Address'}
               </h3>
               <button
                 type="button"
-                onClick={() => setIsAddressModalOpen(false)}
+                onClick={() => { setIsAddressModalOpen(false); setIsAddressFormOpen(false); }}
                 style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}
               >
                 <X size={20} />
               </button>
             </div>
 
+            {isAddressFormOpen ? (
+              <form onSubmit={saveCheckoutAddress} style={{ display: 'grid', gap: 12 }}>
+                {[
+                  ['title', 'Address label (Home, Site, Office)', 'e.g. New construction site'],
+                  ['recipientName', 'Recipient name', 'Name of person receiving delivery'],
+                  ['phone', 'Contact number', 'Contact mobile number'],
+                  ['addressLine', 'House / plot, building and street', 'House or plot number, building, street'],
+                  ['locality', 'Area / locality / landmark', 'Area, neighborhood or nearby landmark'],
+                  ['city', 'City', 'City'],
+                  ['state', 'State', 'State'],
+                  ['pincode', '6-digit pincode', '452005'],
+                ].map(([key, label, placeholder]) => (
+                  <label key={key} style={{ display: 'grid', gap: 5, color: '#334155', fontSize: 13, fontWeight: 700 }}>
+                    {label}
+                    <input required={!['title', 'recipientName', 'phone'].includes(key)} type="text" inputMode={key === 'pincode' || key === 'phone' ? 'numeric' : undefined} maxLength={key === 'pincode' ? 6 : key === 'phone' ? 15 : undefined} placeholder={placeholder} value={addressForm[key] || ''} onChange={(event) => setAddressForm((prev) => ({ ...prev, [key]: key === 'pincode' ? event.target.value.replace(/\D/g, '') : event.target.value }))} style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: '1px solid #CBD5E1', borderRadius: 9, font: 'inherit', fontWeight: 400 }} />
+                  </label>
+                ))}
+                <label style={{ display: 'grid', gap: 5, color: '#334155', fontSize: 13, fontWeight: 700 }}>Delivery instructions (optional)<textarea rows={2} placeholder="Gate, floor or unloading instructions" value={addressForm.unloadingNotes || ''} onChange={(event) => setAddressForm((prev) => ({ ...prev, unloadingNotes: event.target.value }))} style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: '1px solid #CBD5E1', borderRadius: 9, font: 'inherit', fontWeight: 400 }} /></label>
+                <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                  <button type="button" onClick={() => setIsAddressFormOpen(false)} style={{ flex: 1, padding: 12, background: '#F1F5F9', color: '#334155', borderRadius: 9, border: 0, fontWeight: 700 }}>Back</button>
+                  <button type="submit" style={{ flex: 1, padding: 12, background: '#E11D48', color: '#FFFFFF', borderRadius: 9, border: 0, fontWeight: 700 }}>Save address</button>
+                </div>
+              </form>
+            ) : <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
               {addresses.map((addr) => (
                 <div
@@ -1276,7 +1331,7 @@ export const CheckoutView = () => {
                   </div>
                   <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
                     {addr.recipientName && <span>{addr.recipientName} • {addr.phone}<br /></span>}
-                    {addr.addressLine}, {addr.city} - {addr.pincode}
+                    {addr.addressLine}{addr.locality ? `, ${addr.locality}` : ''}, {addr.city}{addr.state ? `, ${addr.state}` : ''} - {addr.pincode}
                   </div>
                 </div>
               ))}
@@ -1284,10 +1339,7 @@ export const CheckoutView = () => {
 
             <button
               type="button"
-              onClick={() => {
-                setIsAddressModalOpen(false);
-                setIsLocationModalOpen(true);
-              }}
+              onClick={() => openAddressForm()}
               style={{
                 width: '100%',
                 padding: '12px',
@@ -1300,8 +1352,9 @@ export const CheckoutView = () => {
                 cursor: 'pointer',
               }}
             >
-              + Add / Change City or Location
+              + Add a new delivery address
             </button>
+            </>}
           </div>
         </div>
       )}

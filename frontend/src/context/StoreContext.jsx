@@ -2351,6 +2351,15 @@ export const StoreProvider = ({ children }) => {
     return newAddrObj;
   };
 
+  const updateAddress = (id, changes) => {
+    setAddresses((prev) => {
+      const updated = prev.map((address) => address.id === id ? { ...address, ...changes, id } : address);
+      setStored('saved_addresses', updated);
+      return updated;
+    });
+    addToast('Delivery address updated', 'success');
+  };
+
   const deleteAddress = (id) => {
     setAddresses((prev) => {
       const updated = prev.filter((a) => a.id !== id);
@@ -2656,6 +2665,7 @@ export const StoreProvider = ({ children }) => {
         // Addresses & Notifications
         addresses,
         addAddress,
+        updateAddress,
         deleteAddress,
         setDefaultAddress,
         fetchCurrentGpsLocation,
