@@ -34,6 +34,7 @@ export const OnlinePaymentModal = ({
   onPaymentSuccess,
   onPaymentError,
   directCheckout = false,
+  walletTopUp = false,
 }) => {
   const checkoutStartedRef = useRef(false);
   const paymentOrderIdRef = useRef(null);
@@ -168,8 +169,7 @@ export const OnlinePaymentModal = ({
   };
 
   // Ask the server to price the cart and open a Razorpay order for exactly that amount.
-  const startServerPayment = () =>
-    api.createPaymentOrder({
+  const startServerPayment = () => walletTopUp ? api.createWalletTopUpOrder(amount) : api.createPaymentOrder({
       items: orderItems.map((item) => ({
         product: { id: item.product?.id ?? item.id, variantSelection: item.product?.variantSelection || undefined },
         quantity: item.quantity,
@@ -237,7 +237,7 @@ export const OnlinePaymentModal = ({
         currency: serverPayment.order.currency || 'INR',
         order_id: serverPayment.order.id,
         name: 'MISTRI',
-        description: `Order Payment for ${orderItems.length || 1} items`,
+        description: walletTopUp ? 'Mistri Wallet Top-up' : `Order Payment for ${orderItems.length || 1} items`,
         image: 'https://cdn-icons-png.flaticon.com/512/891/891462.png',
         handler: function (response) {
           paymentOrderIdRef.current = null;

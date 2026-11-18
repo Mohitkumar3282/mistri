@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import {
   Star,
   Heart,
@@ -65,7 +65,7 @@ export const ProductDetailsView = () => {
   const galleryDragStartXRef = useRef(0);
   const galleryDragMovedRef = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = galleryViewportRef.current;
     if (!el) return;
     const measure = () => setGalleryViewportWidth(el.offsetWidth);
@@ -427,6 +427,10 @@ export const ProductDetailsView = () => {
                 height: 'clamp(280px, 68vw, 420px)',
                 boxShadow: '0 2px 10px rgba(8, 39, 76, 0.04)',
                 touchAction: 'pan-y',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                WebkitTapHighlightColor: 'transparent',
+                overscrollBehaviorX: 'none',
                 cursor: galleryCount > 1 ? (isGalleryDragging ? 'grabbing' : 'grab') : 'default',
               }}
             >
@@ -436,6 +440,7 @@ export const ProductDetailsView = () => {
                   display: 'flex',
                   width: '100%',
                   height: '100%',
+                  willChange: 'transform',
                   transform: `translateX(${-clampGalleryIndex(activeImgIdx) * galleryViewportWidth + galleryDragOffset}px)`,
                   transition: isGalleryDragging ? 'none' : 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)',
                 }}

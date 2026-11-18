@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import {
   Truck,
   ShieldCheck,
@@ -73,7 +73,7 @@ export const HomeView = () => {
   const heroDragStartXRef = useRef(0);
   const heroDragMovedRef = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = heroViewportRef.current;
     if (!el) return;
     const measure = () => setHeroViewportWidth(el.offsetWidth);
@@ -210,6 +210,10 @@ export const HomeView = () => {
               boxShadow: 'var(--shadow-card)',
               border: '1px solid var(--border-subtle)',
               touchAction: 'pan-y',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              WebkitTapHighlightColor: 'transparent',
+              overscrollBehaviorX: 'none',
               cursor: heroSlideCount > 1 ? (isHeroDragging ? 'grabbing' : 'grab') : 'default',
             }}
           >
@@ -217,6 +221,7 @@ export const HomeView = () => {
             style={{
               display: 'flex',
               width: '100%',
+              willChange: 'transform',
               transform: `translateX(${-clampHeroIndex(activeSlide) * heroViewportWidth + heroDragOffset}px)`,
               transition: isHeroDragging ? 'none' : 'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)',
             }}

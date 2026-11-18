@@ -10,8 +10,9 @@ export default function ReferralView() {
   useEffect(() => { api.getReferralSummary().then((r) => setData(r.data)).catch((e) => addToast(e.message, 'error')).finally(() => setLoading(false)); }, []);
   const copy = async (value, label) => { try { await navigator.clipboard.writeText(value); addToast(`${label} copied`, 'success'); } catch { addToast('Could not access clipboard', 'error'); } };
   const share = async () => {
-    if (navigator.share) await navigator.share({ title: 'Join me on Mistri', text: 'Sign up with my referral link and earn wallet rewards.', url: data.link });
-    else window.open(`https://wa.me/?text=${encodeURIComponent(`Join me on Mistri: ${data.link}`)}`, '_blank', 'noopener,noreferrer');
+    const message = `Download the Mistri app from Google Play: ${data.link}\n\nWhen you register, enter my referral code: ${data.code}`;
+    if (navigator.share) await navigator.share({ title: 'Join me on Mistri', text: message, url: data.link });
+    else window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
   const referrals = data?.referrals || [];
   const earned = (data?.ledger || []).filter((x) => x.status === 'Credited').reduce((n, x) => n + Number(x.amount || 0), 0);
@@ -21,8 +22,8 @@ export default function ReferralView() {
       <section className="referral-share-card">
         <div className="referral-card-heading"><span className="referral-heading-icon"><Gift size={17}/></span><div><strong>Invite friends, earn rewards</strong><small>Share your code and grow your Mistri wallet</small></div></div>
         <div className="referral-code-row"><div><span className="referral-eyebrow">YOUR REFERRAL CODE</span><strong className="referral-code-value">{data.code || '—'}</strong></div><button className="referral-copy-code" onClick={() => copy(data.code, 'Referral code')}><Copy size={15}/> Copy code</button></div>
-        <div className="referral-link-label">Your personal invite link</div><div className="referral-link-value">{data.link}</div>
-        <div className="referral-share-actions"><button className="referral-copy-link" onClick={() => copy(data.link, 'Referral link')}><Copy size={16}/> Copy link</button><button className="referral-share-button" onClick={share} disabled={!data.config?.enabled}><Share2 size={16}/> Share invite</button></div>
+        <div className="referral-link-label">Mistri app download link</div><div className="referral-link-value">{data.link}</div>
+        <div className="referral-share-actions"><button className="referral-copy-link" onClick={() => copy(data.link, 'Google Play link')}><Copy size={16}/> Copy Play Store link</button><button className="referral-share-button" onClick={share} disabled={!data.config?.enabled}><Share2 size={16}/> Share invite and code</button></div>
         {!data.config?.enabled && <div className="referral-paused-note">The referral program is temporarily paused.</div>}
       </section>
       <div className="referral-section-heading"><div><h2>Referral overview</h2><p>Your referral progress and wallet at a glance.</p></div><span className="referral-limit-pill">{data.remainingLimit === null ? 'Unlimited invites' : `${data.remainingLimit} invites left`}</span></div>

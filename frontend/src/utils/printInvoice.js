@@ -40,7 +40,8 @@ export function printTaxInvoice(order, siteSettings = {}) {
   const siteAddress = order.siteAddress || {};
   const fullAddress = [
     siteAddress.addressLine,
-    siteAddress.landmark,
+    // Checkout collects this field as `locality`; older addresses may use `landmark`.
+    siteAddress.locality || siteAddress.landmark,
     siteAddress.city || 'Indore',
     siteAddress.state || 'Madhya Pradesh',
     siteAddress.pincode ? `PIN: ${siteAddress.pincode}` : '',

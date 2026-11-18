@@ -10,6 +10,7 @@ const PaymentIntent = createAppModel('PaymentIntent', {
   collection: 'payment_intents',
   fields: {
     userId: { type: String, index: true },
+    purpose: { type: String, default: 'order' }, // order | wallet_topup
     amount: Number, // rupees
     amountPaise: Number,
     lines: [Mixed],

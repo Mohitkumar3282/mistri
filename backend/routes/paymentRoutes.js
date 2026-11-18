@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getRazorpayKey,
   createRazorpayOrder,
+  createWalletTopUpOrder,
   verifyPayment,
   cancelPaymentOrder,
 } from '../controllers/paymentController.js';
@@ -13,6 +14,7 @@ router.get('/key', getRazorpayKey);
 
 // Payments are tied to the shopper's account so they can only be used for their order.
 router.post('/create-order', protect, createRazorpayOrder);
+router.post('/wallet-topup', protect, createWalletTopUpOrder);
 router.post('/verify', protect, verifyPayment);
 router.post('/cancel', protect, cancelPaymentOrder);
 

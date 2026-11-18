@@ -88,10 +88,13 @@ export const api = {
   getMe: (auth) => request('/auth/me', { auth, quiet: true }),
   getReferralSummary: () => request('/referrals/me', { auth: 'user', quiet: true }),
   getWalletHistory: () => request('/referrals/wallet', { auth: 'user', quiet: true }),
+  saveWalletBankAccount: (data) => request('/referrals/wallet/bank-account', json('PUT', data, { auth: 'user', quiet: true })),
+  requestWalletWithdrawal: (amount) => request('/referrals/wallet/withdrawals', json('POST', { amount }, { auth: 'user', quiet: true })),
   getAdminReferrals: () => request('/admin/referrals', { auth: 'admin', quiet: true }),
   saveReferralConfig: (data) => request('/admin/referrals/config', json('PUT', data, { auth: 'admin' })),
   updateReferralUser: (id, data) => request(`/admin/referrals/users/${encodeURIComponent(id)}`, json('PATCH', data, { auth: 'admin' })),
   updateReferralStatus: (id, status) => request(`/admin/referrals/${encodeURIComponent(id)}/status`, json('PATCH', { status }, { auth: 'admin' })),
+  updateWalletWithdrawal: (id, status) => request(`/admin/wallet/withdrawals/${encodeURIComponent(id)}`, json('PATCH', { status }, { auth: 'admin' })),
 
   // Saved addresses & wishlist of the signed-in shopper
   getAccountData: () => request('/auth/account', { auth: 'user', quiet: true }),
@@ -164,6 +167,7 @@ export const api = {
   getPaymentKey: () => request('/payments/key'),
   // Always the shopper's session: the payment must belong to the account placing the order.
   createPaymentOrder: (data) => request('/payments/create-order', json('POST', data, { auth: 'user', quiet: true })),
+  createWalletTopUpOrder: (amount) => request('/payments/wallet-topup', json('POST', { amount }, { auth: 'user', quiet: true })),
   cancelPaymentOrder: (razorpayOrderId) => request('/payments/cancel', json('POST', { razorpayOrderId }, { auth: 'user', quiet: true })),
   verifyPayment: (data) => request('/payments/verify', json('POST', data, { auth: 'user' })),
 

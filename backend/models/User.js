@@ -78,6 +78,14 @@ const userSchema = new mongoose.Schema(
     referralLimitUsed: { type: Number, default: 0 },
     walletBalance: { type: Number, default: 0 },
     walletTransactionIds: { type: [String], default: [] },
+    bankAccount: {
+      accountHolderName: { type: String, trim: true, default: '' },
+      accountNumber: { type: String, trim: true, default: '' },
+      ifscCode: { type: String, trim: true, uppercase: true, default: '' },
+      bankName: { type: String, trim: true, default: '' },
+      accountType: { type: String, enum: ['Savings', 'Current'], default: 'Savings' },
+      upiId: { type: String, trim: true, lowercase: true, default: '' },
+    },
   },
   {
     timestamps: true,

@@ -909,7 +909,9 @@ export const StoreProvider = ({ children }) => {
     coupon: activeCoupon,
     settings: siteSettings,
     includeUnloading: isUnloadingSelected,
-    isExpressDelivery: !getDeliverySchedule(new Date(), siteSettings).isAfter8PM && siteSettings.expressDeliveryEnabled !== false,
+    // Express is only charged after the customer selects it at checkout.
+    // The shared cart total should always represent standard delivery.
+    isExpressDelivery: false,
   });
 
   // Cart Operations

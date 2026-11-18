@@ -3,7 +3,7 @@ import { getAdminStats, getUsers, createUser, updateUser, deleteUser, notificati
 import { sendNotification, listSentNotifications } from '../controllers/userNotificationController.js';
 import { protect, authorize } from '../middlewares/authMiddleware.js';
 import { adminRouter } from './routeFactory.js';
-import { adminReferralData, saveReferralConfig, updateReferralUser, updateReferralStatus } from '../controllers/referralController.js';
+import { adminReferralData, saveReferralConfig, updateReferralUser, updateReferralStatus, updateWalletWithdrawal } from '../controllers/referralController.js';
 import { couponAnalytics } from '../controllers/couponController.js';
 
 const router = express.Router();
@@ -17,6 +17,7 @@ router.get('/referrals', adminReferralData);
 router.put('/referrals/config', saveReferralConfig);
 router.patch('/referrals/users/:id', updateReferralUser);
 router.patch('/referrals/:id/status', updateReferralStatus);
+router.patch('/wallet/withdrawals/:id', updateWalletWithdrawal);
 router.get('/users', getUsers);
 router.post('/users', createUser);
 router.put('/users/:id', updateUser);

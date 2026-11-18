@@ -1,4 +1,6 @@
 import PaymentIntent from '../models/PaymentIntent.js';
+import User from '../models/User.js';
+import { WalletTransaction } from '../models/Referral.js';
 import { priceCart } from '../utils/orderPricing.js';
 import { consumeCouponUse, releaseCouponUse, reserveCouponUse } from '../services/coupons.js';
 import { isConfigured, publicKey, sandboxAllowed, createGatewayOrder, confirmPayment } from '../utils/razorpay.js';
@@ -121,6 +123,24 @@ export const createRazorpayOrder = async (req, res) => {
   }
 };
 
+export const createWalletTopUpOrder = async (req, res) => {
+  try {
+    const amount = Number(req.body?.amount);
+    if (!Number.isFinite(amount) || amount < 10 || amount > 50000 || Math.round(amount * 100) !== amount * 100) {
+      return res.status(400).json({ success: false, message: 'Enter a top-up amount from ₹10 to ₹50,000 (up to two decimal places)' });
+    }
+    if (!isConfigured() && !sandboxAllowed()) return res.status(500).json({ success: false, message: 'Payment gateway is not configured on this server' });
+    const receipt = `wallet_${Date.now().toString().slice(-8)}`;
+    const gatewayOrder = isConfigured()
+      ? await createGatewayOrder({ amountRupees: amount, receipt, notes: { userId: String(req.user._id), purpose: 'wallet_topup', store: 'Mistri' } })
+      : { id: `order_local_${Date.now()}`, amount: Math.round(amount * 100), currency: 'INR' };
+    await PaymentIntent.create({ id: gatewayOrder.id, userId: String(req.user._id), purpose: 'wallet_topup', amount, amountPaise: Number(gatewayOrder.amount), status: 'created' });
+    res.json({ success: true, order: { id: gatewayOrder.id, amount: gatewayOrder.amount, currency: gatewayOrder.currency || 'INR' }, key: publicKey(), sandbox: gatewayOrder.id.startsWith('order_local_') });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, message: error.message || 'Could not start wallet top-up' });
+  }
+};
+
 /**
  * @desc  Check a completed checkout payment against what the server asked to collect.
  *        Placing the order (POST /api/orders) runs the same check; this endpoint lets a
@@ -140,7 +160,8 @@ export const verifyPayment = async (req, res) => {
       return res.status(404).json({ success: false, verified: false, message: 'Unknown payment order' });
     }
 
-    const result = await confirmPayment({
+    const localSandboxTopUp = intent.purpose === 'wallet_topup' && intent.id.startsWith('order_local_') && sandboxAllowed() && String(razorpay_payment_id).startsWith('pay_sandbox_');
+    const result = localSandboxTopUp ? { ok: true } : await confirmPayment({
       razorpayOrderId: razorpay_order_id,
       razorpayPaymentId: razorpay_payment_id,
       razorpaySignature: razorpay_signature,
@@ -149,6 +170,36 @@ export const verifyPayment = async (req, res) => {
 
     if (!result.ok) {
       return res.status(400).json({ success: false, verified: false, message: result.reason });
+    }
+    if (intent.purpose === 'wallet_topup') {
+      if (intent.paymentId && intent.paymentId !== razorpay_payment_id) {
+        return res.status(409).json({ success: false, verified: false, message: 'This wallet top-up order has already been used' });
+      }
+      if (intent.status === 'created') {
+        const claimed = await PaymentIntent.findOneAndUpdate(
+          { id: razorpay_order_id, status: 'created' },
+          { $set: { status: 'processing', paymentId: razorpay_payment_id } },
+          { new: true }
+        ).lean();
+        if (!claimed) {
+          const latest = await PaymentIntent.findOne({ id: razorpay_order_id }).lean();
+          if (latest?.paymentId !== razorpay_payment_id) return res.status(409).json({ success: false, verified: false, message: 'This wallet top-up order has already been used' });
+        }
+      }
+      const transactionId = `TOP-${razorpay_payment_id}`;
+      const credited = await User.findOneAndUpdate(
+        { _id: intent.userId, walletTransactionIds: { $ne: transactionId } },
+        { $inc: { walletBalance: intent.amount }, $addToSet: { walletTransactionIds: transactionId } },
+        { new: true }
+      ).select('walletBalance').lean();
+      if (credited) {
+        await WalletTransaction.updateOne({ transactionId }, { $setOnInsert: { transactionId, userId: intent.userId, type: 'adjustment', status: 'Credited', amount: intent.amount, balanceAfter: credited.walletBalance, description: 'Wallet top-up' } }, { upsert: true });
+      } else if (!(await User.exists({ _id: intent.userId, walletTransactionIds: transactionId }))) {
+        return res.status(404).json({ success: false, verified: false, message: 'Wallet owner not found' });
+      }
+      await PaymentIntent.updateOne({ id: razorpay_order_id, paymentId: razorpay_payment_id }, { $set: { status: 'paid' } });
+      const user = await User.findById(intent.userId).select('walletBalance').lean();
+      return res.json({ success: true, verified: true, credited: true, balance: user?.walletBalance || 0, message: 'Wallet top-up completed' });
     }
     res.json({
       success: true,
