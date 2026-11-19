@@ -4,18 +4,7 @@ import { getReferralConfig } from '../services/referrals.js';
 
 const id = (user) => String(user._id);
 
-<<<<<<< HEAD
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.emistri.user&pcampaignid=web_share';
-=======
-const getClientBaseUrl = (req) => {
-  const configuredUrl = process.env.CLIENT_URL?.split(',')[0]?.trim();
-  const configuredIsLocal = configuredUrl && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredUrl);
-  // A local development default must not leak into referral links sent from production.
-  const requestOrigin = req.get('origin');
-  const baseUrl = configuredUrl && !configuredIsLocal ? configuredUrl : (requestOrigin || 'https://m-mistri.com');
-  return baseUrl.replace(/\/$/, '');
-};
->>>>>>> 4f1c1de6b35d0bf2edc0012a2195973091b28f9a
 
 export const referralSummary = async (req, res, next) => {
   try {
