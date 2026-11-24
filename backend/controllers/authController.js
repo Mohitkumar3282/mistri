@@ -408,7 +408,13 @@ export const getAccountData = async (req, res, next) => {
 export const updateAccountData = async (req, res, next) => {
   try {
     const update = {};
-    if (Array.isArray(req.body?.addresses)) update.addresses = req.body.addresses;
+    if (Array.isArray(req.body?.addresses)) {
+      update.addresses = req.body.addresses;
+      // Keep the admin-facing profile city in sync with the customer's real address
+      // instead of leaving it at whatever "deliver to" city happened to be selected.
+      const primaryAddress = req.body.addresses.find((a) => a?.isDefault) || req.body.addresses[0];
+      if (primaryAddress?.city) update.city = primaryAddress.city;
+    }
     if (Array.isArray(req.body?.wishlist)) update.wishlist = req.body.wishlist;
 
     let user = null;

@@ -66,11 +66,17 @@ export const HomeView = () => {
 
   // Hero Banner swipe/drag - a real sliding track (not just a hard cut), follows the
   // finger/mouse live and snaps to the nearest slide on release. Works for touch and mouse.
+  //
+  // The live drag offset is NOT React state: touchmove fires many times a second on a
+  // real phone, and routing each one through setState re-rendered the whole home page
+  // every time, causing visible stutter. The drag writes straight to the track's
+  // transform via a ref instead, and only touches React state once, at gesture end.
   const heroViewportRef = useRef(null);
+  const heroTrackRef = useRef(null);
   const [heroViewportWidth, setHeroViewportWidth] = useState(0);
   const [isHeroDragging, setIsHeroDragging] = useState(false);
-  const [heroDragOffset, setHeroDragOffset] = useState(0);
   const heroDragStartXRef = useRef(0);
+  const heroDragOffsetRef = useRef(0);
   const heroDragMovedRef = useRef(false);
 
   useLayoutEffect(() => {
@@ -92,21 +98,25 @@ export const HomeView = () => {
     setIsHeroDragging(true);
     heroDragMovedRef.current = false;
     heroDragStartXRef.current = clientX;
+    heroDragOffsetRef.current = 0;
   };
   const handleHeroDragMove = (clientX) => {
     const delta = clientX - heroDragStartXRef.current;
     if (Math.abs(delta) > 5) heroDragMovedRef.current = true;
-    setHeroDragOffset(delta);
+    heroDragOffsetRef.current = delta;
+    const track = heroTrackRef.current;
+    if (track) {
+      track.style.transform = `translateX(${-clampHeroIndex(activeSlide) * heroViewportWidth + delta}px)`;
+    }
   };
   const handleHeroDragEnd = () => {
     setIsHeroDragging((wasDragging) => {
       if (!wasDragging) return false;
-      setHeroDragOffset((offset) => {
-        const threshold = Math.max(40, heroViewportWidth * 0.15);
-        if (offset > threshold) setActiveSlide((prev) => clampHeroIndex(prev - 1));
-        else if (offset < -threshold) setActiveSlide((prev) => clampHeroIndex(prev + 1));
-        return 0;
-      });
+      const offset = heroDragOffsetRef.current;
+      const threshold = Math.max(40, heroViewportWidth * 0.15);
+      if (offset > threshold) setActiveSlide((prev) => clampHeroIndex(prev - 1));
+      else if (offset < -threshold) setActiveSlide((prev) => clampHeroIndex(prev + 1));
+      heroDragOffsetRef.current = 0;
       return false;
     });
     setIsHeroPaused(false);
@@ -218,11 +228,12 @@ export const HomeView = () => {
             }}
           >
           <div
+            ref={heroTrackRef}
             style={{
               display: 'flex',
               width: '100%',
               willChange: 'transform',
-              transform: `translateX(${-clampHeroIndex(activeSlide) * heroViewportWidth + heroDragOffset}px)`,
+              transform: `translateX(${-clampHeroIndex(activeSlide) * heroViewportWidth}px)`,
               transition: isHeroDragging ? 'none' : 'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >

@@ -1296,7 +1296,6 @@ export const StoreProvider = ({ children }) => {
         role: 'customer',
         company: formData.company || '',
         gstin: formData.gstin || '',
-        city: currentCity,
         referralCode: formData.referralCode || '',
       });
     } catch (err) {

@@ -79,6 +79,21 @@ function MainAppLayout() {
   // Force Authentication Gate for unauthenticated visitors while allowing public policy pages
   if (!user) {
     const isPublicPolicyView = ['privacy', 'terms', 'help', 'contact', 'about'].includes(currentView);
+    // Login/Signup/Forgot-Password render their own full-bleed split-screen layout
+    // (AuthLayout) - wrapping them in the centered/padded box below would shrink that
+    // layout down to a small centered card instead of a true full-height split screen.
+    const isAuthPageView = ['signup', 'forgot-password'].includes(currentView) || !isPublicPolicyView;
+
+    if (isAuthPageView) {
+      return (
+        <div>
+          <React.Suspense fallback={<ViewLoadingFallback />}>
+            {currentView === 'signup' ? <SignupView /> : currentView === 'forgot-password' ? <ForgotPasswordView /> : <LoginView />}
+          </React.Suspense>
+          <ToastContainer />
+        </div>
+      );
+    }
 
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
@@ -86,17 +101,13 @@ function MainAppLayout() {
           style={{
             flex: 1,
             display: 'flex',
-            alignItems: isPublicPolicyView ? 'flex-start' : 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
             padding: '1.5rem 1rem',
           }}
         >
           <React.Suspense fallback={<ViewLoadingFallback />}>
-          {currentView === 'signup' ? (
-            <SignupView />
-          ) : currentView === 'forgot-password' ? (
-            <ForgotPasswordView />
-          ) : currentView === 'privacy' ? (
+          {currentView === 'privacy' ? (
             <PrivacyPolicyView />
           ) : currentView === 'terms' ? (
             <TermsView />
@@ -104,10 +115,8 @@ function MainAppLayout() {
             <HelpFaqView />
           ) : currentView === 'contact' ? (
             <ContactView />
-          ) : currentView === 'about' ? (
-            <AboutView />
           ) : (
-            <LoginView />
+            <AboutView />
           )}
           </React.Suspense>
         </main>

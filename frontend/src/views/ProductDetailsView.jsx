@@ -58,11 +58,18 @@ export const ProductDetailsView = () => {
 
   // Gallery swipe/drag - mirrors the home page hero banner carousel: follows the
   // finger/mouse live, then snaps to the nearest image on release.
+  //
+  // The live drag offset is NOT React state: on a real phone, touchmove fires many
+  // times a second, and routing each one through setState re-rendered this whole
+  // (fairly heavy) page every time, which is what caused the visible stutter/jitter.
+  // Instead the drag writes straight to the track's transform via a ref, and only
+  // touches React state (activeImgIdx) once, when the gesture ends.
   const galleryViewportRef = useRef(null);
+  const galleryTrackRef = useRef(null);
   const [galleryViewportWidth, setGalleryViewportWidth] = useState(0);
   const [isGalleryDragging, setIsGalleryDragging] = useState(false);
-  const [galleryDragOffset, setGalleryDragOffset] = useState(0);
   const galleryDragStartXRef = useRef(0);
+  const galleryDragOffsetRef = useRef(0);
   const galleryDragMovedRef = useRef(false);
 
   useLayoutEffect(() => {
@@ -263,21 +270,30 @@ export const ProductDetailsView = () => {
     setIsGalleryDragging(true);
     galleryDragMovedRef.current = false;
     galleryDragStartXRef.current = clientX;
+    galleryDragOffsetRef.current = 0;
   };
   const handleGalleryDragMove = (clientX) => {
+    if (galleryCount <= 1 || !isGalleryDragging) return;
     const delta = clientX - galleryDragStartXRef.current;
     if (Math.abs(delta) > 5) galleryDragMovedRef.current = true;
-    setGalleryDragOffset(delta);
+    galleryDragOffsetRef.current = delta;
+    // Imperative DOM write, no setState - keeps this at 60fps on real devices.
+    const track = galleryTrackRef.current;
+    if (track) {
+      track.style.transform = `translateX(${-clampGalleryIndex(activeImgIdx) * galleryViewportWidth + delta}px)`;
+    }
   };
   const handleGalleryDragEnd = () => {
     setIsGalleryDragging((wasDragging) => {
       if (!wasDragging) return false;
-      setGalleryDragOffset((offset) => {
-        const threshold = Math.max(40, galleryViewportWidth * 0.15);
-        if (offset > threshold) setActiveImgIdx((prev) => clampGalleryIndex(prev - 1));
-        else if (offset < -threshold) setActiveImgIdx((prev) => clampGalleryIndex(prev + 1));
-        return 0;
-      });
+      const offset = galleryDragOffsetRef.current;
+      const threshold = Math.max(40, galleryViewportWidth * 0.15);
+      if (offset > threshold) setActiveImgIdx((prev) => clampGalleryIndex(prev - 1));
+      else if (offset < -threshold) setActiveImgIdx((prev) => clampGalleryIndex(prev + 1));
+      galleryDragOffsetRef.current = 0;
+      // Not clearing the inline transform here on purpose - the re-render this
+      // triggers (activeImgIdx + isGalleryDragging both changed) sets the real
+      // style prop right after, which overwrites it with the transition enabled.
       return false;
     });
   };
@@ -436,12 +452,13 @@ export const ProductDetailsView = () => {
             >
               {/* Sliding Image Track */}
               <div
+                ref={galleryTrackRef}
                 style={{
                   display: 'flex',
                   width: '100%',
                   height: '100%',
                   willChange: 'transform',
-                  transform: `translateX(${-clampGalleryIndex(activeImgIdx) * galleryViewportWidth + galleryDragOffset}px)`,
+                  transform: `translateX(${-clampGalleryIndex(activeImgIdx) * galleryViewportWidth}px)`,
                   transition: isGalleryDragging ? 'none' : 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)',
                 }}
               >

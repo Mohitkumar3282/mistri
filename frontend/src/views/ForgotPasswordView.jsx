@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowLeft, CheckCircle2, Phone, Mail, Key } from 'lucide-react';
+import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import Logo from '../components/Logo';
+import AuthLayout from '../components/AuthLayout';
 
 export const ForgotPasswordView = () => {
   const { navigateTo, addToast } = useStore();
@@ -9,6 +9,7 @@ export const ForgotPasswordView = () => {
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [newPass, setNewPass] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSendOtp = (e) => {
     e.preventDefault();
@@ -24,87 +25,90 @@ export const ForgotPasswordView = () => {
   };
 
   return (
-    <div className="page-container" style={{ maxWidth: '480px' }}>
-      <div
-        style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border-subtle)',
-          boxShadow: 'var(--shadow-md)',
-          padding: '2rem',
-          overflow: 'hidden',
-        }}
-      >
+    <AuthLayout>
+      <div className="auth-form-wrap">
         <button
+          type="button"
           onClick={() => navigateTo('login')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--primary-navy)', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', marginBottom: '1.25rem' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--auth-navy)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', marginBottom: '1.1rem' }}
         >
           <ArrowLeft size={16} />
           <span>Back to Login</span>
         </button>
 
-        <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-          <h1 style={{ fontSize: '1.45rem', color: 'var(--primary-navy)', fontWeight: '800', marginBottom: '4px' }}>
-            {isOtpSent ? 'Verify OTP & Reset PIN' : 'Recover Builder Account'}
+        <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+          <h1 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--auth-navy)' }}>
+            {isOtpSent ? 'Verify OTP & Reset Password' : 'Recover Your Account'}
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+          <p style={{ fontSize: '0.85rem', color: 'var(--auth-text-secondary)', marginTop: '4px' }}>
             {isOtpSent ? `Enter the 4-digit code sent to ${identifier}` : 'Enter your registered mobile or email to receive a password reset OTP'}
           </p>
         </div>
 
         {!isOtpSent ? (
-          <form onSubmit={handleSendOtp}>
-            <div className="form-group">
-              <label className="form-label">Registered Mobile or Email</label>
+          <form onSubmit={handleSendOtp} noValidate>
+            <label className="auth-label" htmlFor="forgot-identifier">Registered Mobile or Email</label>
+            <div className="auth-input-wrap">
+              <Mail size={17} className="auth-input-icon" />
               <input
+                id="forgot-identifier"
                 type="text"
                 required
-                placeholder="+91 98260 11223"
-                className="form-control"
+                placeholder="+91 98260 11223 or you@email.com"
+                className="auth-input"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
               />
             </div>
 
-            <button type="submit" className="btn btn-primary btn-lg btn-block" style={{ fontWeight: '800', marginTop: '1rem' }}>
+            <button type="submit" className="auth-btn-primary" style={{ marginTop: '1.25rem' }}>
               Send Verification OTP
             </button>
           </form>
         ) : (
-          <form onSubmit={handleResetPassword}>
-            <div className="form-group">
-              <label className="form-label">4-Digit Verification Code</label>
+          <form onSubmit={handleResetPassword} noValidate>
+            <div style={{ marginBottom: '1.1rem' }}>
+              <label className="auth-label" htmlFor="forgot-otp">4-Digit Verification Code</label>
               <input
+                id="forgot-otp"
                 type="text"
                 maxLength={4}
                 required
                 placeholder="4829"
-                className="form-control"
+                className="auth-input"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
-                style={{ textAlign: 'center', letterSpacing: '4px', fontSize: '1.2rem', fontWeight: '800' }}
+                style={{ textAlign: 'center', letterSpacing: '6px', fontSize: '1.15rem', fontWeight: 800, paddingLeft: '14px' }}
               />
             </div>
 
-            <div className="form-group">
-              <label className="form-label">New Password</label>
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                className="form-control"
-                value={newPass}
-                onChange={(e) => setNewPass(e.target.value)}
-              />
+            <div>
+              <label className="auth-label" htmlFor="forgot-new-password">New Password</label>
+              <div className="auth-input-wrap">
+                <Lock size={17} className="auth-input-icon" />
+                <input
+                  id="forgot-new-password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Enter a new password"
+                  className="auth-input"
+                  style={{ paddingRight: '42px' }}
+                  value={newPass}
+                  onChange={(e) => setNewPass(e.target.value)}
+                />
+                <button type="button" className="auth-input-toggle" onClick={() => setShowPassword((v) => !v)} tabIndex={-1} aria-label="Toggle password visibility">
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
             </div>
 
-            <button type="submit" className="btn btn-primary btn-lg btn-block" style={{ fontWeight: '800', marginTop: '1rem' }}>
+            <button type="submit" className="auth-btn-primary" style={{ marginTop: '1.25rem' }}>
               Update Password & Sign In
             </button>
           </form>
         )}
       </div>
-    </div>
+    </AuthLayout>
   );
 };
 
